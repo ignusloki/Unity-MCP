@@ -30,6 +30,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
         private static readonly string[] _itemUxmlPaths = EditorAssetLoader.GetEditorAssetPaths("Editor/UI/uxml/ToolItem.uxml");
         private static readonly string[] _windowUssPaths = EditorAssetLoader.GetEditorAssetPaths("Editor/UI/uss/McpToolsWindow.uss");
 
+        private Button? _enableFilteredButton;
+        private Button? _disableFilteredButton;
+
         protected override string[] WindowUxmlPaths => _windowUxmlPaths;
         protected override string[] ItemUxmlPaths => _itemUxmlPaths;
         protected override string[] WindowUssPaths => _windowUssPaths;
@@ -48,6 +51,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
 
         protected override Observable<Unit>? GetOnUpdatedObservable(IMcpPlugin plugin)
             => plugin.McpManager.ToolManager?.OnToolsUpdated;
+
+        protected override void InitializeWindowControls(VisualElement root)
+        {
+            _enableFilteredButton = root.Q<Button>("btn-enable-filtered");
+            _disableFilteredButton = root.Q<Button>("btn-disable-filtered");
+
+            if (_enableFilteredButton == null || _disableFilteredButton == null)
+            {
+                Logger.LogWarning("{method} Bulk action buttons are missing from the tools window.", nameof(InitializeWindowControls));
+                return;
+            }
+
+            _enableFilteredButton.clicked += () => ApplyBulkEnabledState(isEnabled: true);
+            _disableFilteredButton.clicked += () => ApplyBulkEnabledState(isEnabled: false);
+        }
 
         protected override void RefreshItems()
         {
@@ -82,6 +100,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
                 toolManager.SetToolEnabled(viewModel.Name, isEnabled);
                 UnityMcpPluginEditor.Instance.Save();
             }
+        }
+
+        protected override void OnFilteredItemsChanged(IReadOnlyList<ToolViewModel> filteredItems)
+        {
+            var hasFilteredItems = filteredItems.Count > 0;
+            _enableFilteredButton?.SetEnabled(hasFilteredItems);
+            _disableFilteredButton?.SetEnabled(hasFilteredItems);
         }
 
         protected override void OnFoldoutChanged(ToolViewModel viewModel, string foldoutName, bool isExpanded)
@@ -151,6 +176,53 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
                 t.Name.Contains(filterText, StringComparison.OrdinalIgnoreCase) ||
                 (t.Title?.Contains(filterText, StringComparison.OrdinalIgnoreCase) == true) ||
                 (t.Description?.Contains(filterText, StringComparison.OrdinalIgnoreCase) == true));
+        }
+
+        internal static int ApplyToolEnabledStateBatch(IToolManager toolManager, IReadOnlyList<ToolViewModel> tools, bool isEnabled)
+        {
+            var changedCount = 0;
+            var visited = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var tool in tools)
+            {
+                if (string.IsNullOrWhiteSpace(tool.Name) || !visited.Add(tool.Name))
+                    continue;
+
+                if (toolManager.IsToolEnabled(tool.Name) == isEnabled)
+                {
+                    tool.IsEnabled = isEnabled;
+                    continue;
+                }
+
+                toolManager.SetToolEnabled(tool.Name, isEnabled);
+                tool.IsEnabled = isEnabled;
+                changedCount++;
+            }
+
+            return changedCount;
+        }
+
+        private void ApplyBulkEnabledState(bool isEnabled)
+        {
+            var toolManager = UnityMcpPluginEditor.Instance.Tools;
+            if (toolManager == null)
+            {
+                Logger.LogError("{method} ToolManager is not available.", nameof(ApplyBulkEnabledState));
+                return;
+            }
+
+            if (CurrentFilteredItems.Count == 0)
+                return;
+
+            var changedCount = ApplyToolEnabledStateBatch(toolManager, CurrentFilteredItems, isEnabled);
+            if (changedCount > 0)
+            {
+                Logger.LogTrace("{method} Applied enabled={enabled} to {count} tools.", nameof(ApplyBulkEnabledState), isEnabled, changedCount);
+                UnityMcpPluginEditor.Instance.Save();
+            }
+
+            RefreshItems();
+            PopulateList();
         }
 
         public class ToolViewModel : IMcpItemViewModel

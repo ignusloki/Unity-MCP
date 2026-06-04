@@ -5,6 +5,20 @@
 
 @import url("common/_mcp-list-window.uss");
 
+.bulk-actions-row {
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+.bulk-action-button {
+    min-width: 112px;
+}
+
+.bulk-action-button-spaced {
+    margin-left: 6px;
+}
+
 /* Prompt-specific: Role label color */
 .item-role {
     color: #8FAADC;

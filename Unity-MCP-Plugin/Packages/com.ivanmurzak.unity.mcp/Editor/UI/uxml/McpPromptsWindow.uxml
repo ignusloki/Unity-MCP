@@ -11,6 +11,10 @@
                 <ui:DropdownField name="type-dropdown" index="0" class="type-dropdown styled-dropdown" />
                 <ui:Label text="Filtered: 0, Total: 0" name="filter-stats-label" class="filter-stats-label" />
             </ui:VisualElement>
+            <ui:VisualElement class="bulk-actions-row">
+                <ui:Button name="btn-enable-filtered" text="Enable Filtered" tooltip="Enable all currently filtered prompts. If no filter is active, this applies to all prompts." class="btn-compact btn-secondary bulk-action-button" />
+                <ui:Button name="btn-disable-filtered" text="Disable Filtered" tooltip="Disable all currently filtered prompts. If no filter is active, this applies to all prompts." class="btn-compact btn-secondary bulk-action-button bulk-action-button-spaced" />
+            </ui:VisualElement>
         </ui:VisualElement>
         <ui:Label name="empty-list-label" text="No prompts by current filter" class="empty-list-label" />
         <ui:ListView name="mcp-list-view" class="mcp-list-view" />

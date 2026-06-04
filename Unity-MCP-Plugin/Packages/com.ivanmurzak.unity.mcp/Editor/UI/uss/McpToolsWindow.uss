@@ -4,6 +4,20 @@
 
 @import url("common/_mcp-list-window.uss");
 
+.bulk-actions-row {
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+.bulk-action-button {
+    min-width: 112px;
+}
+
+.bulk-action-button-spaced {
+    margin-left: 6px;
+}
+
 /* Tool Item Header - column layout with two rows */
 .tool-item-header {
     flex-direction: column;

@@ -49,6 +49,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
 
         protected VisualTreeAsset? itemTemplate;
         protected List<TViewModel> allItems = new();
+        protected IReadOnlyList<TViewModel> CurrentFilteredItems { get; private set; } = Array.Empty<TViewModel>();
 
         protected ListView? listView;
         protected Label? emptyListLabel;
@@ -72,6 +73,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
 
             itemTemplate = EditorAssetLoader.LoadAssetAtPath<VisualTreeAsset>(ItemUxmlPaths, Logger);
             InitializeFilters(rootVisualElement);
+            InitializeWindowControls(rootVisualElement);
 
             RefreshItems();
             PopulateList();
@@ -134,10 +136,19 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
             emptyListLabel = root.Q<Label>("empty-list-label");
         }
 
+        protected virtual void InitializeWindowControls(VisualElement root)
+        {
+        }
+
         protected abstract void RefreshItems();
 
         protected void PopulateList()
         {
+            var filteredItems = FilterItems().ToList();
+            CurrentFilteredItems = filteredItems;
+            UpdateFilterStats(filteredItems);
+            OnFilteredItemsChanged(filteredItems);
+
             if (listView == null)
             {
                 Logger.LogWarning("{method} UI list view missing.", nameof(PopulateList));
@@ -155,9 +166,6 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
                 Logger.LogWarning("{method} Empty list label missing.", nameof(PopulateList));
                 return;
             }
-
-            var filteredItems = FilterItems().ToList();
-            UpdateFilterStats(filteredItems);
 
             listView.visible = filteredItems.Count > 0;
             listView.style.display = filteredItems.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
@@ -180,6 +188,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
             listView.selectionType = SelectionType.None;
             listView.virtualizationMethod = CollectionVirtualizationMethod.DynamicHeight;
             listView.Rebuild();
+        }
+
+        protected virtual void OnFilteredItemsChanged(IReadOnlyList<TViewModel> filteredItems)
+        {
         }
 
         protected virtual VisualElement MakeItem()
