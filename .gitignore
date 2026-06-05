@@ -9,6 +9,7 @@
 .gemini
 .aider*
 .roo
+.codex/config.toml
 
 # Commands and env files
 commands/TestResults
@@ -20,6 +21,9 @@ commands/.env
 
 # Documentation
 .CONVENTIONS.md
+
+# Local Unity test project
+Unity-test/
 
 # Wiki project
 Unity-MCP.wiki
