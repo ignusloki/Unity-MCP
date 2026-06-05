@@ -39,6 +39,31 @@ namespace AIGD
         public string? ColorHex { get; set; }
     }
 
+    [Description("Structured input for adding a new Shader Graph blackboard property.")]
+    public class ShaderGraphAddPropertyInput
+    {
+        [Description("Property type to create. Supported values: color, float.")]
+        public string? PropertyType { get; set; }
+
+        [Description("Display name for the new property.")]
+        public string? DisplayName { get; set; }
+
+        [Description("Optional override reference name, such as '_MyColor'. If omitted, a default name is generated from the display name.")]
+        public string? OverrideReferenceName { get; set; }
+
+        [Description("Whether the new property should be hidden.")]
+        public bool? Hidden { get; set; }
+
+        [Description("Whether the new property should generate a material property block entry. Default: true.")]
+        public bool? GeneratePropertyBlock { get; set; }
+
+        [Description("Default color for a color property. Example: '#FF7A00CC'. Used only when propertyType is color.")]
+        public string? ColorHex { get; set; }
+
+        [Description("Default float value for a float property. Used only when propertyType is float.")]
+        public float? FloatValue { get; set; }
+    }
+
     [Description("Result of updating a Shader Graph blackboard property and re-importing the graph.")]
     public class ShaderGraphPropertyMutationResultData
     {

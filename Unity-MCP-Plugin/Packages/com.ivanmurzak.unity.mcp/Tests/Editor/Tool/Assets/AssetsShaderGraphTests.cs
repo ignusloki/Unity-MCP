@@ -333,6 +333,97 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_AddProperty_AddsColorAndFloatProperties()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddProperty.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var colorResult = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Accent",
+                        OverrideReferenceName = "_AccentColor",
+                        ColorHex = "#44CC88FF"
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var floatResult = tool.AddProperty(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Glow Strength",
+                        OverrideReferenceName = "_GlowStrength",
+                        FloatValue = 0.75f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(colorResult);
+                Assert.IsNotNull(colorResult.Property);
+                Assert.AreEqual("Accent", colorResult.Property!.Name);
+                Assert.AreEqual("_AccentColor", colorResult.Property.OverrideReferenceName);
+                StringAssert.Contains("\"g\": 0.8", colorResult.Property.ValueJson);
+
+                Assert.IsNotNull(floatResult);
+                Assert.IsNotNull(floatResult.Property);
+                Assert.AreEqual("Glow Strength", floatResult.Property!.Name);
+                Assert.AreEqual("_GlowStrength", floatResult.Property.OverrideReferenceName);
+                Assert.AreEqual("0.75", floatResult.Property.ValueJson);
+
+                Assert.IsNotNull(floatResult.Structure);
+                Assert.IsTrue(floatResult.Structure!.Properties!.Any(p => p.OverrideReferenceName == "_AccentColor"));
+                Assert.IsTrue(floatResult.Structure.Properties.Any(p => p.OverrideReferenceName == "_GlowStrength"));
+
+                Assert.IsNotNull(floatResult.Graph);
+                Assert.IsTrue(floatResult.Graph!.ShaderResolved, "Updated Shader Graph should still resolve a compiled shader.");
+                Assert.IsFalse(floatResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Adding blackboard properties should not introduce import errors.");
+                Assert.IsTrue(floatResult.Graph.Properties!.Any(p => p.Name == "_AccentColor"),
+                    "Compiled shader properties should include the added color property.");
+                Assert.IsTrue(floatResult.Graph.Properties.Any(p => p.Name == "_GlowStrength"),
+                    "Compiled shader properties should include the added float property.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_AddProperty_DuplicateDisplayName_Throws()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddProperty_Duplicate.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                Assert.Throws<InvalidOperationException>(() => tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Color",
+                        OverrideReferenceName = "_AnotherColor",
+                        ColorHex = "#FFFFFFFF"
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_Create_ClonesTemplateAndImportsShader()
         {
             var assetPath = $"{TestFolder}/Validation_Create.shadergraph";

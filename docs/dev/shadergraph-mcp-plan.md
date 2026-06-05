@@ -138,6 +138,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `assets-shadergraph-get-data`
   - `assets-shadergraph-get-structure`
   - `assets-shadergraph-get-settings`
+  - `assets-shadergraph-add-property`
   - `assets-shadergraph-create`
   - `assets-shadergraph-create-material`
   - `assets-shadergraph-create-from-style-recipe`
@@ -156,6 +157,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetData.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetStructure.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetSettings.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddProperty.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Create.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateMaterial.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateFromStyleRecipe.cs`
@@ -216,6 +218,19 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
     - `ReferenceName = _DiffuseTex`
   - Reimported compiled shader kept resolving without `Error`
   - Compiled shader properties included `_TintColor` and `_DiffuseTex`
+- Epic 5 second slice validated live in Unity through `script_execute`:
+  - Created validation graph: `Assets/ShaderGraphValidation/Codex_AddProperty_Validation.shadergraph`
+  - Created validation material: `Assets/ShaderGraphValidation/Codex_AddProperty_Validation.mat`
+  - Added color property:
+    - `DisplayName = Accent`
+    - `ReferenceName = _AccentColor`
+    - `ColorHex = #44CC88FF`
+  - Added float property:
+    - `DisplayName = Glow Strength`
+    - `ReferenceName = _GlowStrength`
+    - `FloatValue = 0.75`
+  - Reimported compiled shader kept resolving without `Error`
+  - Compiled shader properties included `_AccentColor` and `_GlowStrength`
 - Shader Graph live result after creation:
   - `SourceParsed = true`
   - `ShaderResolved = true`
@@ -248,9 +263,10 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 ## Current Checkpoint
 
-- Epic 5 first property slice is implemented
+- Epic 5 second property slice is implemented
 - Scope delivered:
   - update existing blackboard properties by object id or effective reference name
+  - add new blackboard properties to the default category
   - mutate generic property fields:
     - `displayName`
     - `overrideReferenceName`
@@ -258,9 +274,13 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
     - `generatePropertyBlock`
   - mutate typed property data:
     - `ColorShaderProperty` default color via `colorHex`
+  - create typed properties:
+    - `color`
+    - `float`
 - Constraints held:
-  - this slice updates existing properties only
-  - no add/remove/retype support yet
+  - add support is still limited to the default category
+  - no property removal or type-conversion support yet
+  - no node wiring is created for new properties in this slice
   - every write reimports the graph and returns post-import diagnostics
 - Status:
   - implemented
