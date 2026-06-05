@@ -14,6 +14,19 @@ using System.ComponentModel;
 
 namespace AIGD
 {
+    [Description("Structured input for moving an existing Shader Graph node by serialized node id.")]
+    public class ShaderGraphUpdateNodePositionInput
+    {
+        [Description("Serialized object id of the node to move.")]
+        public string? NodeObjectId { get; set; }
+
+        [Description("New serialized X position for the node.")]
+        public float? PositionX { get; set; }
+
+        [Description("New serialized Y position for the node.")]
+        public float? PositionY { get; set; }
+    }
+
     [Description("Structured input for adding a safe allowlisted node to an existing Shader Graph.")]
     public class ShaderGraphAddPropertyNodeInput
     {

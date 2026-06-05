@@ -127,6 +127,16 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - property types: `color`, `float`
   - no edge wiring yet
 - This is the lowest-risk entry into node authoring because it reuses already-validated property identities and does not alter graph connectivity
+- Second node-operation slice is constrained to node layout mutation only
+- Current support target:
+  - existing nodes only
+  - selection by `nodeObjectId`
+  - position updates only: `positionX`, `positionY`
+  - no changes to values, slots, or edge connections
+- Validation rule for this slice:
+  - move the template's existing `_BaseColor` node
+  - add and move a single `_GlowStrength` PropertyNode
+  - avoid creating a second `_BaseColor` node in the validation graph because duplicate PropertyNodes are valid but misleading for this checkpoint
 
 ## Future ShaderGraph Extension UI
 
@@ -149,6 +159,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `assets-shadergraph-get-settings`
   - `assets-shadergraph-add-property`
   - `assets-shadergraph-add-property-node`
+  - `assets-shadergraph-update-node-position`
   - `assets-shadergraph-create`
   - `assets-shadergraph-create-material`
   - `assets-shadergraph-create-from-style-recipe`
@@ -169,6 +180,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetSettings.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddProperty.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddPropertyNode.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateNodePosition.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Create.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateMaterial.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateFromStyleRecipe.cs`

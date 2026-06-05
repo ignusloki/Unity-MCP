@@ -530,6 +530,128 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_UpdateNodePosition_MovesExistingNodes()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodePosition.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Glow Strength",
+                        OverrideReferenceName = "_GlowStrength",
+                        FloatValue = 0.75f
+                    });
+
+                var structureBeforeMove = tool.GetStructure(new AssetObjectRef(shader));
+                var existingColorNode = structureBeforeMove.Nodes!
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseColor");
+
+                var glowStrengthNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_GlowStrength",
+                        PositionX = -720f,
+                        PositionY = 260f
+                    });
+
+                var movedColorNode = tool.UpdateNodePosition(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphUpdateNodePositionInput
+                    {
+                        NodeObjectId = existingColorNode.ObjectId,
+                        PositionX = -240f,
+                        PositionY = 120f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var movedFloatNode = tool.UpdateNodePosition(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodePositionInput
+                    {
+                        NodeObjectId = glowStrengthNodeResult.Node!.ObjectId,
+                        PositionX = -240f,
+                        PositionY = 220f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(movedColorNode);
+                Assert.IsNotNull(movedColorNode.Node);
+                Assert.IsTrue(movedColorNode.ChangedFields!.Contains("node.positionX"));
+                Assert.IsTrue(movedColorNode.ChangedFields.Contains("node.positionY"));
+                Assert.AreEqual(-240f, movedColorNode.Node!.PositionX);
+                Assert.AreEqual(120f, movedColorNode.Node.PositionY);
+
+                Assert.IsNotNull(movedFloatNode);
+                Assert.IsNotNull(movedFloatNode.Node);
+                Assert.AreEqual(-240f, movedFloatNode.Node!.PositionX);
+                Assert.AreEqual(220f, movedFloatNode.Node.PositionY);
+                Assert.AreEqual("_GlowStrength", movedFloatNode.Node.PropertyReferenceName);
+
+                Assert.IsNotNull(movedFloatNode.Structure);
+                Assert.IsTrue(movedFloatNode.Structure!.Nodes!.Any(n =>
+                    n.ObjectId == existingColorNode.ObjectId
+                    && n.PositionX == -240f
+                    && n.PositionY == 120f));
+                Assert.IsTrue(movedFloatNode.Structure.Nodes.Any(n =>
+                    n.ObjectId == glowStrengthNodeResult.Node.ObjectId
+                    && n.PositionX == -240f
+                    && n.PositionY == 220f));
+                Assert.AreEqual(1, movedFloatNode.Structure.Nodes.Count(n =>
+                        n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseColor"),
+                    "The move-node validation setup should keep a single _BaseColor PropertyNode.");
+                Assert.AreEqual(1, movedFloatNode.Structure.Nodes.Count(n =>
+                        n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_GlowStrength"),
+                    "The move-node validation setup should keep a single _GlowStrength PropertyNode.");
+
+                Assert.IsNotNull(movedFloatNode.Graph);
+                Assert.IsTrue(movedFloatNode.Graph!.ShaderResolved, "Moving existing nodes should keep the shader import valid.");
+                Assert.IsFalse(movedFloatNode.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Moving nodes should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_UpdateNodePosition_NodeNotFound_Throws()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodePosition_NotFound.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                Assert.Throws<InvalidOperationException>(() => tool.UpdateNodePosition(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodePositionInput
+                    {
+                        NodeObjectId = "missing-node-id",
+                        PositionX = 100f
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_Create_ClonesTemplateAndImportsShader()
         {
             var assetPath = $"{TestFolder}/Validation_Create.shadergraph";
