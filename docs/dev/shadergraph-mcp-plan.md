@@ -142,6 +142,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `assets-shadergraph-create-material`
   - `assets-shadergraph-create-from-style-recipe`
   - `assets-shadergraph-set-settings`
+  - `assets-shadergraph-update-property`
 - Implementation strategy:
   - No compile-time Shader Graph asmdef dependency was added
   - Source `.shadergraph` files are parsed directly as concatenated JSON objects
@@ -160,8 +161,10 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateFromStyleRecipe.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.SetSettings.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Settings.Common.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateProperty.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphDiagnosticData.cs`
+  - `Editor/Scripts/API/Tool/Data/ShaderGraphPropertyMutationData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphSettingsData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphStructureData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderStyleRecipeData.cs`
@@ -201,6 +204,18 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - Applied URP target changes: `AllowMaterialOverride = true`, `SurfaceType = transparent`, `AlphaMode = premultiply`, `RenderFace = both`, `AlphaClip = true`, `CastShadows = false`, `ReceiveShadows = false`, `SupportsLodCrossFade = true`
   - Reimported shader resolved to: `Codex/SettingsValidation/Codex_Settings_Validation`
   - Diagnostics returned no `Error`
+- Epic 5 first slice validated live in Unity through `script_execute`:
+  - Created validation graph: `Assets/ShaderGraphValidation/Codex_Property_Validation.shadergraph`
+  - Created validation material: `Assets/ShaderGraphValidation/Codex_Property_Validation.mat`
+  - Updated color property:
+    - `DisplayName = Tint`
+    - `ReferenceName = _TintColor`
+    - `ColorHex = #FF7A00CC`
+  - Updated texture property:
+    - `DisplayName = Diffuse Map`
+    - `ReferenceName = _DiffuseTex`
+  - Reimported compiled shader kept resolving without `Error`
+  - Compiled shader properties included `_TintColor` and `_DiffuseTex`
 - Shader Graph live result after creation:
   - `SourceParsed = true`
   - `ShaderResolved = true`
@@ -233,27 +248,20 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 ## Current Checkpoint
 
-- Epic 4 first settings slice is implemented
+- Epic 5 first property slice is implemented
 - Scope delivered:
-  - read root graph settings
-  - read Universal Render Pipeline target settings
-  - mutate an allowlisted subset of root settings:
-    - `shaderMenuPath`
-    - `graphPrecision`
-    - `previewMode`
-  - mutate an allowlisted subset of URP target settings:
-    - `allowMaterialOverride`
-    - `surfaceType`
-    - `alphaMode`
-    - `renderFace`
-    - `alphaClip`
-    - `castShadows`
-    - `receiveShadows`
-    - `supportsLodCrossFade`
+  - update existing blackboard properties by object id or effective reference name
+  - mutate generic property fields:
+    - `displayName`
+    - `overrideReferenceName`
+    - `hidden`
+    - `generatePropertyBlock`
+  - mutate typed property data:
+    - `ColorShaderProperty` default color via `colorHex`
 - Constraints held:
-  - mutation is still narrow and explicit
+  - this slice updates existing properties only
+  - no add/remove/retype support yet
   - every write reimports the graph and returns post-import diagnostics
-  - HDRP target mutation is still deferred even when HDRP target metadata is present in the source
 - Status:
   - implemented
   - validated live in Unity

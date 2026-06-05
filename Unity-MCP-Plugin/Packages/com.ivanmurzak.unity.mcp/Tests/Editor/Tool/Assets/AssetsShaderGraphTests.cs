@@ -243,6 +243,96 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_UpdateProperty_UpdatesColorAndTextureProperties()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateProperty.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var colorResult = tool.UpdateProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphPropertyUpdateInput
+                    {
+                        PropertyReferenceName = "_BaseColor",
+                        DisplayName = "Tint",
+                        OverrideReferenceName = "_TintColor",
+                        ColorHex = "#FF7A00CC"
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var textureResult = tool.UpdateProperty(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphPropertyUpdateInput
+                    {
+                        PropertyReferenceName = "_BaseMap",
+                        DisplayName = "Diffuse Map",
+                        OverrideReferenceName = "_DiffuseTex"
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(colorResult);
+                Assert.IsTrue(colorResult.ChangedFields!.Contains("property.displayName"));
+                Assert.IsTrue(colorResult.ChangedFields.Contains("property.overrideReferenceName"));
+                Assert.IsTrue(colorResult.ChangedFields.Contains("property.color.r"));
+                Assert.IsNotNull(colorResult.Property);
+                Assert.AreEqual("Tint", colorResult.Property!.Name);
+                Assert.AreEqual("_TintColor", colorResult.Property.OverrideReferenceName);
+                StringAssert.Contains("\"r\":1", colorResult.Property.ValueJson);
+
+                Assert.IsNotNull(textureResult);
+                Assert.IsNotNull(textureResult.Property);
+                Assert.AreEqual("Diffuse Map", textureResult.Property!.Name);
+                Assert.AreEqual("_DiffuseTex", textureResult.Property.OverrideReferenceName);
+
+                Assert.IsNotNull(textureResult.Structure);
+                Assert.IsTrue(textureResult.Structure!.Properties!.Any(p => p.OverrideReferenceName == "_TintColor"));
+                Assert.IsTrue(textureResult.Structure.Properties.Any(p => p.OverrideReferenceName == "_DiffuseTex"));
+
+                Assert.IsNotNull(textureResult.Graph);
+                Assert.IsTrue(textureResult.Graph!.ShaderResolved, "Updated Shader Graph should still resolve a compiled shader.");
+                Assert.IsFalse(textureResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Updating existing blackboard properties should not introduce import errors.");
+                Assert.IsTrue(textureResult.Graph.Properties!.Any(p => p.Name == "_TintColor"),
+                    "Compiled shader properties should include the renamed color reference.");
+                Assert.IsTrue(textureResult.Graph.Properties.Any(p => p.Name == "_DiffuseTex"),
+                    "Compiled shader properties should include the renamed texture reference.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_UpdateProperty_DuplicateReferenceName_Throws()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateProperty_Duplicate.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                Assert.Throws<InvalidOperationException>(() => tool.UpdateProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphPropertyUpdateInput
+                    {
+                        PropertyReferenceName = "_BaseColor",
+                        OverrideReferenceName = "_BaseMap"
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_Create_ClonesTemplateAndImportsShader()
         {
             var assetPath = $"{TestFolder}/Validation_Create.shadergraph";
