@@ -117,6 +117,19 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return data;
         }
 
+        internal static ShaderGraphStructureData BuildShaderGraphStructureData(AssetObjectRef assetRef)
+        {
+            var assetPath = ResolveAssetPath(assetRef);
+            if (!IsShaderGraphAssetPath(assetPath))
+                throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
+
+            var asset = assetRef.FindAssetObject();
+            var resolvedAsset = asset ?? AssetDatabase.LoadMainAssetAtPath(assetPath);
+            var data = ReadStructureData(assetPath);
+            data.Reference = resolvedAsset == null ? null : new AssetObjectRef(resolvedAsset);
+            return data;
+        }
+
         static void FillCompiledShaderData(
             ShaderGraphData data,
             Shader shader,
@@ -392,6 +405,295 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             }
         }
 
+        static ShaderGraphStructureData ReadStructureData(string assetPath)
+        {
+            var data = new ShaderGraphStructureData
+            {
+                AssetPath = assetPath
+            };
+
+            var fullPath = ResolvePhysicalAssetPath(assetPath);
+            if (!File.Exists(fullPath))
+            {
+                data.ParseError = $"Physical file does not exist at '{fullPath}'.";
+                return data;
+            }
+
+            try
+            {
+                var jsonObjects = EnumerateTopLevelJsonObjects(File.ReadAllText(fullPath)).ToList();
+                if (jsonObjects.Count == 0)
+                {
+                    data.ParseError = "No JSON objects were found in the Shader Graph source file.";
+                    return data;
+                }
+
+                var objectTypesById = new Dictionary<string, string>(StringComparer.Ordinal);
+                var propertyIds = new List<string>();
+                var nodeIds = new List<string>();
+                var activeTargetIds = new List<string>();
+                var propertyIdSet = new HashSet<string>(StringComparer.Ordinal);
+                var nodeIdSet = new HashSet<string>(StringComparer.Ordinal);
+                var activeTargetIdSet = new HashSet<string>(StringComparer.Ordinal);
+                var propertiesById = new Dictionary<string, ShaderGraphPropertyDefinitionData>(StringComparer.Ordinal);
+                var nodesById = new Dictionary<string, ShaderGraphNodeDefinitionData>(StringComparer.Ordinal);
+                var slotsByObjectId = new Dictionary<string, ShaderGraphSlotDefinitionData>(StringComparer.Ordinal);
+                var targetsById = new Dictionary<string, ShaderGraphTargetDefinitionData>(StringComparer.Ordinal);
+
+                for (var i = 0; i < jsonObjects.Count; i++)
+                {
+                    using var document = JsonDocument.Parse(jsonObjects[i]);
+                    var root = document.RootElement;
+                    var objectId = GetString(root, "m_ObjectId");
+                    var objectType = GetString(root, "m_Type");
+
+                    if (!string.IsNullOrEmpty(objectId) && !string.IsNullOrEmpty(objectType))
+                        objectTypesById[objectId] = objectType;
+
+                    if (i == 0)
+                    {
+                        PopulateStructureRoot(
+                            data,
+                            root,
+                            propertyIds,
+                            nodeIds,
+                            activeTargetIds,
+                            propertyIdSet,
+                            nodeIdSet,
+                            activeTargetIdSet);
+                        continue;
+                    }
+
+                    if (string.IsNullOrEmpty(objectId))
+                        continue;
+
+                    if (propertyIdSet.Contains(objectId))
+                    {
+                        propertiesById[objectId] = ParsePropertyDefinition(root, objectId);
+                        continue;
+                    }
+
+                    if (nodeIdSet.Contains(objectId))
+                    {
+                        nodesById[objectId] = ParseNodeDefinition(root, objectId);
+                        continue;
+                    }
+
+                    if (activeTargetIdSet.Contains(objectId))
+                    {
+                        targetsById[objectId] = ParseTargetDefinition(root, objectId);
+                        continue;
+                    }
+
+                    if (IsSlotDefinition(root))
+                        slotsByObjectId[objectId] = ParseSlotDefinition(root, objectId);
+                }
+
+                data.Properties = propertyIds
+                    .Where(propertiesById.ContainsKey)
+                    .Select(propertyId => propertiesById[propertyId])
+                    .ToList();
+
+                data.Nodes = nodeIds
+                    .Where(nodesById.ContainsKey)
+                    .Select(nodeId =>
+                    {
+                        var node = nodesById[nodeId];
+                        if (node.SlotObjectIds != null && node.SlotObjectIds.Count > 0)
+                        {
+                            node.Slots = node.SlotObjectIds
+                                .Where(slotsByObjectId.ContainsKey)
+                                .Select(slotObjectId => slotsByObjectId[slotObjectId])
+                                .ToList();
+                        }
+
+                        return node;
+                    })
+                    .ToList();
+
+                data.Targets = activeTargetIds
+                    .Where(targetsById.ContainsKey)
+                    .Select(targetId =>
+                    {
+                        var target = targetsById[targetId];
+                        if (target.DataObjectIds != null && target.DataObjectIds.Count > 0)
+                        {
+                            target.DataObjectTypes = target.DataObjectIds
+                                .Where(objectTypesById.ContainsKey)
+                                .Select(dataObjectId => objectTypesById[dataObjectId])
+                                .ToList();
+                        }
+
+                        return target;
+                    })
+                    .ToList();
+
+                data.SourceParsed = true;
+            }
+            catch (Exception ex)
+            {
+                data.ParseError = ex.Message;
+            }
+
+            return data;
+        }
+
+        static void PopulateStructureRoot(
+            ShaderGraphStructureData data,
+            JsonElement root,
+            List<string> propertyIds,
+            List<string> nodeIds,
+            List<string> activeTargetIds,
+            HashSet<string> propertyIdSet,
+            HashSet<string> nodeIdSet,
+            HashSet<string> activeTargetIdSet)
+        {
+            data.GraphVersion = GetInt(root, "m_SGVersion");
+            data.GraphType = GetString(root, "m_Type");
+            data.ShaderMenuPath = GetString(root, "m_Path");
+            data.GraphPrecision = GetInt(root, "m_GraphPrecision");
+            data.PreviewMode = GetInt(root, "m_PreviewMode");
+            data.OutputNodeId = GetStringAt(root, "m_OutputNode", "m_Id");
+            data.Edges = ParseEdgeDefinitions(root);
+            data.VertexContext = ParseContextDefinition(root, "m_VertexContext");
+            data.FragmentContext = ParseContextDefinition(root, "m_FragmentContext");
+
+            foreach (var propertyId in GetIdArray(root, "m_Properties"))
+            {
+                propertyIds.Add(propertyId);
+                propertyIdSet.Add(propertyId);
+            }
+
+            foreach (var nodeId in GetIdArray(root, "m_Nodes"))
+            {
+                nodeIds.Add(nodeId);
+                nodeIdSet.Add(nodeId);
+            }
+
+            foreach (var activeTargetId in GetIdArray(root, "m_ActiveTargets"))
+            {
+                activeTargetIds.Add(activeTargetId);
+                activeTargetIdSet.Add(activeTargetId);
+            }
+        }
+
+        static ShaderGraphPropertyDefinitionData ParsePropertyDefinition(JsonElement root, string objectId)
+        {
+            return new ShaderGraphPropertyDefinitionData
+            {
+                ObjectId = objectId,
+                Type = GetString(root, "m_Type"),
+                Name = GetString(root, "m_Name"),
+                DefaultReferenceName = GetString(root, "m_DefaultReferenceName"),
+                OverrideReferenceName = GetString(root, "m_OverrideReferenceName"),
+                Guid = GetStringAt(root, "m_Guid", "m_GuidSerialized"),
+                Hidden = GetBool(root, "m_Hidden") ?? false,
+                GeneratePropertyBlock = GetBool(root, "m_GeneratePropertyBlock") ?? false,
+                ValueJson = GetRawText(root, "m_Value")
+            };
+        }
+
+        static ShaderGraphNodeDefinitionData ParseNodeDefinition(JsonElement root, string objectId)
+        {
+            return new ShaderGraphNodeDefinitionData
+            {
+                ObjectId = objectId,
+                Type = GetString(root, "m_Type"),
+                Name = GetString(root, "m_Name"),
+                GroupId = GetStringAt(root, "m_Group", "m_Id"),
+                PositionX = GetFloatAt(root, "m_DrawState", "m_Position", "x") ?? 0f,
+                PositionY = GetFloatAt(root, "m_DrawState", "m_Position", "y") ?? 0f,
+                Width = GetFloatAt(root, "m_DrawState", "m_Position", "width") ?? 0f,
+                Height = GetFloatAt(root, "m_DrawState", "m_Position", "height") ?? 0f,
+                Precision = GetInt(root, "m_Precision"),
+                SerializedDescriptor = GetString(root, "m_SerializedDescriptor"),
+                SlotObjectIds = GetIdArray(root, "m_Slots")
+            };
+        }
+
+        static ShaderGraphSlotDefinitionData ParseSlotDefinition(JsonElement root, string objectId)
+        {
+            return new ShaderGraphSlotDefinitionData
+            {
+                ObjectId = objectId,
+                SlotId = GetInt(root, "m_Id"),
+                DisplayName = GetString(root, "m_DisplayName"),
+                SlotType = GetInt(root, "m_SlotType"),
+                ShaderOutputName = GetString(root, "m_ShaderOutputName"),
+                StageCapability = GetInt(root, "m_StageCapability"),
+                Hidden = GetBool(root, "m_Hidden") ?? false,
+                ValueJson = GetRawText(root, "m_Value"),
+                DefaultValueJson = GetRawText(root, "m_DefaultValue")
+            };
+        }
+
+        static ShaderGraphTargetDefinitionData ParseTargetDefinition(JsonElement root, string objectId)
+        {
+            return new ShaderGraphTargetDefinitionData
+            {
+                ObjectId = objectId,
+                Type = GetString(root, "m_Type"),
+                ActiveSubTargetId = GetStringAt(root, "m_ActiveSubTarget", "m_Id"),
+                DataObjectIds = GetIdArray(root, "m_Datas")
+            };
+        }
+
+        static ShaderGraphContextDefinitionData? ParseContextDefinition(JsonElement root, string propertyName)
+        {
+            if (!TryGetPropertyByPath(root, out var context, propertyName) || context.ValueKind != JsonValueKind.Object)
+                return null;
+
+            return new ShaderGraphContextDefinitionData
+            {
+                PositionX = GetFloatAt(context, "m_Position", "x") ?? 0f,
+                PositionY = GetFloatAt(context, "m_Position", "y") ?? 0f,
+                BlockNodeIds = GetIdArray(context, "m_Blocks")
+            };
+        }
+
+        static List<ShaderGraphEdgeDefinitionData>? ParseEdgeDefinitions(JsonElement root)
+        {
+            if (!TryGetPropertyByPath(root, out var edges, "m_Edges") || edges.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var result = new List<ShaderGraphEdgeDefinitionData>();
+            foreach (var edge in edges.EnumerateArray())
+            {
+                result.Add(new ShaderGraphEdgeDefinitionData
+                {
+                    OutputNodeId = GetStringAt(edge, "m_OutputSlot", "m_Node", "m_Id"),
+                    OutputSlotId = GetIntAt(edge, "m_OutputSlot", "m_SlotId"),
+                    InputNodeId = GetStringAt(edge, "m_InputSlot", "m_Node", "m_Id"),
+                    InputSlotId = GetIntAt(edge, "m_InputSlot", "m_SlotId")
+                });
+            }
+
+            return result;
+        }
+
+        static bool IsSlotDefinition(JsonElement root)
+        {
+            return root.TryGetProperty("m_SlotType", out _)
+                && root.TryGetProperty("m_DisplayName", out _)
+                && root.TryGetProperty("m_Id", out _);
+        }
+
+        static List<string> GetIdArray(JsonElement root, string propertyName)
+        {
+            if (!TryGetPropertyByPath(root, out var property, propertyName) || property.ValueKind != JsonValueKind.Array)
+                return new List<string>();
+
+            var result = new List<string>();
+            foreach (var item in property.EnumerateArray())
+            {
+                var id = GetString(item, "m_Id");
+                if (!string.IsNullOrEmpty(id))
+                    result.Add(id);
+            }
+
+            return result;
+        }
+
         static int CountArray(JsonElement root, string propertyName)
         {
             if (!root.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.Array)
@@ -414,6 +716,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 : null;
         }
 
+        static int? GetIntAt(JsonElement root, params string[] propertyPath)
+        {
+            if (!TryGetPropertyByPath(root, out var property, propertyPath))
+                return null;
+
+            return property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out var value)
+                ? value
+                : null;
+        }
+
         static string? GetString(JsonElement root, string propertyName)
         {
             if (!root.TryGetProperty(propertyName, out var property))
@@ -422,6 +734,63 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return property.ValueKind == JsonValueKind.String
                 ? property.GetString()
                 : null;
+        }
+
+        static string? GetStringAt(JsonElement root, params string[] propertyPath)
+        {
+            if (!TryGetPropertyByPath(root, out var property, propertyPath))
+                return null;
+
+            return property.ValueKind == JsonValueKind.String
+                ? property.GetString()
+                : null;
+        }
+
+        static float? GetFloatAt(JsonElement root, params string[] propertyPath)
+        {
+            if (!TryGetPropertyByPath(root, out var property, propertyPath))
+                return null;
+
+            if (property.ValueKind != JsonValueKind.Number)
+                return null;
+
+            if (property.TryGetSingle(out var singleValue))
+                return singleValue;
+
+            return property.TryGetDouble(out var doubleValue)
+                ? (float)doubleValue
+                : null;
+        }
+
+        static bool? GetBool(JsonElement root, string propertyName)
+        {
+            if (!root.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.True && property.ValueKind != JsonValueKind.False)
+                return null;
+
+            return property.GetBoolean();
+        }
+
+        static string? GetRawText(JsonElement root, string propertyName)
+        {
+            if (!root.TryGetProperty(propertyName, out var property))
+                return null;
+
+            return property.GetRawText();
+        }
+
+        static bool TryGetPropertyByPath(JsonElement root, out JsonElement property, params string[] propertyPath)
+        {
+            property = root;
+            for (var i = 0; i < propertyPath.Length; i++)
+            {
+                if (property.ValueKind != JsonValueKind.Object
+                    || !property.TryGetProperty(propertyPath[i], out property))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         static string ResolvePhysicalAssetPath(string assetPath)

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics, template-based creation, and later style-recipe-driven material generation in the user's private fork.
+Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics, safe creation, and progressively broader graph control in the user's private fork, with future user-facing capability gating in Ivan's Extensions UI.
 
 ## Pivot
 
@@ -81,6 +81,11 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `package.json`
   - `Editor/Scripts/com.IvanMurzak.Unity.MCP.Editor.asmdef`
   - `Tests/Editor/com.IvanMurzak.Unity.MCP.Editor.Tests.asmdef`
+- Extension UI and tool-gating files relevant to future ShaderGraph capability toggles:
+  - `Editor/Scripts/UI/Window/MainWindowEditor.Extensions.cs`
+  - `Editor/Scripts/UI/Components/ExtensionPanel.cs`
+  - `Editor/Scripts/API/Tool/Tool.SetEnabledState.cs`
+  - `Editor/Scripts/API/Tool/Data/ToolToggleInput.cs`
 
 ## Key Risks To Track
 
@@ -89,12 +94,13 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 - Generated shader access from a `.shadergraph` asset may vary by Unity version and render pipeline
 - Raw `.shadergraph` file authoring risks asset corruption and should not be the default first creation path
 - CI and test environments may not always have Shader Graph installed, so tests must fail gracefully or be conditionally scoped
+- The current Extensions UI is package-install oriented; ShaderGraph currently lives in the core package, so future UI integration may require a built-in toggle mode or a package split instead of a plain installable extension entry
 
 ## Working Recommendation
 
-- Treat `shadergraph-find`, `shadergraph-get-summary`, and diagnostics as the first code slice
-- Delay creation tools until Epic 0 confirms a safe package and dependency story
-- Keep all early operations read-only unless the user explicitly asks for the creation slice
+- Keep the existing discovery, creation, and style-recipe work as the foundation layer
+- Prioritize MCP control-surface expansion over additional template families
+- Keep future mutation slices explicit, validated, and narrow rather than attempting broad freeform graph editing early
 
 ## Post-Epic-5 Direction
 
@@ -102,20 +108,35 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 - Prioritize direct Shader Graph control in safe, narrow slices
 - Start with read-only graph structure introspection before mutating graphs
 - Keep mutation work scoped to explicit, validated operations with graph reimport/validation after every write
+- Add a future ShaderGraph entry to Ivan's Extensions window so users can explicitly allow or deny ShaderGraph control once the capability surface is mature enough
 
-## Next Control Slices
+## Pivoted Control Track
 
 1. Read-only graph structure introspection
 2. Safe graph settings inspection and mutation
 3. Blackboard property operations
 4. Limited allowlisted node operations
 5. Limited allowlisted edge operations
+6. ShaderGraph Extensions entry and capability gating
+
+## Future ShaderGraph Extension UI
+
+- Add a `ShaderGraph` row to Ivan's Extensions window once the control surface is mature enough to expose as a user-facing capability area
+- Let users explicitly allow or deny Shader Graph control rather than always exposing every Shader Graph tool
+- Reuse the existing tool-enable persistence path where possible:
+  - `tool-set-enabled-state`
+  - `ToolToggleInput`
+- Important design constraint:
+  - the current Extensions UI assumes installable packages
+  - ShaderGraph support currently lives in the core package
+  - implementation likely needs a built-in toggle-only extension mode or a later package split
 
 ## Implemented On This Branch
 
 - New tool ids implemented in the package:
   - `assets-shadergraph-find`
   - `assets-shadergraph-get-data`
+  - `assets-shadergraph-get-structure`
   - `assets-shadergraph-create`
   - `assets-shadergraph-create-material`
   - `assets-shadergraph-create-from-style-recipe`
@@ -130,11 +151,13 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Common.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Find.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetData.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetStructure.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Create.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateMaterial.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateFromStyleRecipe.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphDiagnosticData.cs`
+  - `Editor/Scripts/API/Tool/Data/ShaderGraphStructureData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderStyleRecipeData.cs`
   - `Tests/Editor/Tool/Assets/AssetsShaderGraphTests.cs`
 
@@ -155,6 +178,13 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - Resolved template id: `unlit-simple`
   - Applied material property: `_BaseColor`
   - Deferred recipe fields returned as explicit warnings instead of being silently ignored
+- Pivot slice validated live in Unity through `script_execute`:
+  - Structure tool asset path: `Assets/ShaderGraphValidation/Codex_Validation_Unlit.shadergraph`
+  - Resolved property count: `2`
+  - Resolved node count: `10`
+  - Resolved edge count: `4`
+  - Active targets included: `HDTarget`, `UniversalTarget`
+  - Resolved `Sample Texture 2D` slots included `Texture`, `UV`, and `Sampler`
 - Shader Graph live result after creation:
   - `SourceParsed = true`
   - `ShaderResolved = true`
@@ -171,35 +201,38 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 ## Epic Tracker
 
-- [x] Review prompt and detect workflow conflicts
-- [x] Read `git.MD`
-- [x] Create private planning branch from `custom/main`
-- [x] Create tracking document
-- [x] Epic 0: repo reconnaissance report
-- [x] Epic 0: smallest first implementation slice proposal
-- [x] Epic 1: read-only Shader Graph discovery
-- [x] Epic 2: Shader Graph diagnostics
-- [x] Epic 3: template-based Shader Graph creation
-- [x] Epic 4: material creation from generated graph
-- [x] Epic 5: style recipe schema
-- [ ] Epic 6: parameterized style templates (deferred)
-- [ ] Epic 7: optional texture and reference-image handling
-- [ ] Epic 8: limited safe graph edits
-- [ ] Epic 9: full graph-editing feasibility research
-- [ ] Epic 10: docs and AI workflow guide
+- [x] Epic 0: reconnaissance, workflow review, and branch setup
+- [x] Epic 1: read-only Shader Graph discovery and diagnostics
+- [x] Epic 2: safe creation, material creation, and style-recipe foundation
+- [x] Epic 3: read-only graph structure introspection
+- [ ] Epic 4: safe graph settings inspection and mutation
+- [ ] Epic 5: blackboard property operations
+- [ ] Epic 6: limited allowlisted node operations
+- [ ] Epic 7: limited allowlisted edge operations
+- [ ] Epic 8: ShaderGraph Extensions entry and capability gating
+- [ ] Epic 9: optional texture and reference-image handling
+- [ ] Epic 10: parameterized style templates (deferred)
+- [ ] Epic 11: full graph-editing feasibility research
+- [ ] Epic 12: docs and AI workflow guide
 
-## Current Active Slice
+## Current Checkpoint
 
-- Read-only Shader Graph structure introspection
-- Intended scope:
-  - list blackboard properties
-  - list nodes
-  - list edges and port connections
-  - list active targets and basic graph settings
-- Intended constraints:
+- Read-only graph structure introspection is complete
+- Scope delivered:
+  - blackboard property listing
+  - node listing
+  - edge and port-connection listing
+  - active target discovery
+- Constraints held:
   - read-only only
   - no direct mutation of `.shadergraph` source in this slice
-  - work through safe source parsing and imported-asset inspection first
+  - safe source parsing and imported-asset inspection only
+- Status:
+  - implemented
+  - validated live in Unity
+  - ready to commit
+- Next planned slice:
+  - safe graph settings inspection and mutation
 
 ## Open Questions
 

@@ -84,6 +84,55 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_GetStructure_ReturnsPropertiesNodesEdgesAndTargets()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_GetStructure.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var result = new Tool_Assets_ShaderGraph().GetStructure(new AssetObjectRef(shader));
+
+                Assert.IsNotNull(result);
+                Assert.IsTrue(result.SourceParsed, "Shader Graph source should parse successfully.");
+                Assert.AreEqual(assetPath, result.AssetPath);
+                Assert.AreEqual("UnityEditor.ShaderGraph.GraphData", result.GraphType);
+                Assert.AreEqual("Unlit", result.ShaderMenuPath);
+
+                Assert.IsNotEmpty(result.Properties, "Structure result should include blackboard properties.");
+                Assert.IsTrue(result.Properties!.Any(p => p.OverrideReferenceName == "_BaseColor"),
+                    "Expected a property with override reference name '_BaseColor'.");
+                Assert.IsTrue(result.Properties.Any(p => p.OverrideReferenceName == "_BaseMap"),
+                    "Expected a property with override reference name '_BaseMap'.");
+
+                Assert.IsNotEmpty(result.Nodes, "Structure result should include node definitions.");
+                var sampleTextureNode = result.Nodes!.FirstOrDefault(n => n.Name == "Sample Texture 2D");
+                Assert.IsNotNull(sampleTextureNode, "Expected a 'Sample Texture 2D' node.");
+                Assert.IsNotEmpty(sampleTextureNode!.Slots, "Expected resolved slots for the sample texture node.");
+                Assert.IsTrue(sampleTextureNode.Slots!.Any(s => s.DisplayName == "Texture"),
+                    "Expected the sample texture node to expose a 'Texture' slot.");
+
+                Assert.IsNotEmpty(result.Edges, "Structure result should include edge definitions.");
+                Assert.IsTrue(result.Edges!.All(e => !string.IsNullOrEmpty(e.OutputNodeId) && !string.IsNullOrEmpty(e.InputNodeId)),
+                    "Every edge should resolve both output and input node ids.");
+
+                Assert.IsNotEmpty(result.Targets, "Structure result should include active target definitions.");
+                Assert.IsTrue(result.Targets!.Any(t => t.Type != null && t.Type.Contains("UniversalTarget")),
+                    "Expected a Universal target definition.");
+
+                Assert.IsNotNull(result.VertexContext, "Vertex context should be present.");
+                Assert.IsNotNull(result.FragmentContext, "Fragment context should be present.");
+                Assert.IsNotEmpty(result.VertexContext!.BlockNodeIds, "Vertex context should reference block nodes.");
+                Assert.IsNotEmpty(result.FragmentContext!.BlockNodeIds, "Fragment context should reference block nodes.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_Create_ClonesTemplateAndImportsShader()
         {
             var assetPath = $"{TestFolder}/Validation_Create.shadergraph";
