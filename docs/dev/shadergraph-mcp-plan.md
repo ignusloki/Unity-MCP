@@ -119,6 +119,15 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 5. Limited allowlisted edge operations
 6. ShaderGraph Extensions entry and capability gating
 
+## Current Epic 6 Slice
+
+- First node-operation slice is constrained to `PropertyNode` creation only
+- Current support target:
+  - existing blackboard properties only
+  - property types: `color`, `float`
+  - no edge wiring yet
+- This is the lowest-risk entry into node authoring because it reuses already-validated property identities and does not alter graph connectivity
+
 ## Future ShaderGraph Extension UI
 
 - Add a `ShaderGraph` row to Ivan's Extensions window once the control surface is mature enough to expose as a user-facing capability area
@@ -139,6 +148,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `assets-shadergraph-get-structure`
   - `assets-shadergraph-get-settings`
   - `assets-shadergraph-add-property`
+  - `assets-shadergraph-add-property-node`
   - `assets-shadergraph-create`
   - `assets-shadergraph-create-material`
   - `assets-shadergraph-create-from-style-recipe`
@@ -158,6 +168,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetStructure.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetSettings.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddProperty.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddPropertyNode.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Create.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateMaterial.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateFromStyleRecipe.cs`
@@ -166,6 +177,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateProperty.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphDiagnosticData.cs`
+  - `Editor/Scripts/API/Tool/Data/ShaderGraphNodeMutationData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphPropertyMutationData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphSettingsData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphStructureData.cs`

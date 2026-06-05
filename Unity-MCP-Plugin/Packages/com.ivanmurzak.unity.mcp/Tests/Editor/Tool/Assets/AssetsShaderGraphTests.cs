@@ -112,6 +112,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsNotEmpty(sampleTextureNode!.Slots, "Expected resolved slots for the sample texture node.");
                 Assert.IsTrue(sampleTextureNode.Slots!.Any(s => s.DisplayName == "Texture"),
                     "Expected the sample texture node to expose a 'Texture' slot.");
+                Assert.IsTrue(result.Nodes.Any(n =>
+                        n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseColor"),
+                    "Expected structure data to resolve PropertyNode references back to their blackboard property.");
 
                 Assert.IsNotEmpty(result.Edges, "Structure result should include edge definitions.");
                 Assert.IsTrue(result.Edges!.All(e => !string.IsNullOrEmpty(e.OutputNodeId) && !string.IsNullOrEmpty(e.InputNodeId)),
@@ -415,6 +419,108 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         DisplayName = "Color",
                         OverrideReferenceName = "_AnotherColor",
                         ColorHex = "#FFFFFFFF"
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_AddPropertyNode_AddsColorAndFloatPropertyNodes()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddPropertyNode.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Glow Strength",
+                        OverrideReferenceName = "_GlowStrength",
+                        FloatValue = 0.75f
+                    });
+
+                var colorNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_BaseColor",
+                        PositionX = -720f,
+                        PositionY = 160f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var floatNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_GlowStrength",
+                        PositionX = -720f,
+                        PositionY = 260f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(colorNodeResult);
+                Assert.IsNotNull(colorNodeResult.Node);
+                Assert.AreEqual("UnityEditor.ShaderGraph.PropertyNode", colorNodeResult.Node!.Type);
+                Assert.AreEqual("_BaseColor", colorNodeResult.Node.PropertyReferenceName);
+                Assert.AreEqual(-720f, colorNodeResult.Node.PositionX);
+                Assert.AreEqual(160f, colorNodeResult.Node.PositionY);
+                Assert.IsNotEmpty(colorNodeResult.Node.Slots);
+                Assert.AreEqual("Color", colorNodeResult.Node.Slots![0].DisplayName);
+
+                Assert.IsNotNull(floatNodeResult);
+                Assert.IsNotNull(floatNodeResult.Node);
+                Assert.AreEqual("UnityEditor.ShaderGraph.PropertyNode", floatNodeResult.Node!.Type);
+                Assert.AreEqual("_GlowStrength", floatNodeResult.Node.PropertyReferenceName);
+                Assert.AreEqual(260f, floatNodeResult.Node.PositionY);
+                Assert.IsNotEmpty(floatNodeResult.Node.Slots);
+                Assert.AreEqual("Glow Strength", floatNodeResult.Node.Slots![0].DisplayName);
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector1MaterialSlot", floatNodeResult.Node.Slots[0].Type);
+
+                Assert.IsNotNull(floatNodeResult.Structure);
+                Assert.IsTrue(floatNodeResult.Structure!.Nodes!.Count >= 4,
+                    "The graph should contain the original nodes plus the added Property nodes.");
+                Assert.IsTrue(floatNodeResult.Structure.Nodes.Any(n => n.PropertyReferenceName == "_BaseColor"));
+                Assert.IsTrue(floatNodeResult.Structure.Nodes.Any(n => n.PropertyReferenceName == "_GlowStrength"));
+
+                Assert.IsNotNull(floatNodeResult.Graph);
+                Assert.IsTrue(floatNodeResult.Graph!.ShaderResolved, "Updated Shader Graph should still resolve a compiled shader.");
+                Assert.IsFalse(floatNodeResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Adding safe Property nodes should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_AddPropertyNode_UnsupportedPropertyType_Throws()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddPropertyNode_Unsupported.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                Assert.Throws<InvalidOperationException>(() => tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_BaseMap",
+                        PositionX = -720f,
+                        PositionY = 120f
                     }));
             }
             finally

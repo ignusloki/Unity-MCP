@@ -128,6 +128,12 @@ namespace AIGD
         [Description("Serialized descriptor for block nodes if present.")]
         public string? SerializedDescriptor { get; set; }
 
+        [Description("Referenced blackboard property object id for Property nodes if present.")]
+        public string? PropertyObjectId { get; set; }
+
+        [Description("Effective referenced blackboard property name for Property nodes if present.")]
+        public string? PropertyReferenceName { get; set; }
+
         [Description("Referenced slot object ids in declaration order.")]
         public List<string>? SlotObjectIds { get; set; }
 
@@ -139,6 +145,9 @@ namespace AIGD
     {
         [Description("Serialized object id of the slot object.")]
         public string? ObjectId { get; set; }
+
+        [Description("Serialized slot object type.")]
+        public string? Type { get; set; }
 
         [Description("Numeric slot id used by edge connections.")]
         public int? SlotId { get; set; }

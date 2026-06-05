@@ -499,6 +499,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     .Select(nodeId =>
                     {
                         var node = nodesById[nodeId];
+                        if (!string.IsNullOrEmpty(node.PropertyObjectId)
+                            && propertiesById.TryGetValue(node.PropertyObjectId, out var property))
+                        {
+                            node.PropertyReferenceName = !string.IsNullOrEmpty(property.OverrideReferenceName)
+                                ? property.OverrideReferenceName
+                                : property.DefaultReferenceName;
+                        }
+
                         if (node.SlotObjectIds != null && node.SlotObjectIds.Count > 0)
                         {
                             node.Slots = node.SlotObjectIds
@@ -607,6 +615,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 Height = GetFloatAt(root, "m_DrawState", "m_Position", "height") ?? 0f,
                 Precision = GetInt(root, "m_Precision"),
                 SerializedDescriptor = GetString(root, "m_SerializedDescriptor"),
+                PropertyObjectId = GetStringAt(root, "m_Property", "m_Id"),
                 SlotObjectIds = GetIdArray(root, "m_Slots")
             };
         }
@@ -616,6 +625,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return new ShaderGraphSlotDefinitionData
             {
                 ObjectId = objectId,
+                Type = GetString(root, "m_Type"),
                 SlotId = GetInt(root, "m_Id"),
                 DisplayName = GetString(root, "m_DisplayName"),
                 SlotType = GetInt(root, "m_SlotType"),
