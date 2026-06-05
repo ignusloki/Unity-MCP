@@ -4,6 +4,12 @@
 
 Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics, template-based creation, and later style-recipe-driven material generation in the user's private fork.
 
+## Pivot
+
+- After Epic 5 validation, the user explicitly chose to defer template expansion work
+- Epic 6 is now considered lower priority than increasing raw MCP control over Shader Graph structure
+- The next implementation track is control-oriented rather than template-oriented
+
 ## Scope Now
 
 - Current authorized implementation scope at branch start: Epic 0 reconnaissance and planning
@@ -90,25 +96,46 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 - Delay creation tools until Epic 0 confirms a safe package and dependency story
 - Keep all early operations read-only unless the user explicitly asks for the creation slice
 
+## Post-Epic-5 Direction
+
+- Defer Epic 6 parameterized template families until later
+- Prioritize direct Shader Graph control in safe, narrow slices
+- Start with read-only graph structure introspection before mutating graphs
+- Keep mutation work scoped to explicit, validated operations with graph reimport/validation after every write
+
+## Next Control Slices
+
+1. Read-only graph structure introspection
+2. Safe graph settings inspection and mutation
+3. Blackboard property operations
+4. Limited allowlisted node operations
+5. Limited allowlisted edge operations
+
 ## Implemented On This Branch
 
 - New tool ids implemented in the package:
   - `assets-shadergraph-find`
   - `assets-shadergraph-get-data`
   - `assets-shadergraph-create`
+  - `assets-shadergraph-create-material`
+  - `assets-shadergraph-create-from-style-recipe`
 - Implementation strategy:
   - No compile-time Shader Graph asmdef dependency was added
   - Source `.shadergraph` files are parsed directly as concatenated JSON objects
   - Compiled shader state is read through Unity's normal imported `Shader` asset path
   - Creation uses safe template cloning from package templates rather than ad hoc graph synthesis
+  - Style recipes are validated as declarative JSON and then mapped onto safe template creation plus material property application
 - New package files added:
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Common.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Find.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetData.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Create.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateMaterial.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateFromStyleRecipe.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphDiagnosticData.cs`
+  - `Editor/Scripts/API/Tool/Data/ShaderStyleRecipeData.cs`
   - `Tests/Editor/Tool/Assets/AssetsShaderGraphTests.cs`
 
 ## Live Validation
@@ -118,6 +145,16 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - Created graph asset: `Assets/ShaderGraphValidation/Codex_Validation_Unlit.shadergraph`
   - Created material asset: `Assets/ShaderGraphValidation/Codex_Validation_Unlit.mat`
   - Created scene object: `SampleScene/Codex_Validation_Cube`
+- Epic 4 validated live in Unity through `script_execute`:
+  - Source graph asset: `Assets/ShaderGraphValidation/Codex_Validation_Unlit.shadergraph`
+  - Created material from graph: `Assets/ShaderGraphValidation/Codex_Validation_FromGraph.mat`
+  - Material shader resolved to: `Unlit/Codex_Validation_Unlit`
+- Epic 5 validated live in Unity through `script_execute`:
+  - Created graph from recipe: `Assets/ShaderGraphValidation/Codex_Recipe_Toon.shadergraph`
+  - Created material from recipe: `Assets/ShaderGraphValidation/Codex_Recipe_Toon.mat`
+  - Resolved template id: `unlit-simple`
+  - Applied material property: `_BaseColor`
+  - Deferred recipe fields returned as explicit warnings instead of being silently ignored
 - Shader Graph live result after creation:
   - `SourceParsed = true`
   - `ShaderResolved = true`
@@ -143,13 +180,26 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 - [x] Epic 1: read-only Shader Graph discovery
 - [x] Epic 2: Shader Graph diagnostics
 - [x] Epic 3: template-based Shader Graph creation
-- [ ] Epic 4: material creation from generated graph
-- [ ] Epic 5: style recipe schema
-- [ ] Epic 6: parameterized style templates
+- [x] Epic 4: material creation from generated graph
+- [x] Epic 5: style recipe schema
+- [ ] Epic 6: parameterized style templates (deferred)
 - [ ] Epic 7: optional texture and reference-image handling
 - [ ] Epic 8: limited safe graph edits
 - [ ] Epic 9: full graph-editing feasibility research
 - [ ] Epic 10: docs and AI workflow guide
+
+## Current Active Slice
+
+- Read-only Shader Graph structure introspection
+- Intended scope:
+  - list blackboard properties
+  - list nodes
+  - list edges and port connections
+  - list active targets and basic graph settings
+- Intended constraints:
+  - read-only only
+  - no direct mutation of `.shadergraph` source in this slice
+  - work through safe source parsing and imported-asset inspection first
 
 ## Open Questions
 

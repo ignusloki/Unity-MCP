@@ -17,6 +17,7 @@ using com.IvanMurzak.ReflectorNet.Utils;
 using com.IvanMurzak.Unity.MCP.Editor.Utils;
 using AIGD;
 using UnityEditor;
+using UnityEngine;
 
 namespace com.IvanMurzak.Unity.MCP.Editor.API
 {
@@ -63,28 +64,53 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 if (!assetPath.EndsWith(".mat"))
                     throw new ArgumentException(Error.AssetPathMustEndWithMat(assetPath), nameof(assetPath));
 
-                var shader = UnityEngine.Shader.Find(shaderName);
+                var shader = Shader.Find(shaderName);
                 if (shader == null)
                     throw new ArgumentException(Error.ShaderNotFound(shaderName), nameof(shaderName));
 
-                var material = new UnityEngine.Material(shader);
-
-                // Create all folders in the path if they do not exist
-                var directory = Path.GetDirectoryName(assetPath);
-                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-                }
-
-                AssetDatabase.CreateAsset(material, assetPath);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-
-                EditorUtils.RepaintAllEditorWindows();
-
-                return new AssetObjectRef(material);
+                return CreateMaterialAsset(assetPath, shader, overwrite: false);
             });
+        }
+
+        internal static AssetObjectRef CreateMaterialAsset(string assetPath, Shader shader, bool overwrite)
+        {
+            if (string.IsNullOrEmpty(assetPath))
+                throw new ArgumentException(Error.EmptyAssetPath(), nameof(assetPath));
+
+            if (!assetPath.StartsWith("Assets/"))
+                throw new ArgumentException(Error.AssetPathMustStartWithAssets(assetPath), nameof(assetPath));
+
+            if (!assetPath.EndsWith(".mat"))
+                throw new ArgumentException(Error.AssetPathMustEndWithMat(assetPath), nameof(assetPath));
+
+            if (shader == null)
+                throw new ArgumentNullException(nameof(shader));
+
+            var existingAsset = AssetDatabase.LoadMainAssetAtPath(assetPath);
+            if (existingAsset != null)
+            {
+                if (!overwrite)
+                    throw new InvalidOperationException(Error.MaterialAssetAlreadyExists(assetPath));
+
+                AssetDatabase.DeleteAsset(assetPath);
+            }
+
+            var material = new Material(shader);
+
+            var directory = Path.GetDirectoryName(assetPath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            }
+
+            AssetDatabase.CreateAsset(material, assetPath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            EditorUtils.RepaintAllEditorWindows();
+
+            return new AssetObjectRef(material);
         }
     }
 }

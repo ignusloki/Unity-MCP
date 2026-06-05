@@ -9,6 +9,7 @@
 */
 
 #nullable enable
+using System;
 using System.IO;
 using System.Linq;
 using AIGD;
@@ -109,6 +110,133 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             {
                 CleanupTestAsset(assetPath);
             }
+        }
+
+        [Test]
+        public void ShaderGraph_CreateMaterial_CreatesMaterialFromGraphShader()
+        {
+            var graphAssetPath = CreateShaderGraphAssetCopy("Validation_CreateMaterial.shadergraph");
+            var materialAssetPath = $"{TestFolder}/Validation_CreateMaterial.mat";
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(graphAssetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{graphAssetPath}'.");
+
+                var result = new Tool_Assets_ShaderGraph().CreateMaterial(
+                    assetRef: new AssetObjectRef(shader!),
+                    materialAssetPath: materialAssetPath,
+                    overwrite: true);
+
+                Assert.IsNotNull(result);
+                Assert.AreEqual(materialAssetPath, result.AssetPath);
+
+                var material = AssetDatabase.LoadAssetAtPath<Material>(materialAssetPath);
+                Assert.IsNotNull(material, $"Expected Material asset to resolve at '{materialAssetPath}'.");
+                Assert.AreEqual(shader!.name, material!.shader.name,
+                    "Created material should use the Shader Graph's imported shader.");
+            }
+            finally
+            {
+                CleanupTestAsset(materialAssetPath);
+                CleanupTestAsset(graphAssetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_CreateFromStyleRecipe_CreatesAssetsAndAppliesBaseColor()
+        {
+            const string recipeJson = @"{
+                ""styleName"": ""Recipe Validation"",
+                ""renderPipeline"": ""URP"",
+                ""graphTemplate"": ""toon-unlit"",
+                ""palette"": {
+                    ""baseColors"": [""#80A0C0""]
+                }
+            }";
+
+            var graphAssetPath = $"{TestFolder}/Validation_Recipe.shadergraph";
+            var materialAssetPath = $"{TestFolder}/Validation_Recipe.mat";
+            try
+            {
+                var result = new Tool_Assets_ShaderGraph().CreateFromStyleRecipe(
+                    styleRecipe: recipeJson,
+                    graphAssetPath: graphAssetPath,
+                    materialAssetPath: materialAssetPath,
+                    overwrite: true);
+
+                Assert.IsNotNull(result);
+                Assert.IsNotNull(result.Graph);
+                Assert.AreEqual(graphAssetPath, result.Graph!.AssetPath);
+                Assert.AreEqual(materialAssetPath, result.MaterialAssetPath);
+                Assert.AreEqual("unlit-simple", result.ResolvedTemplateId);
+                Assert.IsTrue(result.Warnings!.Any(w => w.Contains("falls back to the safe 'unlit-simple' template")),
+                    "Expected a warning explaining the temporary template fallback.");
+
+                var material = AssetDatabase.LoadAssetAtPath<Material>(materialAssetPath);
+                Assert.IsNotNull(material, $"Expected Material asset to resolve at '{materialAssetPath}'.");
+                Assert.IsTrue(material!.HasColor("_BaseColor"), "Generated material should expose _BaseColor.");
+
+                Assert.IsTrue(ColorUtility.TryParseHtmlString("#80A0C0", out var expectedColor));
+                var actualColor = material.GetColor("_BaseColor");
+                Assert.That(actualColor.r, Is.EqualTo(expectedColor.r).Within(0.0001f));
+                Assert.That(actualColor.g, Is.EqualTo(expectedColor.g).Within(0.0001f));
+                Assert.That(actualColor.b, Is.EqualTo(expectedColor.b).Within(0.0001f));
+            }
+            finally
+            {
+                CleanupTestAsset(materialAssetPath);
+                CleanupTestAsset(graphAssetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_CreateFromStyleRecipe_InvalidColor_Throws()
+        {
+            const string recipeJson = @"{
+                ""palette"": {
+                    ""baseColors"": [""not-a-color""]
+                }
+            }";
+
+            Assert.Throws<ArgumentException>(() => new Tool_Assets_ShaderGraph().CreateFromStyleRecipe(
+                styleRecipe: recipeJson,
+                graphAssetPath: $"{TestFolder}/InvalidColor.shadergraph",
+                materialAssetPath: $"{TestFolder}/InvalidColor.mat",
+                overwrite: true));
+        }
+
+        [Test]
+        public void ShaderGraph_CreateFromStyleRecipe_UnsupportedRenderPipeline_Throws()
+        {
+            const string recipeJson = @"{
+                ""renderPipeline"": ""HDRP"",
+                ""palette"": {
+                    ""baseColors"": [""#FFFFFF""]
+                }
+            }";
+
+            Assert.Throws<ArgumentException>(() => new Tool_Assets_ShaderGraph().CreateFromStyleRecipe(
+                styleRecipe: recipeJson,
+                graphAssetPath: $"{TestFolder}/UnsupportedPipeline.shadergraph",
+                materialAssetPath: $"{TestFolder}/UnsupportedPipeline.mat",
+                overwrite: true));
+        }
+
+        [Test]
+        public void ShaderGraph_CreateFromStyleRecipe_UnknownTemplate_Throws()
+        {
+            const string recipeJson = @"{
+                ""graphTemplate"": ""unknown-template"",
+                ""palette"": {
+                    ""baseColors"": [""#FFFFFF""]
+                }
+            }";
+
+            Assert.Throws<ArgumentException>(() => new Tool_Assets_ShaderGraph().CreateFromStyleRecipe(
+                styleRecipe: recipeJson,
+                graphAssetPath: $"{TestFolder}/UnknownTemplate.shadergraph",
+                materialAssetPath: $"{TestFolder}/UnknownTemplate.mat",
+                overwrite: true));
         }
 
         static string CreateShaderGraphAssetCopy(string fileName)

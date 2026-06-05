@@ -46,6 +46,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 => $"Asset path must start with 'Assets/'. Path: '{assetPath}'.";
             public static string AssetPathMustEndWithMat(string assetPath)
                 => $"Asset path must end with '.mat'. Path: '{assetPath}'.";
+            public static string MaterialAssetAlreadyExists(string assetPath)
+                => $"Material asset already exists at path: '{assetPath}'. Set 'overwrite' to true to replace it.";
             public static string ShaderNotFound(string shaderName)
                 => $"Shader not found. Name: '{shaderName}'. Please check if the shader is in the project and the name is correct.";
 
