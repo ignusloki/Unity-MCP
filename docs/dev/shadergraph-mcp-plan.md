@@ -137,9 +137,11 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `assets-shadergraph-find`
   - `assets-shadergraph-get-data`
   - `assets-shadergraph-get-structure`
+  - `assets-shadergraph-get-settings`
   - `assets-shadergraph-create`
   - `assets-shadergraph-create-material`
   - `assets-shadergraph-create-from-style-recipe`
+  - `assets-shadergraph-set-settings`
 - Implementation strategy:
   - No compile-time Shader Graph asmdef dependency was added
   - Source `.shadergraph` files are parsed directly as concatenated JSON objects
@@ -152,11 +154,15 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Find.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetData.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetStructure.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetSettings.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Create.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateMaterial.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateFromStyleRecipe.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.SetSettings.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Settings.Common.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphDiagnosticData.cs`
+  - `Editor/Scripts/API/Tool/Data/ShaderGraphSettingsData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphStructureData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderStyleRecipeData.cs`
   - `Tests/Editor/Tool/Assets/AssetsShaderGraphTests.cs`
@@ -185,6 +191,16 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - Resolved edge count: `4`
   - Active targets included: `HDTarget`, `UniversalTarget`
   - Resolved `Sample Texture 2D` slots included `Texture`, `UV`, and `Sampler`
+- Epic 4 first slice validated live in Unity through `script_execute`:
+  - Read settings from: `Assets/ShaderGraphValidation/Codex_Validation_Unlit.shadergraph`
+  - Root settings resolved: `ShaderMenuPath = Unlit`, `GraphPrecision = graph`, `PreviewMode = preview3d`
+  - Universal target resolved: `SurfaceType = opaque`, `AlphaMode = alpha`, `RenderFace = front`
+  - Created validation graph: `Assets/ShaderGraphValidation/Codex_Settings_Validation.shadergraph`
+  - Created validation material: `Assets/ShaderGraphValidation/Codex_Settings_Validation.mat`
+  - Applied root changes: `ShaderMenuPath = Codex/SettingsValidation`, `GraphPrecision = half`, `PreviewMode = preview2d`
+  - Applied URP target changes: `AllowMaterialOverride = true`, `SurfaceType = transparent`, `AlphaMode = premultiply`, `RenderFace = both`, `AlphaClip = true`, `CastShadows = false`, `ReceiveShadows = false`, `SupportsLodCrossFade = true`
+  - Reimported shader resolved to: `Codex/SettingsValidation/Codex_Settings_Validation`
+  - Diagnostics returned no `Error`
 - Shader Graph live result after creation:
   - `SourceParsed = true`
   - `ShaderResolved = true`
@@ -217,22 +233,33 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 ## Current Checkpoint
 
-- Read-only graph structure introspection is complete
+- Epic 4 first settings slice is implemented
 - Scope delivered:
-  - blackboard property listing
-  - node listing
-  - edge and port-connection listing
-  - active target discovery
+  - read root graph settings
+  - read Universal Render Pipeline target settings
+  - mutate an allowlisted subset of root settings:
+    - `shaderMenuPath`
+    - `graphPrecision`
+    - `previewMode`
+  - mutate an allowlisted subset of URP target settings:
+    - `allowMaterialOverride`
+    - `surfaceType`
+    - `alphaMode`
+    - `renderFace`
+    - `alphaClip`
+    - `castShadows`
+    - `receiveShadows`
+    - `supportsLodCrossFade`
 - Constraints held:
-  - read-only only
-  - no direct mutation of `.shadergraph` source in this slice
-  - safe source parsing and imported-asset inspection only
+  - mutation is still narrow and explicit
+  - every write reimports the graph and returns post-import diagnostics
+  - HDRP target mutation is still deferred even when HDRP target metadata is present in the source
 - Status:
   - implemented
   - validated live in Unity
-  - ready to commit
-- Next planned slice:
-  - safe graph settings inspection and mutation
+  - not yet committed
+- Next likely expansion inside Epic 4:
+  - broader target-settings coverage or explicit HDRP settings handling before moving on to blackboard property operations
 
 ## Open Questions
 

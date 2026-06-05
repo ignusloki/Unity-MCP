@@ -133,6 +133,116 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_GetSettings_ReturnsRootAndUniversalTargetSettings()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_GetSettings.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var result = new Tool_Assets_ShaderGraph().GetSettings(new AssetObjectRef(shader));
+
+                Assert.IsNotNull(result);
+                Assert.IsTrue(result.SourceParsed, "Shader Graph source should parse successfully.");
+                Assert.AreEqual(assetPath, result.AssetPath);
+                Assert.AreEqual("UnityEditor.ShaderGraph.GraphData", result.GraphType);
+                Assert.IsNotNull(result.Graph, "Root graph settings should be returned.");
+                Assert.AreEqual("Unlit", result.Graph!.ShaderMenuPath);
+                Assert.AreEqual("graph", result.Graph.GraphPrecision);
+                Assert.AreEqual("preview3d", result.Graph.PreviewMode);
+
+                Assert.IsNotNull(result.UniversalTarget, "Expected Universal target settings to be returned.");
+                Assert.AreEqual("opaque", result.UniversalTarget!.SurfaceType);
+                Assert.AreEqual("alpha", result.UniversalTarget.AlphaMode);
+                Assert.AreEqual("front", result.UniversalTarget.RenderFace);
+                Assert.IsFalse(result.UniversalTarget.AlphaClip ?? true);
+                Assert.IsTrue(result.UniversalTarget.CastShadows ?? false);
+                Assert.IsTrue(result.UniversalTarget.ReceiveShadows ?? false);
+
+                Assert.IsNotEmpty(result.ActiveTargetTypes, "Active target types should be surfaced.");
+                Assert.IsTrue(result.ActiveTargetTypes!.Any(type => type.Contains("UniversalTarget")),
+                    "Expected the Universal target type to be reported.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_SetSettings_UpdatesRootAndUniversalTargetSettings()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_SetSettings.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var result = new Tool_Assets_ShaderGraph().SetSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphSettingsUpdateInput
+                    {
+                        Graph = new ShaderGraphRootSettingsUpdateInput
+                        {
+                            ShaderMenuPath = "Validation/Settings",
+                            GraphPrecision = "half",
+                            PreviewMode = "preview2d"
+                        },
+                        UniversalTarget = new ShaderGraphUniversalTargetSettingsUpdateInput
+                        {
+                            AllowMaterialOverride = true,
+                            SurfaceType = "transparent",
+                            AlphaMode = "premultiply",
+                            RenderFace = "both",
+                            AlphaClip = true,
+                            CastShadows = false,
+                            ReceiveShadows = false
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(result);
+                Assert.IsNotEmpty(result.ChangedFields, "Expected at least one setting field to change.");
+                Assert.IsTrue(result.ChangedFields!.Contains("graph.shaderMenuPath"));
+                Assert.IsTrue(result.ChangedFields.Contains("graph.graphPrecision"));
+                Assert.IsTrue(result.ChangedFields.Contains("graph.previewMode"));
+                Assert.IsTrue(result.ChangedFields.Contains("universalTarget.surfaceType"));
+                Assert.IsTrue(result.ChangedFields.Contains("universalTarget.alphaMode"));
+                Assert.IsTrue(result.ChangedFields.Contains("universalTarget.renderFace"));
+                Assert.IsTrue(result.ChangedFields.Contains("universalTarget.alphaClip"));
+
+                Assert.IsNotNull(result.Settings);
+                Assert.IsNotNull(result.Settings!.Graph);
+                Assert.AreEqual("Validation/Settings", result.Settings.Graph!.ShaderMenuPath);
+                Assert.AreEqual("half", result.Settings.Graph.GraphPrecision);
+                Assert.AreEqual("preview2d", result.Settings.Graph.PreviewMode);
+
+                Assert.IsNotNull(result.Settings.UniversalTarget);
+                Assert.IsTrue(result.Settings.UniversalTarget!.AllowMaterialOverride ?? false);
+                Assert.AreEqual("transparent", result.Settings.UniversalTarget.SurfaceType);
+                Assert.AreEqual("premultiply", result.Settings.UniversalTarget.AlphaMode);
+                Assert.AreEqual("both", result.Settings.UniversalTarget.RenderFace);
+                Assert.IsTrue(result.Settings.UniversalTarget.AlphaClip ?? false);
+                Assert.IsFalse(result.Settings.UniversalTarget.CastShadows ?? true);
+                Assert.IsFalse(result.Settings.UniversalTarget.ReceiveShadows ?? true);
+
+                Assert.IsNotNull(result.Graph);
+                Assert.IsTrue(result.Graph!.SourceParsed, "Updated Shader Graph source should parse successfully.");
+                Assert.IsTrue(result.Graph.ShaderResolved, "Updated Shader Graph should still resolve a compiled shader.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Updating safe settings should not introduce import errors.");
+                Assert.IsTrue(result.Graph.ShaderName!.StartsWith("Validation/Settings/", StringComparison.Ordinal),
+                    "Compiled shader name should reflect the updated shader menu path.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_Create_ClonesTemplateAndImportsShader()
         {
             var assetPath = $"{TestFolder}/Validation_Create.shadergraph";
