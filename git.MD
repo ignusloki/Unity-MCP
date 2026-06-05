@@ -80,26 +80,50 @@ Rules:
 - Private feature branches should start from `custom/main`.
 - Temporary agent branches may be merged into `custom/main` or discarded after use.
 
-## Worktree Layout
+## Single-Folder Workflow
 
-This repo uses `git worktree` instead of multiple full clones.
+The current preferred setup is a single working directory:
 
-Expected layout:
+- `/Users/suporte/Unity-MCP`
 
-- `/Users/suporte/Unity-MCP` -> `custom/main`
-- `/Users/suporte/Unity-MCP-upstream` -> `main`
+This one repo contains both long-lived branches:
+
+- `main`
+- `custom/main`
+
+The user switches branches in the same folder depending on the task.
 
 Why:
 
-- The user can work on the custom version in the primary workspace.
-- A clean upstream worktree is always available for contribution work.
-- Disk usage stays lower than maintaining two separate full clones.
+- It keeps the filesystem layout simple.
+- It avoids maintaining parallel working copies.
+- It still preserves the clean split between upstream-safe work and private work.
 
-Check the active worktree map with:
+Typical usage:
 
 ```bash
-git worktree list
+git switch main
+git fetch upstream
+git merge --ff-only upstream/main
 ```
+
+```bash
+git switch custom/main
+git fetch upstream
+git merge upstream/main
+git push origin custom/main
+```
+
+Important rule:
+
+- Before starting private feature work, make sure the repo is on `custom/main` or a branch created from it.
+- Before starting upstream contribution work, make sure the repo is on `main` or a branch created from it.
+
+## Optional Worktrees
+
+Worktrees are optional convenience only. They are not required for this repo's intended workflow.
+
+If the user later asks for separate clean/custom folders again, `git worktree` is acceptable, but do not assume it should exist by default.
 
 ## Safe Practices
 
@@ -129,6 +153,6 @@ git branch -f main upstream/main
 
 - Read this file before changing remotes, worktrees, or branch topology.
 - Prefer minimal, explicit branch operations.
-- Do not delete worktrees or force-move long-lived branches unless the user asks.
+- Do not create or delete worktrees unless the user asks.
 - If the user says "sync with IvanMurzak/Unity-MCP", that means `upstream/main`, not `origin/custom/main`.
 - If the user says "my version" or "custom version", that means `custom/main`.
