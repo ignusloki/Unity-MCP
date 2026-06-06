@@ -652,6 +652,146 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_ConnectAndDisconnectEdge_ReroutesMultiplyColorInput()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateEdge.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Accent",
+                        OverrideReferenceName = "_AccentColor",
+                        ColorHex = "#44CC88FF"
+                    });
+
+                var accentNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_AccentColor",
+                        PositionX = -720f,
+                        PositionY = 120f
+                    });
+
+                var structureBeforeReroute = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structureBeforeReroute.Nodes!
+                    .First(n => n.Name == "Multiply");
+                var multiplyInputB = multiplyNode.Slots!
+                    .First(s => s.DisplayName == "B");
+                var baseColorNode = structureBeforeReroute.Nodes
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseColor");
+                var baseColorOutput = baseColorNode.Slots!.Single();
+                var accentOutput = accentNodeResult.Node!.Slots!.Single();
+
+                var disconnectResult = tool.DisconnectEdge(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphDisconnectEdgeInput
+                    {
+                        OutputNodeObjectId = baseColorNode.ObjectId,
+                        OutputSlotObjectId = baseColorOutput.ObjectId,
+                        InputNodeObjectId = multiplyNode.ObjectId,
+                        InputSlotObjectId = multiplyInputB.ObjectId
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var connectResult = tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = accentNodeResult.Node.ObjectId,
+                        OutputSlotObjectId = accentOutput.ObjectId,
+                        InputNodeObjectId = multiplyNode.ObjectId,
+                        InputSlotObjectId = multiplyInputB.ObjectId
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(disconnectResult);
+                Assert.IsTrue(disconnectResult.ChangedFields!.Contains("edge.disconnected"));
+                Assert.IsNotNull(disconnectResult.Edge);
+                Assert.AreEqual(baseColorNode.ObjectId, disconnectResult.Edge!.OutputNodeId);
+                Assert.AreEqual(multiplyNode.ObjectId, disconnectResult.Edge.InputNodeId);
+                Assert.AreEqual(multiplyInputB.SlotId, disconnectResult.Edge.InputSlotId);
+
+                Assert.IsNotNull(connectResult);
+                Assert.IsTrue(connectResult.ChangedFields!.Contains("edge.connected"));
+                Assert.IsNotNull(connectResult.Edge);
+                Assert.AreEqual(accentNodeResult.Node.ObjectId, connectResult.Edge!.OutputNodeId);
+                Assert.AreEqual(multiplyNode.ObjectId, connectResult.Edge.InputNodeId);
+                Assert.AreEqual(multiplyInputB.SlotId, connectResult.Edge.InputSlotId);
+
+                Assert.IsNotNull(connectResult.Structure);
+                Assert.IsTrue(connectResult.Structure!.Edges!.Any(e =>
+                    e.OutputNodeId == accentNodeResult.Node.ObjectId
+                    && e.OutputSlotId == accentOutput.SlotId
+                    && e.InputNodeId == multiplyNode.ObjectId
+                    && e.InputSlotId == multiplyInputB.SlotId));
+                Assert.IsFalse(connectResult.Structure.Edges.Any(e =>
+                    e.OutputNodeId == baseColorNode.ObjectId
+                    && e.OutputSlotId == baseColorOutput.SlotId
+                    && e.InputNodeId == multiplyNode.ObjectId
+                    && e.InputSlotId == multiplyInputB.SlotId),
+                    "The previous _BaseColor connection into Multiply.B should be removed.");
+
+                Assert.IsNotNull(connectResult.Graph);
+                Assert.IsTrue(connectResult.Graph!.ShaderResolved, "Rerouting a compatible edge should keep the shader import valid.");
+                Assert.IsFalse(connectResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Disconnecting and reconnecting a compatible edge should not introduce import errors.");
+                Assert.IsTrue(connectResult.Graph.Properties!.Any(p => p.Name == "_AccentColor"),
+                    "Compiled shader properties should still include the added Accent color property.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ConnectEdge_IncompatibleSlots_Throws()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateEdge_Incompatible.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var baseMapNode = structure.Nodes!
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseMap");
+                var baseMapOutput = baseMapNode.Slots!.Single();
+                var multiplyNode = structure.Nodes
+                    .First(n => n.Name == "Multiply");
+                var multiplyInputB = multiplyNode.Slots!
+                    .First(s => s.DisplayName == "B");
+
+                Assert.Throws<InvalidOperationException>(() => tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = baseMapNode.ObjectId,
+                        OutputSlotObjectId = baseMapOutput.ObjectId,
+                        InputNodeObjectId = multiplyNode.ObjectId,
+                        InputSlotObjectId = multiplyInputB.ObjectId
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_Create_ClonesTemplateAndImportsShader()
         {
             var assetPath = $"{TestFolder}/Validation_Create.shadergraph";

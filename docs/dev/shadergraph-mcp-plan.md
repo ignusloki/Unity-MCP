@@ -137,6 +137,13 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - move the template's existing `_BaseColor` node
   - add and move a single `_GlowStrength` PropertyNode
   - avoid creating a second `_BaseColor` node in the validation graph because duplicate PropertyNodes are valid but misleading for this checkpoint
+- First edge-operation slice is constrained to safe rerouting of existing compatible slots
+- Current support target:
+  - disconnect an existing edge by node object id plus slot object id
+  - connect an output slot to an unconnected input slot
+  - exact slot-type matches
+  - dynamic numeric/vector/color compatibility through `DynamicValueMaterialSlot`
+  - no automatic rewiring, graph inference, or multi-edge fan-in on a single input slot
 
 ## Future ShaderGraph Extension UI
 
@@ -160,6 +167,8 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `assets-shadergraph-add-property`
   - `assets-shadergraph-add-property-node`
   - `assets-shadergraph-update-node-position`
+  - `assets-shadergraph-connect-edge`
+  - `assets-shadergraph-disconnect-edge`
   - `assets-shadergraph-create`
   - `assets-shadergraph-create-material`
   - `assets-shadergraph-create-from-style-recipe`
@@ -181,6 +190,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddProperty.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddPropertyNode.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateNodePosition.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateEdge.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Create.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateMaterial.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateFromStyleRecipe.cs`
@@ -189,6 +199,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateProperty.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphDiagnosticData.cs`
+  - `Editor/Scripts/API/Tool/Data/ShaderGraphEdgeMutationData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphNodeMutationData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphPropertyMutationData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphSettingsData.cs`
