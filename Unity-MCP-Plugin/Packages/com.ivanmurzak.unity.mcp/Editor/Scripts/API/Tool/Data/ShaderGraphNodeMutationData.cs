@@ -43,10 +43,30 @@ namespace AIGD
         public float? PositionY { get; set; }
     }
 
+    [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
+    public class ShaderGraphAddNodeInput
+    {
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, split, combine, sampleTexture2D, tilingAndOffset, branch.")]
+        public string? NodeType { get; set; }
+
+        [Description("Serialized X position for the new node. Default: 0.")]
+        public float? PositionX { get; set; }
+
+        [Description("Serialized Y position for the new node. Default: 0.")]
+        public float? PositionY { get; set; }
+    }
+
+    [Description("Structured input for deleting an existing Shader Graph node by serialized node id.")]
+    public class ShaderGraphDeleteNodeInput
+    {
+        [Description("Serialized object id of the node to delete.")]
+        public string? NodeObjectId { get; set; }
+    }
+
     [Description("Result of adding an allowlisted Shader Graph node and re-importing the graph.")]
     public class ShaderGraphNodeMutationResultData
     {
-        [Description("Snapshot of the created node after the mutation.")]
+        [Description("Snapshot of the affected node. For add operations this is the created node after import; for delete operations this is the deleted node before removal.")]
         public ShaderGraphNodeDefinitionData? Node { get; set; }
 
         [Description("Updated read-only graph structure after the mutation.")]
@@ -54,6 +74,9 @@ namespace AIGD
 
         [Description("Post-import Shader Graph summary and diagnostics.")]
         public ShaderGraphData? Graph { get; set; }
+
+        [Description("Number of connected edges that were removed automatically while deleting the node, if applicable.")]
+        public int? RemovedEdgeCount { get; set; }
 
         [Description("List of node fields that actually changed.")]
         public List<string>? ChangedFields { get; set; }

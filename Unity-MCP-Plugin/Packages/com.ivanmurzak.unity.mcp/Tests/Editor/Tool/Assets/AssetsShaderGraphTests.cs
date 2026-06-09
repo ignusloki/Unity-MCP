@@ -530,6 +530,180 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_AddNode_AddsAllowlistedUtilityAndTextureNodes()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var sampleTextureNodeResult = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "sampleTexture2D",
+                        PositionX = -960f,
+                        PositionY = 40f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var branchNodeResult = tool.AddNode(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "branch",
+                        PositionX = -560f,
+                        PositionY = 260f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(sampleTextureNodeResult);
+                Assert.IsTrue(sampleTextureNodeResult.ChangedFields!.Contains("node.added"));
+                Assert.IsNotNull(sampleTextureNodeResult.Node);
+                Assert.AreEqual("UnityEditor.ShaderGraph.SampleTexture2DNode", sampleTextureNodeResult.Node!.Type);
+                Assert.AreEqual("Sample Texture 2D", sampleTextureNodeResult.Node.Name);
+                Assert.AreEqual(-960f, sampleTextureNodeResult.Node.PositionX);
+                Assert.AreEqual(40f, sampleTextureNodeResult.Node.PositionY);
+                Assert.IsNotEmpty(sampleTextureNodeResult.Node.Slots);
+                Assert.IsTrue(sampleTextureNodeResult.Node.Slots!.Any(s => s.DisplayName == "Texture"));
+                Assert.IsTrue(sampleTextureNodeResult.Node.Slots.Any(s => s.DisplayName == "UV"));
+                Assert.IsTrue(sampleTextureNodeResult.Node.Slots.Any(s => s.DisplayName == "Sampler"));
+
+                Assert.IsNotNull(branchNodeResult);
+                Assert.IsTrue(branchNodeResult.ChangedFields!.Contains("node.added"));
+                Assert.IsNotNull(branchNodeResult.Node);
+                Assert.AreEqual("UnityEditor.ShaderGraph.BranchNode", branchNodeResult.Node!.Type);
+                Assert.AreEqual("Branch", branchNodeResult.Node.Name);
+                Assert.AreEqual(-560f, branchNodeResult.Node.PositionX);
+                Assert.AreEqual(260f, branchNodeResult.Node.PositionY);
+                Assert.IsNotEmpty(branchNodeResult.Node.Slots);
+                Assert.IsTrue(branchNodeResult.Node.Slots!.Any(s => s.DisplayName == "Predicate"));
+                Assert.IsTrue(branchNodeResult.Node.Slots.Any(s => s.DisplayName == "True"));
+                Assert.IsTrue(branchNodeResult.Node.Slots.Any(s => s.DisplayName == "False"));
+
+                Assert.IsNotNull(branchNodeResult.Structure);
+                Assert.IsTrue(branchNodeResult.Structure!.Nodes!.Any(n => n.ObjectId == sampleTextureNodeResult.Node.ObjectId));
+                Assert.IsTrue(branchNodeResult.Structure.Nodes.Any(n => n.ObjectId == branchNodeResult.Node.ObjectId));
+
+                Assert.IsNotNull(branchNodeResult.Graph);
+                Assert.IsTrue(branchNodeResult.Graph!.ShaderResolved, "Adding allowlisted nodes should keep the Shader Graph import valid.");
+                Assert.IsFalse(branchNodeResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Adding allowlisted nodes should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_AddNode_UnsupportedType_Throws()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode_Unsupported.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                Assert.Throws<ArgumentException>(() => tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "fresnel"
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_DeleteNode_RemovesNodeAndConnectedEdges()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_DeleteNode.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var structureBeforeDelete = tool.GetStructure(new AssetObjectRef(shader));
+                var baseColorNode = structureBeforeDelete.Nodes!
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseColor");
+
+                Assert.IsTrue(structureBeforeDelete.Edges!.Any(e => e.OutputNodeId == baseColorNode.ObjectId),
+                    "The validation graph should start with at least one edge sourced from the _BaseColor PropertyNode.");
+
+                var deleteResult = tool.DeleteNode(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphDeleteNodeInput
+                    {
+                        NodeObjectId = baseColorNode.ObjectId
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(deleteResult);
+                Assert.IsTrue(deleteResult.ChangedFields!.Contains("node.deleted"));
+                Assert.IsTrue(deleteResult.ChangedFields.Contains("edge.autoRemoved"),
+                    "Deleting a connected node should report that edges were cleaned up automatically.");
+                Assert.IsNotNull(deleteResult.Node);
+                Assert.AreEqual(baseColorNode.ObjectId, deleteResult.Node!.ObjectId);
+                Assert.AreEqual("UnityEditor.ShaderGraph.PropertyNode", deleteResult.Node.Type);
+                Assert.AreEqual(1, deleteResult.RemovedEdgeCount,
+                    "The template-derived _BaseColor PropertyNode should contribute exactly one edge in the validation graph.");
+
+                Assert.IsNotNull(deleteResult.Structure);
+                Assert.IsFalse(deleteResult.Structure!.Nodes!.Any(n => n.ObjectId == baseColorNode.ObjectId));
+                Assert.IsFalse(deleteResult.Structure.Edges!.Any(e =>
+                    e.OutputNodeId == baseColorNode.ObjectId
+                    || e.InputNodeId == baseColorNode.ObjectId),
+                    "No remaining edges should reference the deleted node.");
+                Assert.IsTrue(deleteResult.Structure.Properties!.Any(p => p.OverrideReferenceName == "_BaseColor"),
+                    "Deleting a PropertyNode should not remove the underlying blackboard property.");
+
+                Assert.IsNotNull(deleteResult.Graph);
+                Assert.IsTrue(deleteResult.Graph!.ShaderResolved, "Deleting a node should keep the Shader Graph import valid.");
+                Assert.IsFalse(deleteResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Deleting a node through Unity's graph API should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_DeleteNode_NodeNotFound_Throws()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_DeleteNode_NotFound.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                Assert.Throws<InvalidOperationException>(() => tool.DeleteNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDeleteNodeInput
+                    {
+                        NodeObjectId = "missing-node-id"
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_UpdateNodePosition_MovesExistingNodes()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodePosition.shadergraph");
