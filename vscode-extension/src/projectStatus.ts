@@ -1,9 +1,11 @@
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { readUnityMcpProjectConfig } from './unityConfig';
+import { pathExists, toErrorMessage } from './utils';
 
 const MCP_SERVER_NAME = 'ai-game-developer';
 const UNITY_MCP_PACKAGE_NAME = 'com.ivanmurzak.unity.mcp';
+const VALID_VSCODE_MCP_TRANSPORTS = new Set(['http', 'stdio']);
 
 export interface WorkspaceStatus {
   workspaceName: string;
@@ -14,6 +16,7 @@ export interface WorkspaceStatus {
   pluginInstalled: boolean;
   pluginVersion?: string;
   unityMcpProjectConfigExists: boolean;
+  unityMcpProjectConfigReady: boolean;
   mcpConfigExists: boolean;
   mcpServerConfigured: boolean;
   mcpServerTransport?: string;
@@ -68,6 +71,10 @@ export async function inspectWorkspaceStatus(
     warnings.push(
       'Unity MCP project config is missing. Open Unity once without MCP after installing the plugin so the package can import and initialize.',
     );
+  } else if (pluginInstalled && !projectConfig.ready) {
+    warnings.push(
+      'Unity MCP project config is present but invalid or incomplete. Open Unity without MCP and fix or regenerate UserSettings/AI-Game-Developer-Config.json before retrying connected launch.',
+    );
   }
 
   const mcpInfo = await readMcpConfig(mcpConfigPath);
@@ -76,7 +83,7 @@ export async function inspectWorkspaceStatus(
     trustState,
     unityProjectDetected,
     pluginInstalled,
-    unityMcpProjectConfigExists: projectConfig.exists,
+    unityMcpProjectConfigReady: projectConfig.ready,
     mcpServerConfigured: mcpInfo.hasServerEntry,
   });
 
@@ -89,6 +96,7 @@ export async function inspectWorkspaceStatus(
     pluginInstalled,
     pluginVersion,
     unityMcpProjectConfigExists: projectConfig.exists,
+    unityMcpProjectConfigReady: projectConfig.ready,
     mcpConfigExists: mcpInfo.exists,
     mcpServerConfigured: mcpInfo.hasServerEntry,
     mcpServerTransport: mcpInfo.transport,
@@ -106,6 +114,7 @@ export function formatWorkspaceStatusReport(status: WorkspaceStatus): string {
     `Unity markers: ${status.unityMarkers.length > 0 ? status.unityMarkers.join(', ') : 'none'}`,
     `Unity MCP plugin installed: ${status.pluginInstalled ? `yes (${status.pluginVersion ?? 'unknown version'})` : 'no'}`,
     `Unity MCP project config present: ${status.unityMcpProjectConfigExists ? 'yes' : 'no'}`,
+    `Unity MCP project config ready: ${status.unityMcpProjectConfigReady ? 'yes' : 'no'}`,
     `.vscode/mcp.json present: ${status.mcpConfigExists ? 'yes' : 'no'}`,
     `ai-game-developer configured: ${status.mcpServerConfigured ? 'yes' : 'no'}`,
     `Configured transport: ${status.mcpServerTransport ?? 'unknown'}`,
@@ -132,7 +141,7 @@ function buildRecommendedActions(input: {
   trustState: 'trusted' | 'restricted';
   unityProjectDetected: boolean;
   pluginInstalled: boolean;
-  unityMcpProjectConfigExists: boolean;
+  unityMcpProjectConfigReady: boolean;
   mcpServerConfigured: boolean;
 }): WorkspaceAction[] {
   if (input.trustState !== 'trusted') {
@@ -150,7 +159,7 @@ function buildRecommendedActions(input: {
     return actions;
   }
 
-  if (!input.unityMcpProjectConfigExists) {
+  if (!input.unityMcpProjectConfigReady) {
     actions.push('open-unity-without-mcp');
     return actions;
   }
@@ -227,16 +236,39 @@ async function readMcpConfig(mcpConfigPath: string): Promise<McpConfigInfo> {
   try {
     const raw = await fs.readFile(mcpConfigPath, 'utf8');
     const parsed = JSON.parse(raw) as {
-      servers?: Record<string, { type?: string }>;
+      servers?: Record<string, { type?: string; url?: string; command?: string }>;
     };
 
     const serverEntry = parsed.servers?.[MCP_SERVER_NAME];
+    const transport = parseMcpTransport(serverEntry?.type);
+    const warnings: string[] = [];
+
+    if (serverEntry && transport === undefined) {
+      warnings.push(
+        `The ai-game-developer server entry in .vscode/mcp.json is missing a supported transport type. Expected one of: ${Array.from(VALID_VSCODE_MCP_TRANSPORTS).join(', ')}.`,
+      );
+    }
+
+    const hasServerEntry =
+      transport === 'http'
+        ? typeof serverEntry?.url === 'string' && serverEntry.url.trim().length > 0
+        : transport === 'stdio'
+          ? typeof serverEntry?.command === 'string' && serverEntry.command.trim().length > 0
+          : false;
+
+    if (transport === 'http' && serverEntry && !hasServerEntry) {
+      warnings.push('The ai-game-developer server entry in .vscode/mcp.json is missing a url for http transport.');
+    }
+
+    if (transport === 'stdio' && serverEntry && !hasServerEntry) {
+      warnings.push('The ai-game-developer server entry in .vscode/mcp.json is missing a command for stdio transport.');
+    }
 
     return {
       exists: true,
-      hasServerEntry: Boolean(serverEntry),
-      transport: serverEntry?.type,
-      warnings: [],
+      hasServerEntry,
+      transport,
+      warnings,
     };
   } catch (error) {
     return {
@@ -249,15 +281,8 @@ async function readMcpConfig(mcpConfigPath: string): Promise<McpConfigInfo> {
   }
 }
 
-async function pathExists(targetPath: string): Promise<boolean> {
-  try {
-    await fs.access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+function parseMcpTransport(value: unknown): string | undefined {
+  return typeof value === 'string' && VALID_VSCODE_MCP_TRANSPORTS.has(value)
+    ? value
+    : undefined;
 }

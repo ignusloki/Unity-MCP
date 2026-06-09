@@ -12,7 +12,15 @@ import {
   type WorkspaceAction,
 } from './projectStatus';
 import { readUnityMcpProjectConfig } from './unityConfig';
+import { normalizeFsPath } from './utils';
 import { getPreferredWorkspaceFolder, pickWorkspaceFolder } from './workspace';
+
+const UI_REFRESH_DEBOUNCE_MS = 150;
+const STATUS_RELEVANT_FILES = new Set([
+  'Packages/manifest.json',
+  '.vscode/mcp.json',
+  'UserSettings/AI-Game-Developer-Config.json',
+]);
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const logger = new ExtensionLogger();
@@ -44,6 +52,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     trusted: vscode.workspace.isTrusted,
   });
 
+  let scheduledRefreshHandle: NodeJS.Timeout | undefined;
+
   async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
     const workspaceFolder = getPreferredWorkspaceFolder();
     if (!workspaceFolder) {
@@ -71,7 +81,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       trustState: snapshot.status?.trustState,
       unityProjectDetected: snapshot.status?.unityProjectDetected,
       pluginInstalled: snapshot.status?.pluginInstalled,
-      unityConfigReady: snapshot.status?.unityMcpProjectConfigExists,
+      unityConfigReady: snapshot.status?.unityMcpProjectConfigReady,
       mcpConfigured: snapshot.status?.mcpServerConfigured,
     });
     const statusBar = buildStatusBarPresentation(snapshot);
@@ -79,6 +89,36 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     statusBarItem.tooltip = statusBar.tooltip;
     statusBarItem.show();
     await dashboardProvider.refresh();
+  }
+
+  function scheduleRefreshUi(reason: string): void {
+    if (scheduledRefreshHandle) {
+      clearTimeout(scheduledRefreshHandle);
+    }
+
+    logger.debug('dashboard:refreshScheduled', {
+      reason,
+      delayMs: UI_REFRESH_DEBOUNCE_MS,
+    });
+
+    scheduledRefreshHandle = setTimeout(() => {
+      scheduledRefreshHandle = undefined;
+      void refreshUi();
+    }, UI_REFRESH_DEBOUNCE_MS);
+  }
+
+  function isRelevantStatusDocument(document: vscode.TextDocument): boolean {
+    if (document.uri.scheme !== 'file') {
+      return false;
+    }
+
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    if (!workspaceFolder) {
+      return false;
+    }
+
+    const relativePath = pathRelativeToWorkspace(workspaceFolder, document.uri);
+    return STATUS_RELEVANT_FILES.has(relativePath);
   }
 
   async function runOpenUnity(
@@ -152,9 +192,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           },
           {
             label: 'Open Unity With MCP Connection',
-            detail: projectConfig.exists
-              ? 'Use the current AI-Game-Developer project config and request server startup.'
-              : 'Requires UserSettings/AI-Game-Developer-Config.json to be present.',
+            detail: describeConnectedLaunchAvailability(projectConfig),
             mode: 'connected' as const,
           },
         ],
@@ -174,14 +212,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       effectiveMode = openMode.mode;
     }
 
-    if (effectiveMode === 'connected' && !projectConfig.exists) {
+    if (effectiveMode === 'connected' && !projectConfig.ready) {
       logger.warn('openUnity:precheck', {
         workspace: workspaceFolder.uri.fsPath,
-        reason: 'project-config-missing',
+        reason: projectConfig.exists ? 'project-config-invalid' : 'project-config-missing',
       });
 
       const selection = await vscode.window.showWarningMessage(
-        'Unity MCP is installed, but the project has not finished first-time initialization yet. Open Unity once without MCP so the package can import and create its project config, then retry connected launch.',
+        projectConfig.exists
+          ? 'Unity MCP found AI-Game-Developer-Config.json, but it is invalid or incomplete. Open Unity once without MCP and fix or regenerate the project config before retrying connected launch.'
+          : 'Unity MCP is installed, but the project has not finished first-time initialization yet. Open Unity once without MCP so the package can import and create its project config, then retry connected launch.',
         'Open Without MCP',
         'Show Output',
         'Cancel',
@@ -250,27 +290,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.workspace.onDidGrantWorkspaceTrust(() => {
       logger.info('trust:granted', {});
-      void refreshUi();
+      scheduleRefreshUi('workspace-trusted');
     }),
   );
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
-      void refreshUi();
+      scheduleRefreshUi('workspace-folders-changed');
     }),
   );
 
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(() => {
-      void refreshUi();
+      scheduleRefreshUi('active-editor-changed');
     }),
   );
 
   context.subscriptions.push(
-    vscode.workspace.onDidSaveTextDocument(() => {
-      void refreshUi();
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      if (!isRelevantStatusDocument(document)) {
+        return;
+      }
+
+      scheduleRefreshUi(`saved:${document.uri.fsPath}`);
     }),
   );
+
+  context.subscriptions.push({
+    dispose: () => {
+      if (scheduledRefreshHandle) {
+        clearTimeout(scheduledRefreshHandle);
+      }
+    },
+  });
 
   context.subscriptions.push(
     vscode.commands.registerCommand('unityMcp.showOutput', () => {
@@ -753,4 +805,32 @@ function statusActionToCommand(actionLabel: string): string | undefined {
 
 export function deactivate(): void {
   // Nothing to dispose beyond the extension context subscriptions.
+}
+
+function describeConnectedLaunchAvailability(
+  projectConfig: Awaited<ReturnType<typeof readUnityMcpProjectConfig>>,
+): string {
+  if (projectConfig.ready) {
+    return 'Use the current AI-Game-Developer project config and request server startup.';
+  }
+
+  if (projectConfig.exists) {
+    return 'Blocked until UserSettings/AI-Game-Developer-Config.json is valid again.';
+  }
+
+  return 'Requires UserSettings/AI-Game-Developer-Config.json to be present.';
+}
+
+function pathRelativeToWorkspace(
+  workspaceFolder: vscode.WorkspaceFolder,
+  uri: vscode.Uri,
+): string {
+  const normalizedWorkspace = normalizeFsPath(workspaceFolder.uri.fsPath);
+  const normalizedDocument = normalizeFsPath(uri.fsPath);
+
+  if (!normalizedDocument.startsWith(`${normalizedWorkspace}/`)) {
+    return normalizedDocument;
+  }
+
+  return normalizedDocument.slice(normalizedWorkspace.length + 1);
 }

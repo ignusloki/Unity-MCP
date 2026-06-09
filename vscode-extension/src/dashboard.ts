@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import {
   formatWorkspaceStatusReport,
@@ -9,8 +10,27 @@ export interface DashboardSnapshot {
   status?: WorkspaceStatus;
 }
 
+export type DashboardCommandId =
+  | 'unityMcp.checkStatus'
+  | 'unityMcp.showOutput'
+  | 'workbench.trust.manage'
+  | 'unityMcp.installPlugin'
+  | 'unityMcp.configureProject'
+  | 'unityMcp.openUnityPlain'
+  | 'unityMcp.openUnityConnected';
+
+const ALLOWED_DASHBOARD_COMMANDS = new Set<DashboardCommandId>([
+  'unityMcp.checkStatus',
+  'unityMcp.showOutput',
+  'workbench.trust.manage',
+  'unityMcp.installPlugin',
+  'unityMcp.configureProject',
+  'unityMcp.openUnityPlain',
+  'unityMcp.openUnityConnected',
+]);
+
 interface DashboardActionItem {
-  commandId: string;
+  commandId: DashboardCommandId;
   label: string;
   description: string;
   recommended: boolean;
@@ -29,7 +49,7 @@ export class UnityMcpDashboardProvider implements vscode.WebviewViewProvider {
   public constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly getSnapshot: () => Promise<DashboardSnapshot>,
-    private readonly onCommand: (commandId: string) => Promise<void>,
+    private readonly onCommand: (commandId: DashboardCommandId) => Promise<void>,
     private readonly onEvent?: (event: string, properties?: Record<string, unknown>) => void,
   ) {}
 
@@ -54,6 +74,13 @@ export class UnityMcpDashboardProvider implements vscode.WebviewViewProvider {
         message.type === 'run-command' &&
         typeof message.commandId === 'string'
       ) {
+        if (!isAllowedDashboardCommand(message.commandId)) {
+          this.onEvent?.('dashboard:commandRejected', {
+            commandId: message.commandId,
+          });
+          return;
+        }
+
         this.onEvent?.('dashboard:command', {
           commandId: message.commandId,
         });
@@ -83,7 +110,7 @@ export class UnityMcpDashboardProvider implements vscode.WebviewViewProvider {
       trustState: snapshot.status?.trustState,
       unityProjectDetected: snapshot.status?.unityProjectDetected,
       pluginInstalled: snapshot.status?.pluginInstalled,
-      unityConfigReady: snapshot.status?.unityMcpProjectConfigExists,
+      unityConfigReady: snapshot.status?.unityMcpProjectConfigReady,
       mcpConfigured: snapshot.status?.mcpServerConfigured,
     });
     this.view.webview.html = renderDashboardHtml(
@@ -135,6 +162,13 @@ export function buildStatusBarPresentation(snapshot: DashboardSnapshot): {
     };
   }
 
+  if (!status.unityMcpProjectConfigReady) {
+    return {
+      text: '$(warning) Unity MCP: Fix Config',
+      tooltip: 'The Unity MCP project config exists but is invalid or incomplete. Open Unity without MCP and review the diagnostics.',
+    };
+  }
+
   if (!status.mcpServerConfigured) {
     return {
       text: '$(settings-gear) Unity MCP: Configure',
@@ -146,6 +180,12 @@ export function buildStatusBarPresentation(snapshot: DashboardSnapshot): {
     text: '$(check) Unity MCP: Ready',
     tooltip: `Unity MCP is ready for ${status.workspaceName}.`,
   };
+}
+
+export function isAllowedDashboardCommand(
+  commandId: string,
+): commandId is DashboardCommandId {
+  return ALLOWED_DASHBOARD_COMMANDS.has(commandId as DashboardCommandId);
 }
 
 export function buildDashboardActions(snapshot: DashboardSnapshot): DashboardActionItem[] {
@@ -235,6 +275,13 @@ export function buildDashboardActions(snapshot: DashboardSnapshot): DashboardAct
       label: 'Install Plugin',
       description: 'Re-run package installation to reconcile Packages/manifest.json if needed.',
       recommended: false,
+    });
+  } else if (!status.unityMcpProjectConfigReady) {
+    items.push({
+      commandId: 'unityMcp.openUnityPlain',
+      label: 'Open Unity',
+      description: 'Launch Unity without MCP and repair or regenerate the AI-Game-Developer project config.',
+      recommended: true,
     });
   } else if (!status.mcpServerConfigured) {
     items.push({
@@ -462,7 +509,7 @@ function renderDashboardHtml(
             </div>
             <div class="state-item">
               <span class="label">Unity Config</span>
-              <span class="value">${status.unityMcpProjectConfigExists ? 'Ready' : 'Missing'}</span>
+              <span class="value">${!status.unityMcpProjectConfigExists ? 'Missing' : status.unityMcpProjectConfigReady ? 'Ready' : 'Needs attention'}</span>
             </div>
             <div class="state-item">
               <span class="label">VS Code MCP</span>
@@ -535,6 +582,13 @@ function buildDashboardRecommendation(
         detail: 'Add the Unity package to Packages/manifest.json before trying to launch or connect with MCP.',
       };
     case 'open-unity-without-mcp':
+      if (status.unityMcpProjectConfigExists) {
+        return {
+          title: 'Repair the Unity project config',
+          detail: 'Open Unity without MCP and fix or regenerate AI-Game-Developer-Config.json before retrying connected launch.',
+        };
+      }
+
       return {
         title: 'Initialize the Unity project',
         detail: 'Open Unity once without MCP so the newly installed package can import and create its project config.',
@@ -569,12 +623,7 @@ function dedupeActions(items: DashboardActionItem[]): DashboardActionItem[] {
 }
 
 function createNonce(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let index = 0; index < 24; index += 1) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
+  return randomBytes(18).toString('base64url');
 }
 
 function escapeHtml(value: string): string {
