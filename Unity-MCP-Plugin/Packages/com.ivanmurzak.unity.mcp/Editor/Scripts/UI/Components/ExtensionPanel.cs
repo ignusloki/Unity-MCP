@@ -18,6 +18,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using System.Threading.Tasks;
+using com.IvanMurzak.McpPlugin;
+using com.IvanMurzak.Unity.MCP;
 using com.IvanMurzak.Unity.MCP.Editor.Utils;
 using UnityEditor;
 using UnityEditor.PackageManager;
@@ -33,6 +35,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
     /// </summary>
     public class ExtensionPanel
     {
+        public enum ExtensionMode
+        {
+            InstallablePackage,
+            BuiltInToolGroup
+        }
+
         private static readonly string[] TemplatePaths = EditorAssetLoader.GetEditorAssetPaths("Editor/UI/uxml/ExtensionItem.uxml");
 
         private const string RegistryName = "package.openupm.com";
@@ -93,7 +101,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
         /// </param>
         public void RefreshStatus(string? installedVersion)
         {
+            if (_data.Mode != ExtensionMode.InstallablePackage)
+                throw new InvalidOperationException($"Extension '{_data.Name}' is not an installable package entry.");
+
             _actionBtn.UnregisterCallback<ClickEvent>(OnActionClicked);
+            _actionBtn.UnregisterCallback<ClickEvent>(OnBuiltInToggleClicked);
 
             if (installedVersion == null)
             {
@@ -103,6 +115,57 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
 
             ShowAsChecking();
             _ = CheckForUpdateAsync(installedVersion);
+        }
+
+        public void RefreshBuiltInStatus()
+        {
+            if (_data.Mode != ExtensionMode.BuiltInToolGroup)
+                throw new InvalidOperationException($"Extension '{_data.Name}' is not a built-in tool-group entry.");
+
+            _actionBtn.UnregisterCallback<ClickEvent>(OnActionClicked);
+            _actionBtn.UnregisterCallback<ClickEvent>(OnBuiltInToggleClicked);
+
+            var toolManager = UnityMcpPluginEditor.Instance.Tools;
+            if (toolManager == null)
+            {
+                ShowAsBuiltInUnavailable("Tool manager unavailable.");
+                return;
+            }
+
+            var toolNames = _data.Tools
+                .Select(t => t.name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            if (toolNames.Length == 0)
+            {
+                ShowAsBuiltInUnavailable("No tools are configured for this built-in extension.");
+                return;
+            }
+
+            var availableToolNames = toolManager.GetAllTools()
+                .Where(tool => tool != null && !string.IsNullOrWhiteSpace(tool.Name))
+                .Select(tool => tool.Name)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var resolvedToolNames = toolNames
+                .Where(availableToolNames.Contains)
+                .ToArray();
+
+            if (resolvedToolNames.Length == 0)
+            {
+                ShowAsBuiltInUnavailable("None of this extension's tools are currently registered.");
+                return;
+            }
+
+            var enabledCount = resolvedToolNames.Count(toolManager.IsToolEnabled);
+            var allEnabled = enabledCount == resolvedToolNames.Length;
+
+            if (allEnabled)
+                ShowAsBuiltInDisable(enabledCount, resolvedToolNames.Length);
+            else
+                ShowAsBuiltInEnable(enabledCount, resolvedToolNames.Length);
         }
 
         private void ShowAsChecking()
@@ -127,6 +190,40 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
             _actionBtn.RegisterCallback<ClickEvent>(OnActionClicked);
         }
 
+        private void ShowAsBuiltInEnable(int enabledCount, int totalCount)
+        {
+            _actionBtn.text = "Enable";
+            _actionBtn.tooltip = $"Enable {_data.Name} tools for the AI agent. Currently enabled: {enabledCount}/{totalCount}.";
+            _actionBtn.RemoveFromClassList("btn-secondary");
+            _actionBtn.AddToClassList("btn-primary");
+            _actionBtn.style.display = DisplayStyle.Flex;
+            _actionBtn.SetEnabled(true);
+
+            _actionBtn.RegisterCallback<ClickEvent>(OnBuiltInToggleClicked);
+        }
+
+        private void ShowAsBuiltInDisable(int enabledCount, int totalCount)
+        {
+            _actionBtn.text = "Disable";
+            _actionBtn.tooltip = $"Disable {_data.Name} tools for the AI agent. Currently enabled: {enabledCount}/{totalCount}.";
+            _actionBtn.RemoveFromClassList("btn-primary");
+            _actionBtn.AddToClassList("btn-secondary");
+            _actionBtn.style.display = DisplayStyle.Flex;
+            _actionBtn.SetEnabled(true);
+
+            _actionBtn.RegisterCallback<ClickEvent>(OnBuiltInToggleClicked);
+        }
+
+        private void ShowAsBuiltInUnavailable(string reason)
+        {
+            _actionBtn.text = "Unavailable";
+            _actionBtn.tooltip = $"{_data.Name} built-in tools are unavailable. {reason}";
+            _actionBtn.RemoveFromClassList("btn-primary");
+            _actionBtn.AddToClassList("btn-secondary");
+            _actionBtn.style.display = DisplayStyle.Flex;
+            _actionBtn.SetEnabled(false);
+        }
+
         private void ShowAsUpdate(string installedVersion, string latestVersion)
         {
             _actionBtn.text = "Update";
@@ -143,6 +240,48 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
         {
             _actionBtn.UnregisterCallback<ClickEvent>(OnActionClicked);
             await InstallOrUpdateAsync();
+        }
+
+        private void OnBuiltInToggleClicked(ClickEvent evt)
+        {
+            _actionBtn.UnregisterCallback<ClickEvent>(OnBuiltInToggleClicked);
+
+            var toolManager = UnityMcpPluginEditor.Instance.Tools;
+            if (toolManager == null)
+            {
+                ShowAsBuiltInUnavailable("Tool manager unavailable.");
+                return;
+            }
+
+            var shouldEnable = !string.Equals(_actionBtn.text, "Disable", StringComparison.Ordinal);
+            var toolNames = _data.Tools
+                .Select(t => t.name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            var availableToolNames = toolManager.GetAllTools()
+                .Where(tool => tool != null && !string.IsNullOrWhiteSpace(tool.Name))
+                .Select(tool => tool.Name)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var changed = false;
+            foreach (var toolName in toolNames)
+            {
+                if (!availableToolNames.Contains(toolName))
+                    continue;
+
+                if (toolManager.IsToolEnabled(toolName) == shouldEnable)
+                    continue;
+
+                toolManager.SetToolEnabled(toolName, shouldEnable);
+                changed = true;
+            }
+
+            if (changed)
+                UnityMcpPluginEditor.Instance.Save();
+
+            RefreshBuiltInStatus();
         }
 
         private async Task CheckForUpdateAsync(string installedVersion)
@@ -346,7 +485,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
             }
 
             sb.AppendLine();
-            sb.Append($"Package: {data.PackageId}");
+            if (data.Mode == ExtensionMode.BuiltInToolGroup)
+                sb.Append("Built-in capability group");
+            else
+                sb.Append($"Package: {data.PackageId}");
 
             return sb.ToString();
         }
@@ -361,14 +503,22 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
             public string PackageId { get; }
             public string GitUrl { get; }
             public (string name, string description)[] Tools { get; }
+            public ExtensionMode Mode { get; }
 
-            public ExtensionData(string name, string description, string packageId, string gitUrl, (string name, string description)[] tools)
+            public ExtensionData(
+                string name,
+                string description,
+                string packageId,
+                string gitUrl,
+                (string name, string description)[] tools,
+                ExtensionMode mode = ExtensionMode.InstallablePackage)
             {
                 Name = name;
                 Description = description;
                 PackageId = packageId;
                 GitUrl = gitUrl;
                 Tools = tools;
+                Mode = mode;
             }
         }
     }

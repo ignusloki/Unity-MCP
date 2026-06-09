@@ -14,6 +14,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEngine.UIElements;
+using R3;
 
 using PackageInfo = UnityEditor.PackageManager.PackageInfo;
 
@@ -129,6 +130,30 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
                 }
             ),
             new(
+                name:        "ShaderGraph",
+                description: "AI-assisted Shader Graph discovery, creation, inspection, and controlled graph editing tools.",
+                packageId:   string.Empty,
+                gitUrl:      string.Empty,
+                tools: new[]
+                {
+                    ("assets-shadergraph-find",                 "Find Shader Graph assets by name or folder"),
+                    ("assets-shadergraph-get-data",             "Inspect compiled shader data and graph diagnostics"),
+                    ("assets-shadergraph-get-structure",        "Read properties, nodes, slots, edges, and targets from graph source"),
+                    ("assets-shadergraph-get-settings",         "Read root and target settings from graph source"),
+                    ("assets-shadergraph-create",               "Create a Shader Graph from a known template"),
+                    ("assets-shadergraph-create-material",      "Create a Material from a Shader Graph's compiled shader"),
+                    ("assets-shadergraph-create-from-style-recipe", "Create graph and material assets from a style recipe"),
+                    ("assets-shadergraph-set-settings",         "Update safe graph and URP target settings"),
+                    ("assets-shadergraph-update-property",      "Update existing blackboard properties"),
+                    ("assets-shadergraph-add-property",         "Add new blackboard properties"),
+                    ("assets-shadergraph-add-property-node",    "Add Property nodes for existing blackboard properties"),
+                    ("assets-shadergraph-update-node-position", "Move existing graph nodes by serialized id"),
+                    ("assets-shadergraph-connect-edge",         "Connect compatible existing graph slots"),
+                    ("assets-shadergraph-disconnect-edge",      "Disconnect existing graph edges"),
+                },
+                mode: ExtensionPanel.ExtensionMode.BuiltInToolGroup
+            ),
+            new(
                 name:        "Terrain",
                 description: "AI-powered Unity Terrain authoring tools.",
                 packageId:   "com.ivanmurzak.unity.mcp.terrain",
@@ -186,6 +211,24 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
                 panels.Add(panel);
             }
 
+            void RefreshBuiltInPanels()
+            {
+                for (var i = 0; i < _extensions.Length; i++)
+                {
+                    if (_extensions[i].Mode != ExtensionPanel.ExtensionMode.BuiltInToolGroup)
+                        continue;
+
+                    panels[i].RefreshBuiltInStatus();
+                }
+            }
+
+            RefreshBuiltInPanels();
+
+            UnityMcpPluginEditor.PluginProperty.CurrentValue?.McpManager.ToolManager?.OnToolsUpdated
+                ?.ObserveOnCurrentSynchronizationContext()
+                .Subscribe(_ => RefreshBuiltInPanels())
+                .AddTo(_disposables);
+
             var listRequest = Client.List();
             EditorApplication.update += OnListComplete;
 
@@ -204,6 +247,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
 
                 for (var i = 0; i < _extensions.Length; i++)
                 {
+                    if (_extensions[i].Mode == ExtensionPanel.ExtensionMode.BuiltInToolGroup)
+                    {
+                        panels[i].RefreshBuiltInStatus();
+                        continue;
+                    }
+
                     var packageId = _extensions[i].PackageId;
                     var installedVersion = installedByName.TryGetValue(packageId, out var pkg)
                         ? pkg.version

@@ -157,6 +157,17 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - ShaderGraph support currently lives in the core package
   - implementation likely needs a built-in toggle-only extension mode or a later package split
 
+## Current Extension UI Slice
+
+- Implement `ShaderGraph` in the Extensions section as a built-in capability group, not as an installable package
+- Button behavior:
+  - `Disable` when the full ShaderGraph tool group is enabled
+  - `Enable` when any ShaderGraph tools in the group are disabled
+- Persistence path:
+  - batch-toggle the grouped ShaderGraph tool ids through `ToolManager.SetToolEnabled(...)`
+  - persist through `UnityMcpPluginEditor.Instance.Save()`
+- The row should refresh when tool enabled states change so the button text does not go stale after toggles from other UI surfaces
+
 ## Implemented On This Branch
 
 - New tool ids implemented in the package:
@@ -287,10 +298,10 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 - [x] Epic 2: safe creation, material creation, and style-recipe foundation
 - [x] Epic 3: read-only graph structure introspection
 - [ ] Epic 4: safe graph settings inspection and mutation
-- [ ] Epic 5: blackboard property operations
-- [ ] Epic 6: limited allowlisted node operations
-- [ ] Epic 7: limited allowlisted edge operations
-- [ ] Epic 8: ShaderGraph Extensions entry and capability gating
+- [x] Epic 5: blackboard property operations
+- [x] Epic 6: limited allowlisted node operations
+- [x] Epic 7: limited allowlisted edge operations
+- [x] Epic 8: ShaderGraph Extensions entry and capability gating
 - [ ] Epic 9: optional texture and reference-image handling
 - [ ] Epic 10: parameterized style templates (deferred)
 - [ ] Epic 11: full graph-editing feasibility research
@@ -298,31 +309,23 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 ## Current Checkpoint
 
-- Epic 5 second property slice is implemented
+- Epic 8 ShaderGraph Extensions slice is implemented
 - Scope delivered:
-  - update existing blackboard properties by object id or effective reference name
-  - add new blackboard properties to the default category
-  - mutate generic property fields:
-    - `displayName`
-    - `overrideReferenceName`
-    - `hidden`
-    - `generatePropertyBlock`
-  - mutate typed property data:
-    - `ColorShaderProperty` default color via `colorHex`
-  - create typed properties:
-    - `color`
-    - `float`
+- add a `ShaderGraph` row to the Extensions window as a built-in capability group
+- expose the current ShaderGraph tool surface through one grouped enable/disable action
+- keep package-install behavior unchanged for installable extensions
+- refresh the built-in row when tool enabled states change from other UI surfaces
+- persist grouped toggles through the existing tool-state save path
 - Constraints held:
-  - add support is still limited to the default category
-  - no property removal or type-conversion support yet
-  - no node wiring is created for new properties in this slice
-  - every write reimports the graph and returns post-import diagnostics
+  - ShaderGraph remains a built-in tool group, not an installable package row
+  - grouped toggling only affects the current allowlisted ShaderGraph tool ids
+  - no package split was introduced for ShaderGraph capability gating
 - Status:
   - implemented
   - validated live in Unity
   - not yet committed
-- Next likely expansion inside Epic 4:
-  - broader target-settings coverage or explicit HDRP settings handling before moving on to blackboard property operations
+- Next epic:
+  - Epic 9 optional texture and reference-image handling
 
 ## Open Questions
 
