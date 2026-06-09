@@ -107,6 +107,9 @@ namespace AIGD
         [Description("Whether the tool should use a reference texture if one is available.")]
         public bool UseReferenceTexture { get; set; }
 
+        [Description("Project texture asset path to assign to the generated material when supported.")]
+        public string? ReferenceTextureAssetPath { get; set; }
+
         [Description("Requested procedural noise amount in the range 0..1.")]
         public float NoiseAmount { get; set; }
 

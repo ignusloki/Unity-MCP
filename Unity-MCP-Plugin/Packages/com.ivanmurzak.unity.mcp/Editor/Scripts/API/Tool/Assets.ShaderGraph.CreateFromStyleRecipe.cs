@@ -80,6 +80,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static readonly HashSet<string> TextureFields = new(StringComparer.OrdinalIgnoreCase)
         {
             "useReferenceTexture",
+            "referenceTextureAssetPath",
             "noiseAmount",
             "brushGrain"
         };
@@ -112,7 +113,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `graphAssetPath` — destination `.shadergraph` path under `Assets/`.\n" +
             "- `materialAssetPath` — destination `.mat` path under `Assets/`.\n" +
             "- `overwrite` — when true, replace existing generated assets.\n\n" +
-            "Current Epic 5 behavior validates the full recipe, creates the graph from a safe template, creates a material from the graph, applies the first base palette color if the shader exposes one, and returns warnings for recipe fields deferred to later template work.")]
+            "Current behavior validates the full recipe, creates the graph from a safe template, creates a material from the graph, applies the first base palette color if the shader exposes one, applies an explicit project reference texture when provided, and returns warnings for recipe fields deferred to later template work.")]
         [Description("Create a Shader Graph and Material from a validated, declarative style recipe JSON.")]
         public ShaderStyleRecipeCreateResult CreateFromStyleRecipe
         (
@@ -249,6 +250,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 recipe.Outline.Width = 0f;
 
             recipe.Texture ??= new ShaderStyleRecipeTextureData();
+            recipe.Texture.ReferenceTextureAssetPath = string.IsNullOrWhiteSpace(recipe.Texture.ReferenceTextureAssetPath)
+                ? null
+                : recipe.Texture.ReferenceTextureAssetPath.Trim();
             recipe.Material ??= new ShaderStyleRecipeMaterialData();
             recipe.Notes ??= new List<string>();
         }
@@ -267,6 +271,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             ValidateRange(recipe.Lighting.ShadowSoftness, 0f, 1f, "lighting.shadowSoftness");
             ValidateRange(recipe.Lighting.RimLight, 0f, 1f, "lighting.rimLight");
+            ValidateProjectAssetPath(recipe.Texture!.ReferenceTextureAssetPath, "texture.referenceTextureAssetPath");
             ValidateRange(recipe.Texture!.NoiseAmount, 0f, 1f, "texture.noiseAmount");
             ValidateRange(recipe.Texture.BrushGrain, 0f, 1f, "texture.brushGrain");
             ValidateRange(recipe.Material!.Smoothness, 0f, 1f, "material.smoothness");
@@ -413,11 +418,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 warnings.Add("outline fields are validated but not yet applied by the current template.");
             }
 
-            if (recipe.Texture!.UseReferenceTexture
-                || !Mathf.Approximately(recipe.Texture.NoiseAmount, 0f)
+            if (recipe.Texture!.UseReferenceTexture && string.IsNullOrWhiteSpace(recipe.Texture.ReferenceTextureAssetPath))
+                warnings.Add("texture.useReferenceTexture was requested but no texture.referenceTextureAssetPath was provided.");
+
+            if (!string.IsNullOrWhiteSpace(recipe.Texture.ReferenceTextureAssetPath))
+                ApplyReferenceTextureToMaterial(material, recipe.Texture.ReferenceTextureAssetPath!, warnings, appliedMaterialProperties);
+
+            if (!Mathf.Approximately(recipe.Texture.NoiseAmount, 0f)
                 || !Mathf.Approximately(recipe.Texture.BrushGrain, 0f))
             {
-                warnings.Add("texture fields are validated but not yet applied by the current template.");
+                warnings.Add("texture.noiseAmount and texture.brushGrain are validated but not yet applied by the current template.");
             }
 
             if (!Mathf.Approximately(recipe.Material!.Smoothness, 0f)
@@ -506,6 +516,48 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 throw new ArgumentException($"Invalid color value '{color}' at '{fieldPath}'. Expected a hex color such as '#E8B88F'.");
 
             return parsedColor;
+        }
+
+        static void ValidateProjectAssetPath(string? assetPath, string fieldPath)
+        {
+            if (string.IsNullOrWhiteSpace(assetPath))
+                return;
+
+            if (!assetPath.StartsWith("Assets/", StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"{fieldPath} must be a project asset path under 'Assets/'. Actual value: '{assetPath}'.");
+            }
+        }
+
+        static void ApplyReferenceTextureToMaterial(
+            Material material,
+            string textureAssetPath,
+            List<string> warnings,
+            List<string> appliedMaterialProperties)
+        {
+            var texture = AssetDatabase.LoadAssetAtPath<Texture>(textureAssetPath);
+            if (texture == null)
+            {
+                throw new ArgumentException(
+                    $"texture.referenceTextureAssetPath points to '{textureAssetPath}', but no Texture asset could be loaded from that path.");
+            }
+
+            if (material.HasTexture("_BaseMap"))
+            {
+                material.SetTexture("_BaseMap", texture);
+                appliedMaterialProperties.Add("_BaseMap");
+                return;
+            }
+
+            if (material.HasTexture("_MainTex"))
+            {
+                material.SetTexture("_MainTex", texture);
+                appliedMaterialProperties.Add("_MainTex");
+                return;
+            }
+
+            warnings.Add($"A reference texture was provided at '{textureAssetPath}', but the generated material exposes no writable main texture property.");
         }
 
         static void ValidateRange(float value, float min, float max, string fieldPath)

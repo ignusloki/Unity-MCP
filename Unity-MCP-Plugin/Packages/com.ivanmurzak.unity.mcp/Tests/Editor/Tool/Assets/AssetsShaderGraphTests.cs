@@ -898,6 +898,53 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_CreateFromStyleRecipe_AppliesReferenceTexture()
+        {
+            var textureAssetPath = CreateTextureAsset("Validation_Recipe_Texture.png", new Color(0.15f, 0.7f, 0.35f, 1f));
+            var graphAssetPath = $"{TestFolder}/Validation_Recipe_Texture.shadergraph";
+            var materialAssetPath = $"{TestFolder}/Validation_Recipe_Texture.mat";
+            try
+            {
+                var recipeJson = $@"{{
+                    ""styleName"": ""Recipe Texture Validation"",
+                    ""renderPipeline"": ""URP"",
+                    ""graphTemplate"": ""unlit-simple"",
+                    ""texture"": {{
+                        ""useReferenceTexture"": true,
+                        ""referenceTextureAssetPath"": ""{textureAssetPath}""
+                    }}
+                }}";
+
+                var result = new Tool_Assets_ShaderGraph().CreateFromStyleRecipe(
+                    styleRecipe: recipeJson,
+                    graphAssetPath: graphAssetPath,
+                    materialAssetPath: materialAssetPath,
+                    overwrite: true);
+
+                Assert.IsNotNull(result);
+                Assert.IsNotNull(result.AppliedMaterialProperties);
+                Assert.Contains("_BaseMap", result.AppliedMaterialProperties!,
+                    "The generated material should report that the reference texture was applied to _BaseMap.");
+                Assert.IsFalse(result.Warnings?.Any(w => w.Contains("texture.", StringComparison.OrdinalIgnoreCase)) ?? false,
+                    "Reference texture assignment should not be reported as deferred when only the texture asset path is used.");
+
+                var material = AssetDatabase.LoadAssetAtPath<Material>(materialAssetPath);
+                var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(textureAssetPath);
+                Assert.IsNotNull(material, $"Expected Material asset to resolve at '{materialAssetPath}'.");
+                Assert.IsNotNull(texture, $"Expected Texture2D asset to resolve at '{textureAssetPath}'.");
+                Assert.IsTrue(material!.HasTexture("_BaseMap"), "Generated material should expose _BaseMap.");
+                Assert.AreEqual(texture, material.GetTexture("_BaseMap"),
+                    "Generated material should reference the texture asset provided by the style recipe.");
+            }
+            finally
+            {
+                CleanupTestAsset(materialAssetPath);
+                CleanupTestAsset(graphAssetPath);
+                CleanupTestAsset(textureAssetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_CreateFromStyleRecipe_InvalidColor_Throws()
         {
             const string recipeJson = @"{
@@ -961,6 +1008,30 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             Assert.IsTrue(File.Exists(sourcePath), $"Expected template source to exist at '{sourcePath}'.");
 
             File.Copy(sourcePath, destinationPath, overwrite: true);
+            AssetDatabase.ImportAsset(destinationPath, ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            return destinationPath;
+        }
+
+        static string CreateTextureAsset(string fileName, Color color)
+        {
+            var destinationPath = $"{TestFolder}/{fileName}";
+            EnsureFolder(TestFolder);
+
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, mipChain: false);
+            try
+            {
+                var pixels = Enumerable.Repeat(color, 4).ToArray();
+                texture.SetPixels(pixels);
+                texture.Apply(updateMipmaps: false, makeNoLongerReadable: false);
+                File.WriteAllBytes(destinationPath, texture.EncodeToPNG());
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(texture);
+            }
+
             AssetDatabase.ImportAsset(destinationPath, ImportAssetOptions.ForceSynchronousImport);
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
