@@ -28,6 +28,9 @@ namespace AIGD
 
         [Description("Serialized object id of the input slot attached to inputNodeObjectId.")]
         public string? InputSlotObjectId { get; set; }
+
+        [Description("When true, automatically disconnect the current incoming edge on the target input slot before creating the new edge. Default: false")]
+        public bool? ReplaceExistingInputConnection { get; set; }
     }
 
     [Description("Structured input for disconnecting an existing Shader Graph edge.")]
@@ -51,6 +54,9 @@ namespace AIGD
     {
         [Description("Snapshot of the edge that was connected or disconnected.")]
         public ShaderGraphEdgeDefinitionData? Edge { get; set; }
+
+        [Description("Snapshot of the previously connected incoming edge that was removed during a replace operation, if any.")]
+        public ShaderGraphEdgeDefinitionData? RemovedEdge { get; set; }
 
         [Description("Updated read-only graph structure after the mutation.")]
         public ShaderGraphStructureData? Structure { get; set; }

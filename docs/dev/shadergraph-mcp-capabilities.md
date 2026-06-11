@@ -210,9 +210,11 @@ This document is the single source of truth for what the local ShaderGraph MCP i
 
 - `assets-shadergraph-connect-edge`
   - Selects slots by `nodeObjectId` plus `slotObjectId`.
-  - Requires the input slot to be currently unconnected.
+  - Requires the input slot to be currently unconnected unless `replaceExistingInputConnection` is set to `true`.
   - Supports exact slot-type matches.
   - Supports compatible dynamic numeric, vector, and color slot families including `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`.
+  - Supports explicit single-input replacement for already-connected inputs.
+  - When replacement is used, the removed incoming edge is returned as `removedEdge` in the mutation result.
 - `assets-shadergraph-disconnect-edge`
   - Removes an existing edge selected by output node and slot plus input node and slot.
 
@@ -264,7 +266,7 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - Multiply input-slot literal editing beyond the current `multiplyType` support.
 - Property deletion, reordering, and category placement.
 - Project texture assignment workflows across blackboard properties and texture-consuming nodes.
-- Edge replacement and reconnect semantics for already-connected inputs.
+- Broader reconnect and bulk-rewire semantics beyond the current single-input replacement flow.
 - Groups, sticky notes, and other graph cleanup and organization tools.
 - Subgraphs, custom function nodes, keywords, enums, and other long-tail Shader Graph authoring flows.
 - Broader URP stack and block mutation parity beyond the current root and target settings allowlist.

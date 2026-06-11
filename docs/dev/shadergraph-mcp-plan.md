@@ -13,7 +13,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 ## Scope Now
 
 - Current ShaderGraph integration branch: `custom/shadergraph-mcp`
-- Latest validated slice on that branch: Epic 8 node-parameter expansion with the property-node workaround for the remaining dynamic-vector-driven inputs
+- Latest validated slice on that branch: Epic 10 Slice 10.1 single-input edge replacement
 - Current package baseline in the local validation project: `com.ivanmurzak.unity.mcp` version `0.80.1`
 - Base branch: `custom/main`
 - Date opened: `2026-06-05`
@@ -125,11 +125,11 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 ## Current Capability Gaps
 
 - No node duplication
-- No robust editor-visible direct literal/default-slot mutation path yet for the common dynamic-vector-driven node families; the current validated workflow for those cases is property-backed input wiring
+- Future follow-up from Epic 8: no robust editor-visible direct literal/default-slot mutation path yet for the common dynamic-vector-driven node families; the current validated workflow for those cases is property-backed input wiring
 - No typed Multiply input-slot literal editing yet beyond `multiplyType`
 - No property deletion, reordering, or category management
 - No project-asset texture assignment workflow yet for blackboard properties or texture-consuming nodes
-- Edge mutation is still narrow: connect/disconnect exists, but replacement flows, reconnect semantics, and broader compatibility handling are not complete
+- Edge mutation is still incomplete: connect/disconnect and single-input replacement now exist, but broader reconnect semantics, batch rewiring flows, and wider compatibility handling are not complete
 - No graph organization parity for groups, sticky notes, or other cleanup-oriented editing
 - No advanced URP authoring support yet for subgraphs, custom-function workflows, keywords/enums, or long-tail node families
 - No stack/block mutation parity yet beyond the current URP graph/target settings allowlist
@@ -164,7 +164,8 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
      - typed direct support also exists for `Tiling And Offset`, `Branch`, `Split`, `Combine`, `Add`, `Subtract`, `Divide`, `Lerp`, `One Minus`, and `Multiply.multiplyType`
      - editor validation showed the direct literal/default-slot path is still not reliable enough to be the preferred authoring flow for several dynamic-vector-driven inputs
      - the currently validated workflow for those cases is: blackboard property -> `PropertyNode` -> edge wiring
-     - a better direct literal/default-slot solution should still be researched and implemented later
+     - for the current URP-first control target, this epic is considered done
+     - a better direct literal/default-slot solution is tracked as future work rather than a blocker for moving forward
 
 3. **Epic 9: Blackboard Expansion**
    - Expand property creation/update support beyond `color` and `float`
@@ -177,19 +178,49 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
    - Add property deletion
    - Add property reordering and category placement
    - Add broader typed default-value editing
+   - Planned slices:
+     - Slice 9.1
+       - Add property deletion for supported blackboard property types
+       - Remove the backing property cleanly from the graph and fail loudly when a deletion would leave the graph in an ambiguous state
+     - Slice 9.2
+       - Add property reordering within the default blackboard category
+       - Return the updated property order so agents can verify the mutation without reopening the graph manually
+     - Slice 9.3
+       - Add category-aware placement so new or existing properties can be assigned to an explicit category instead of always landing in the default one
+       - Support safe category creation only if the serialized behavior is stable in the current Unity baseline
+     - Slice 9.4
+       - Normalize blackboard-management workflows across add, update, delete, reorder, and category placement
+       - Validate those flows against the common URP property sets already supported in the current branch
    - Current state:
      - add/update support exists for `color`, `float`, `texture2D`, `vector2`, `vector3`, `vector4`, and `boolean`
      - PropertyNode creation for those property types is implemented
      - property deletion, reordering, and category management are still missing
+     - those remaining items are independent blackboard-management features, not fallout from the Epic 8 node-setting limitation
+     - they were deferred because edge rewiring was the higher-priority control gap for practical URP authoring
 
 4. **Epic 10: Edge System V2**
    - Keep current connect/disconnect behavior as the baseline
    - Add safe edge replacement workflows for already-connected inputs
    - Expand slot compatibility handling for supported URP node families
    - Add explicit semantics for reconnect, replace, and guarded auto-disconnect
+   - Planned slices:
+     - Slice 10.1
+       - Add explicit single-input replacement on `assets-shadergraph-connect-edge`
+       - Return the removed incoming edge in the mutation result
+       - Keep the baseline connect/disconnect path unchanged unless replacement is explicitly requested
+     - Slice 10.2
+       - Add broader reconnect semantics so an agent can rewire a target input without issuing a separate manual disconnect
+       - Normalize result payloads and changed-field reporting across connect, disconnect, and replace flows
+     - Slice 10.3
+       - Expand safe compatibility handling for the high-value URP slot families still missing from the current matrix
+       - Validate replacement and reconnect flows against the common PropertyNode, math, vector, and texture node paths
+     - Slice 10.4
+       - Add higher-level guarded rewiring workflows for common graph-repair operations
+       - Keep these flows explicit and opt-in rather than introducing hidden auto-rewires
    - Current state:
      - connect/disconnect baseline exists
-     - replace/reconnect flows are still missing
+     - Slice 10.1 is implemented: explicit single-input replacement now exists through `replaceExistingInputConnection`
+     - broader reconnect semantics and higher-level rewiring workflows are still missing
 
 5. **Epic 11: URP Stack And Target Coverage**
    - Expand URP settings coverage beyond the current allowlist
@@ -323,6 +354,12 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - Validated workaround coverage: `Tiling And Offset`, `Branch`, `Split`, `Combine`, `Add`, `Subtract`, `Divide`, `Lerp`, `One Minus`
   - Stable authoring path used blackboard properties plus `PropertyNode` creation and edge wiring
   - Edge compatibility was expanded to accept `DynamicVectorMaterialSlot` in addition to `DynamicValueMaterialSlot`
+- Epic 10 first slice validated live in Unity through `script_execute`:
+  - Created validation graph: `Assets/ShaderGraphValidation/Codex_EdgeReplace_Validation.shadergraph`
+  - Replaced `_BaseColor -> Multiply.B` with `_AccentColor -> Multiply.B` in one call
+  - Returned mutation summary included `edge.disconnected`, `edge.replaced`, and `edge.connected`
+  - Post-mutation structure kept `EdgeCount = 4`
+  - No Unity console errors were produced during the replacement
 - Shader Graph live result after creation:
   - `SourceParsed = true`
   - `ShaderResolved = true`
@@ -352,12 +389,15 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 - [x] Epic 6: ShaderGraph Extensions entry and capability gating
 - [ ] Epic 7: Node lifecycle foundation
   - current state: allowlisted node creation and node deletion are done; duplication is still missing
-- [ ] Epic 8: Node parameter editing
-  - current state: direct typed coverage exists for `Sample Texture 2D`, `Multiply.multiplyType`, and the main dynamic-vector-driven node families, but the stable validated workflow for those node inputs currently uses the property-node workaround; a better direct solution remains future work
+- [x] Epic 8: Node parameter editing
+  - current state: the high-value URP-first slice is validated and treated as done for the current track
+  - future follow-up: the stable validated workflow for several dynamic-vector-driven node inputs still relies on the property-node workaround
 - [ ] Epic 9: Blackboard expansion
-  - current state: typed add/update and PropertyNode support are done for the high-value URP property types; delete/reorder/category work is still missing
+  - current state: the high-value URP-first slice is validated and usable today
+  - remaining gap: typed add/update and PropertyNode support are done for the key property types, but delete/reorder/category work is still missing
+  - note: the remaining Epic 9 work is not blocked by the Epic 8 limitation
 - [ ] Epic 10: Edge system V2
-  - current state: connect/disconnect baseline is done; replace/reconnect flows are still missing
+  - current state: Slice 10.1 is validated; broader reconnect and rewiring flows are still missing
 - [ ] Epic 11: URP stack and target coverage
 - [ ] Epic 12: Texture and asset-reference workflows
 - [ ] Epic 13: Graph organization and cleanup
@@ -368,17 +408,21 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 - The roadmap is now reprioritized around closing the control gaps required for practical URP authoring parity
 - The current integrated branch already carries the validated Epic 7, Epic 8 slices, and Epic 9 work
-- The latest validated slice belongs to **Epic 8: Node parameter editing**
+- The latest validated slice belongs to **Epic 10: Edge System V2, Slice 10.1**
+- Epic 8 is considered done for the current URP-first track, with the workaround and limitation explicitly accepted and tracked as future follow-up
+- Epic 9 is only partially complete; its remaining work is independent of Epic 8 and was deferred because edge rewiring had higher immediate value for practical MCP control
 - Texture asset-reference workflows remain deferred behind the higher-value graph-control gaps
 - Epic numbering is not the execution order; the next slice is chosen by priority, not by the largest epic number already touched
 - This is **not** the last epic required for broad ShaderGraph parity in MCP
-- The current Epic 8 workaround is good enough to proceed, but it is not the long-term final answer for direct literal/default-slot editing
+- The current Epic 8 workaround is accepted for now, but it is not the long-term final answer for direct literal/default-slot editing
 - The next epic to focus is:
   - **Epic 10: Edge system V2**
 - First slice recommendation inside Epic 10:
-  - add explicit replace/reconnect semantics for already-connected inputs
-  - support guarded auto-disconnect so an agent can rewire graphs without manual cleanup between every step
-  - build on the expanded dynamic slot compatibility work instead of creating a second edge-mutation path
+  - Slice 10.2: add broader reconnect semantics for already-connected inputs without requiring a separate manual disconnect step
+  - normalize result payloads and changed-field reporting across connect, disconnect, and replace
+  - keep all rewiring behavior explicit and opt-in
+- After Epic 10 is completed for the current priority track:
+  - return to Epic 9 starting with Slice 9.1 property deletion
 - Existing committed foundation still stands:
   - discovery and diagnostics
   - safe graph/material creation

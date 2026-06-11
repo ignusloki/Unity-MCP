@@ -51,10 +51,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         [AiSkillBody("Connect an existing output slot to an existing input slot inside a '.shadergraph' asset.\n\n" +
             "Current support is intentionally narrow and safe:\n" +
             "- selection by node object id plus slot object id\n" +
-            "- requires the input slot to be currently unconnected\n" +
+            "- requires the input slot to be currently unconnected unless `replaceExistingInputConnection` is true\n" +
             "- supports exact slot-type matches\n" +
             "- supports compatible UV/vector2 slot pairs\n" +
-            "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n\n" +
+            "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n" +
+            "- supports guarded input-edge replacement when `replaceExistingInputConnection` is true\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect node ids, slot ids, and slot types.")]
         [Description("Connect two existing Shader Graph slots and re-import the graph.")]
         public ShaderGraphEdgeMutationResultData ConnectEdge(
@@ -140,10 +141,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     $"The requested edge already exists: {outputSlot.NodeObjectId}:{outputSlot.SlotId} -> {inputSlot.NodeObjectId}:{inputSlot.SlotId}.");
             }
 
-            if (HasIncomingEdge(edgesArray, inputSlot.NodeObjectId, inputSlot.SlotId))
+            ShaderGraphEdgeDefinitionData? removedEdge = null;
+            var incomingEdgeIndex = FindIncomingEdgeIndex(edgesArray, inputSlot.NodeObjectId, inputSlot.SlotId);
+            if (incomingEdgeIndex >= 0)
             {
-                throw new InvalidOperationException(
-                    $"Input slot '{inputSlot.SlotObjectId}' on node '{inputSlot.NodeObjectId}' is already connected. Disconnect it first.");
+                if (edge.ReplaceExistingInputConnection != true)
+                {
+                    throw new InvalidOperationException(
+                        $"Input slot '{inputSlot.SlotObjectId}' on node '{inputSlot.NodeObjectId}' is already connected. Disconnect it first or set `replaceExistingInputConnection` to true.");
+                }
+
+                if (edgesArray[incomingEdgeIndex] is not JsonObject existingEdgeObject)
+                    throw new InvalidOperationException("The existing incoming Shader Graph edge could not be resolved.");
+
+                removedEdge = ReadEdgeDefinition(existingEdgeObject);
+                edgesArray.RemoveAt(incomingEdgeIndex);
             }
 
             edgesArray.Add(CreateEdgeObject(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId));
@@ -155,16 +167,20 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
 
             var graphRef = new AssetObjectRef(assetPath);
+            var changedFields = new List<string>();
+            if (removedEdge != null)
+            {
+                changedFields.Add("edge.disconnected");
+                changedFields.Add("edge.replaced");
+            }
+
+            changedFields.Add("edge.connected");
+
             return new ShaderGraphEdgeMutationResultData
             {
-                ChangedFields = new List<string> { "edge.connected" },
-                Edge = new ShaderGraphEdgeDefinitionData
-                {
-                    OutputNodeId = outputSlot.NodeObjectId,
-                    OutputSlotId = outputSlot.SlotId,
-                    InputNodeId = inputSlot.NodeObjectId,
-                    InputSlotId = inputSlot.SlotId
-                },
+                ChangedFields = changedFields,
+                Edge = CreateEdgeDefinition(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId),
+                RemovedEdge = removedEdge,
                 Structure = BuildShaderGraphStructureData(graphRef),
                 Graph = BuildShaderGraphData(
                     graphRef,
@@ -208,13 +224,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return new ShaderGraphEdgeMutationResultData
             {
                 ChangedFields = new List<string> { "edge.disconnected" },
-                Edge = new ShaderGraphEdgeDefinitionData
-                {
-                    OutputNodeId = outputSlot.NodeObjectId,
-                    OutputSlotId = outputSlot.SlotId,
-                    InputNodeId = inputSlot.NodeObjectId,
-                    InputSlotId = inputSlot.SlotId
-                },
+                Edge = CreateEdgeDefinition(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId),
                 Structure = BuildShaderGraphStructureData(graphRef),
                 Graph = BuildShaderGraphData(
                     graphRef,
@@ -250,39 +260,42 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.IsNullOrEmpty(slotObjectId))
                 throw new ArgumentException("slot object id must be provided.");
 
-            if (!document.ObjectsById.TryGetValue(nodeObjectId, out var nodeObject))
-                throw new InvalidOperationException($"Shader Graph node object '{nodeObjectId}' was not found.");
+            var resolvedNodeObjectId = nodeObjectId!;
+            var resolvedSlotObjectId = slotObjectId!;
+
+            if (!document.ObjectsById.TryGetValue(resolvedNodeObjectId, out var nodeObject))
+                throw new InvalidOperationException($"Shader Graph node object '{resolvedNodeObjectId}' was not found.");
 
             var nodeSlotIds = GetIdArray(nodeObject, "m_Slots");
-            if (!nodeSlotIds.Contains(slotObjectId, StringComparer.Ordinal))
+            if (!nodeSlotIds.Contains(resolvedSlotObjectId, StringComparer.Ordinal))
             {
                 throw new InvalidOperationException(
-                    $"Slot '{slotObjectId}' does not belong to node '{nodeObjectId}'.");
+                    $"Slot '{resolvedSlotObjectId}' does not belong to node '{resolvedNodeObjectId}'.");
             }
 
-            if (!document.ObjectsById.TryGetValue(slotObjectId, out var slotObject))
-                throw new InvalidOperationException($"Shader Graph slot object '{slotObjectId}' was not found.");
+            if (!document.ObjectsById.TryGetValue(resolvedSlotObjectId, out var slotObject))
+                throw new InvalidOperationException($"Shader Graph slot object '{resolvedSlotObjectId}' was not found.");
 
             var slotType = GetInt(slotObject, "m_SlotType");
             if (!slotType.HasValue)
-                throw new InvalidOperationException($"Shader Graph slot '{slotObjectId}' is missing m_SlotType.");
+                throw new InvalidOperationException($"Shader Graph slot '{resolvedSlotObjectId}' is missing m_SlotType.");
 
             if (slotType.Value != expectedSlotType)
             {
                 var expectedLabel = expectedSlotType == 1 ? "output" : "input";
                 throw new InvalidOperationException(
-                    $"Shader Graph slot '{slotObjectId}' is not an {expectedLabel} slot.");
+                    $"Shader Graph slot '{resolvedSlotObjectId}' is not an {expectedLabel} slot.");
             }
 
             var slotId = GetInt(slotObject, "m_Id");
             if (!slotId.HasValue)
-                throw new InvalidOperationException($"Shader Graph slot '{slotObjectId}' is missing m_Id.");
+                throw new InvalidOperationException($"Shader Graph slot '{resolvedSlotObjectId}' is missing m_Id.");
 
             return new NodeSlotContext
             {
-                NodeObjectId = nodeObjectId,
+                NodeObjectId = resolvedNodeObjectId,
                 NodeObject = nodeObject,
-                SlotObjectId = slotObjectId,
+                SlotObjectId = resolvedSlotObjectId,
                 SlotObject = slotObject,
                 SlotId = slotId.Value,
                 SlotType = slotType.Value,
@@ -354,8 +367,34 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             };
         }
 
-        static bool HasIncomingEdge(JsonArray edgesArray, string inputNodeObjectId, int inputSlotId)
-            => FindIncomingEdgeIndex(edgesArray, inputNodeObjectId, inputSlotId) >= 0;
+        static ShaderGraphEdgeDefinitionData CreateEdgeDefinition(string outputNodeObjectId, int outputSlotId, string inputNodeObjectId, int inputSlotId)
+        {
+            return new ShaderGraphEdgeDefinitionData
+            {
+                OutputNodeId = outputNodeObjectId,
+                OutputSlotId = outputSlotId,
+                InputNodeId = inputNodeObjectId,
+                InputSlotId = inputSlotId
+            };
+        }
+
+        static ShaderGraphEdgeDefinitionData ReadEdgeDefinition(JsonObject edgeObject)
+        {
+            var outputNodeId = GetStringAt(edgeObject, "m_OutputSlot", "m_Node", "m_Id");
+            var outputSlotId = GetIntAt(edgeObject, "m_OutputSlot", "m_SlotId");
+            var inputNodeId = GetStringAt(edgeObject, "m_InputSlot", "m_Node", "m_Id");
+            var inputSlotId = GetIntAt(edgeObject, "m_InputSlot", "m_SlotId");
+
+            if (string.IsNullOrEmpty(outputNodeId)
+                || string.IsNullOrEmpty(inputNodeId)
+                || !outputSlotId.HasValue
+                || !inputSlotId.HasValue)
+            {
+                throw new InvalidOperationException("The existing Shader Graph edge is missing serialized slot identifiers.");
+            }
+
+            return CreateEdgeDefinition(outputNodeId!, outputSlotId.Value, inputNodeId!, inputSlotId.Value);
+        }
 
         static int FindIncomingEdgeIndex(JsonArray edgesArray, string inputNodeObjectId, int inputSlotId)
         {

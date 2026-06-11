@@ -1768,6 +1768,154 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_ConnectEdge_ReplaceExistingInputConnection_ReroutesMultiplyColorInput()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateEdge_Replace.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Accent",
+                        OverrideReferenceName = "_AccentColor",
+                        ColorHex = "#44CC88FF"
+                    });
+
+                var accentNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_AccentColor",
+                        PositionX = -720f,
+                        PositionY = 120f
+                    });
+
+                var structureBeforeReroute = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structureBeforeReroute.Nodes!
+                    .First(n => n.Name == "Multiply");
+                var multiplyInputB = multiplyNode.Slots!
+                    .First(s => s.DisplayName == "B");
+                var baseColorNode = structureBeforeReroute.Nodes
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseColor");
+                var baseColorOutput = baseColorNode.Slots!.Single();
+                var accentOutput = accentNodeResult.Node!.Slots!.Single();
+
+                var replaceResult = tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = accentNodeResult.Node.ObjectId,
+                        OutputSlotObjectId = accentOutput.ObjectId,
+                        InputNodeObjectId = multiplyNode.ObjectId,
+                        InputSlotObjectId = multiplyInputB.ObjectId,
+                        ReplaceExistingInputConnection = true
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(replaceResult);
+                Assert.IsTrue(replaceResult.ChangedFields!.Contains("edge.disconnected"));
+                Assert.IsTrue(replaceResult.ChangedFields.Contains("edge.connected"));
+                Assert.IsTrue(replaceResult.ChangedFields.Contains("edge.replaced"));
+
+                Assert.IsNotNull(replaceResult.RemovedEdge);
+                Assert.AreEqual(baseColorNode.ObjectId, replaceResult.RemovedEdge!.OutputNodeId);
+                Assert.AreEqual(baseColorOutput.SlotId, replaceResult.RemovedEdge.OutputSlotId);
+                Assert.AreEqual(multiplyNode.ObjectId, replaceResult.RemovedEdge.InputNodeId);
+                Assert.AreEqual(multiplyInputB.SlotId, replaceResult.RemovedEdge.InputSlotId);
+
+                Assert.IsNotNull(replaceResult.Edge);
+                Assert.AreEqual(accentNodeResult.Node.ObjectId, replaceResult.Edge!.OutputNodeId);
+                Assert.AreEqual(accentOutput.SlotId, replaceResult.Edge.OutputSlotId);
+                Assert.AreEqual(multiplyNode.ObjectId, replaceResult.Edge.InputNodeId);
+                Assert.AreEqual(multiplyInputB.SlotId, replaceResult.Edge.InputSlotId);
+
+                Assert.IsNotNull(replaceResult.Structure);
+                Assert.IsTrue(replaceResult.Structure!.Edges!.Any(e =>
+                    e.OutputNodeId == accentNodeResult.Node.ObjectId
+                    && e.OutputSlotId == accentOutput.SlotId
+                    && e.InputNodeId == multiplyNode.ObjectId
+                    && e.InputSlotId == multiplyInputB.SlotId));
+                Assert.IsFalse(replaceResult.Structure.Edges.Any(e =>
+                    e.OutputNodeId == baseColorNode.ObjectId
+                    && e.OutputSlotId == baseColorOutput.SlotId
+                    && e.InputNodeId == multiplyNode.ObjectId
+                    && e.InputSlotId == multiplyInputB.SlotId),
+                    "The previous _BaseColor connection into Multiply.B should be removed during replacement.");
+
+                Assert.IsNotNull(replaceResult.Graph);
+                Assert.IsTrue(replaceResult.Graph!.ShaderResolved, "Replacing a compatible incoming edge should keep the shader import valid.");
+                Assert.IsFalse(replaceResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Replacing a compatible incoming edge should not introduce import errors.");
+                Assert.IsTrue(replaceResult.Graph.Properties!.Any(p => p.Name == "_AccentColor"),
+                    "Compiled shader properties should still include the added Accent color property.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ConnectEdge_ConnectedInputWithoutReplace_Throws()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateEdge_ConnectedInput.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Accent",
+                        OverrideReferenceName = "_AccentColor",
+                        ColorHex = "#44CC88FF"
+                    });
+
+                var accentNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_AccentColor",
+                        PositionX = -720f,
+                        PositionY = 120f
+                    });
+
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structure.Nodes!
+                    .First(n => n.Name == "Multiply");
+                var multiplyInputB = multiplyNode.Slots!
+                    .First(s => s.DisplayName == "B");
+                var accentOutput = accentNodeResult.Node!.Slots!.Single();
+
+                Assert.Throws<InvalidOperationException>(() => tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = accentNodeResult.Node.ObjectId,
+                        OutputSlotObjectId = accentOutput.ObjectId,
+                        InputNodeObjectId = multiplyNode.ObjectId,
+                        InputSlotObjectId = multiplyInputB.ObjectId
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_ConnectEdge_AllowsVector2SlotsToFeedUvSlots()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateEdge_Vector2Uv.shadergraph");
