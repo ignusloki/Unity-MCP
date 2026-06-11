@@ -304,6 +304,66 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             File.WriteAllText(document.FullPath, serialized!);
         }
 
+        static void FinalizeShaderGraphMutation(string assetPath)
+        {
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            ReloadOpenShaderGraphWindows(assetPath);
+            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+        }
+
+        static void ReloadOpenShaderGraphWindows(string assetPath)
+        {
+            var bindings = GetShaderGraphReflectionBindings();
+            var windowType = bindings.ShaderGraphEditorAssembly.GetType(
+                "UnityEditor.ShaderGraph.Drawing.MaterialGraphEditWindow",
+                throwOnError: false);
+            if (windowType == null)
+                return;
+
+            var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            var graphObjectProperty = windowType.GetProperty("graphObject", flags);
+            var initializeMethod = windowType.GetMethod(
+                "Initialize",
+                flags,
+                binder: null,
+                types: new[] { typeof(string) },
+                modifiers: null);
+            var selectedGuidField = windowType.GetField("m_Selected", flags);
+            var selectedGuidProperty = windowType.GetProperty("selectedGuid", flags);
+
+            if (selectedGuidProperty == null
+                || selectedGuidField == null
+                || graphObjectProperty == null
+                || initializeMethod == null)
+            {
+                return;
+            }
+
+            var findObjectsMethod = typeof(Resources)
+                .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Single(method => method.Name == "FindObjectsOfTypeAll"
+                    && method.IsGenericMethodDefinition
+                    && method.GetParameters().Length == 0)
+                .MakeGenericMethod(windowType);
+
+            var assetGuid = AssetDatabase.AssetPathToGUID(assetPath);
+            var windows = (findObjectsMethod.Invoke(null, null) as Array)?.Cast<object>()
+                ?? Enumerable.Empty<object>();
+
+            foreach (var window in windows)
+            {
+                var selectedGuid = selectedGuidProperty.GetValue(window) as string;
+                if (!string.Equals(selectedGuid, assetGuid, StringComparison.Ordinal))
+                    continue;
+
+                graphObjectProperty.SetValue(window, null);
+                selectedGuidField.SetValue(window, null);
+                initializeMethod.Invoke(window, new object[] { assetGuid });
+            }
+        }
+
         static object CreateShaderGraphNodeInstance(
             ShaderGraphReflectionBindings bindings,
             ShaderGraphAllowlistedNodeDefinition definition)

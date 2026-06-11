@@ -12,6 +12,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using AIGD;
 using com.IvanMurzak.Unity.MCP.Editor.API;
 using NUnit.Framework;
@@ -704,6 +705,153 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_UpdateNodeSettings_UpdatesSampleTexture2DModes()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var structureBeforeUpdate = tool.GetStructure(new AssetObjectRef(shader));
+                var sampleTextureNode = structureBeforeUpdate.Nodes!
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.SampleTexture2DNode");
+
+                var result = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = sampleTextureNode.ObjectId,
+                        SampleTexture2D = new ShaderGraphSampleTexture2DNodeSettingsUpdateInput
+                        {
+                            TextureType = "normal",
+                            NormalMapSpace = "object",
+                            UseGlobalMipBias = false,
+                            MipSamplingMode = "gradient"
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(result);
+                Assert.IsTrue(result.ChangedFields!.Contains("node.sampleTexture2D.textureType"));
+                Assert.IsTrue(result.ChangedFields.Contains("node.sampleTexture2D.normalMapSpace"));
+                Assert.IsTrue(result.ChangedFields.Contains("node.sampleTexture2D.useGlobalMipBias"));
+                Assert.IsTrue(result.ChangedFields.Contains("node.sampleTexture2D.mipSamplingMode"));
+
+                Assert.IsNotNull(result.Node);
+                Assert.AreEqual(sampleTextureNode.ObjectId, result.Node!.ObjectId);
+                Assert.IsNotNull(result.Node.SampleTexture2D);
+                Assert.AreEqual("normal", result.Node.SampleTexture2D!.TextureType);
+                Assert.AreEqual("object", result.Node.SampleTexture2D.NormalMapSpace);
+                Assert.IsFalse(result.Node.SampleTexture2D.UseGlobalMipBias ?? true);
+                Assert.AreEqual("gradient", result.Node.SampleTexture2D.MipSamplingMode);
+
+                Assert.IsNotEmpty(result.Node.Slots);
+                Assert.IsTrue(result.Node.Slots!.Any(s => s.DisplayName == "DDX"),
+                    "Gradient mip sampling mode should expose a DDX input slot.");
+                Assert.IsTrue(result.Node.Slots.Any(s => s.DisplayName == "DDY"),
+                    "Gradient mip sampling mode should expose a DDY input slot.");
+                Assert.IsFalse(result.Node.Slots.Any(s => s.DisplayName == "Bias"),
+                    "Gradient mip sampling mode should not keep the Bias slot active.");
+                Assert.IsFalse(result.Node.Slots.Any(s => s.DisplayName == "LOD"),
+                    "Gradient mip sampling mode should not keep the LOD slot active.");
+
+                Assert.IsNotNull(result.Graph);
+                Assert.IsTrue(result.Graph!.ShaderResolved, "Updating supported Sample Texture 2D settings should keep the Shader Graph import valid.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Updating supported Sample Texture 2D settings should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_UpdateNodeSettings_ReloadsOpenShaderGraphWindow()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_WindowReload.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                OpenShaderGraphWindow(assetPath);
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var structureBeforeUpdate = tool.GetStructure(new AssetObjectRef(shader));
+                var sampleTextureNode = structureBeforeUpdate.Nodes!
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.SampleTexture2DNode");
+
+                var windowStateBeforeUpdate = ReadOpenSampleTexture2DWindowState(assetPath);
+                Assert.IsNotNull(windowStateBeforeUpdate, "Expected a Shader Graph editor window to be open for the validation asset.");
+                Assert.AreEqual("Default", windowStateBeforeUpdate!.TextureType);
+                Assert.AreEqual("Tangent", windowStateBeforeUpdate.NormalMapSpace);
+                Assert.IsTrue(windowStateBeforeUpdate.UseGlobalMipBias);
+                Assert.AreEqual("Standard", windowStateBeforeUpdate.MipSamplingMode);
+
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = sampleTextureNode.ObjectId,
+                        SampleTexture2D = new ShaderGraphSampleTexture2DNodeSettingsUpdateInput
+                        {
+                            TextureType = "normal",
+                            NormalMapSpace = "object",
+                            UseGlobalMipBias = false,
+                            MipSamplingMode = "gradient"
+                        }
+                    });
+
+                var windowStateAfterUpdate = ReadOpenSampleTexture2DWindowState(assetPath);
+                Assert.IsNotNull(windowStateAfterUpdate, "Expected the Shader Graph editor window to stay open after reload.");
+                Assert.AreEqual("Normal", windowStateAfterUpdate!.TextureType);
+                Assert.AreEqual("Object", windowStateAfterUpdate.NormalMapSpace);
+                Assert.IsFalse(windowStateAfterUpdate.UseGlobalMipBias);
+                Assert.AreEqual("Gradient", windowStateAfterUpdate.MipSamplingMode);
+            }
+            finally
+            {
+                CloseShaderGraphWindows(assetPath);
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_UpdateNodeSettings_UnsupportedNodeFamily_Throws()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_Unsupported.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structure.Nodes!
+                    .First(n => n.Name == "Multiply");
+
+                Assert.Throws<InvalidOperationException>(() => tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = multiplyNode.ObjectId,
+                        SampleTexture2D = new ShaderGraphSampleTexture2DNodeSettingsUpdateInput
+                        {
+                            TextureType = "normal"
+                        }
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_UpdateNodePosition_MovesExistingNodes()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodePosition.shadergraph");
@@ -1237,6 +1385,117 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             }
 
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        }
+
+        sealed class SampleTexture2DWindowState
+        {
+            public string TextureType { get; set; } = string.Empty;
+            public string NormalMapSpace { get; set; } = string.Empty;
+            public bool UseGlobalMipBias { get; set; }
+            public string MipSamplingMode { get; set; } = string.Empty;
+        }
+
+        static void OpenShaderGraphWindow(string assetPath)
+        {
+            var shaderGraphAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .First(assembly => assembly.GetName().Name == "Unity.ShaderGraph.Editor");
+            var importerEditorType = shaderGraphAssembly.GetType("UnityEditor.ShaderGraph.ShaderGraphImporterEditor", throwOnError: true)!;
+            var showGraphEditWindowMethod = importerEditorType.GetMethod(
+                "ShowGraphEditWindow",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+                binder: null,
+                types: new[] { typeof(string) },
+                modifiers: null);
+
+            Assert.IsNotNull(showGraphEditWindowMethod, "Expected ShaderGraphImporterEditor.ShowGraphEditWindow(string) to be available.");
+
+            var opened = showGraphEditWindowMethod!.Invoke(null, new object[] { assetPath });
+            Assert.AreEqual(true, opened, $"Expected Shader Graph window to open for '{assetPath}'.");
+        }
+
+        static void CloseShaderGraphWindows(string assetPath)
+        {
+            foreach (var window in FindOpenShaderGraphWindows(assetPath))
+                window.Close();
+        }
+
+        static SampleTexture2DWindowState? ReadOpenSampleTexture2DWindowState(string assetPath)
+        {
+            var window = FindOpenShaderGraphWindows(assetPath).FirstOrDefault();
+            if (window == null)
+                return null;
+
+            var shaderGraphAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .First(assembly => assembly.GetName().Name == "Unity.ShaderGraph.Editor");
+            var windowType = window.GetType();
+            var graphObjectProperty = windowType.GetProperty("graphObject", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.IsNotNull(graphObjectProperty, "Expected MaterialGraphEditWindow.graphObject to be available.");
+
+            var graphObject = graphObjectProperty!.GetValue(window);
+            Assert.IsNotNull(graphObject, "Expected an initialized GraphObject for the open Shader Graph window.");
+
+            var graphObjectType = shaderGraphAssembly.GetType("UnityEditor.Graphing.GraphObject", throwOnError: true)!;
+            var graphProperty = graphObjectType.GetProperty("graph", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.IsNotNull(graphProperty, "Expected GraphObject.graph to be available.");
+
+            var graph = graphProperty!.GetValue(graphObject);
+            Assert.IsNotNull(graph, "Expected GraphObject.graph to be available for the open Shader Graph window.");
+
+            var sampleTextureNodeType = shaderGraphAssembly.GetType("UnityEditor.ShaderGraph.SampleTexture2DNode", throwOnError: true)!;
+            var getNodesMethod = graph!.GetType()
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .First(method => method.Name == "GetNodes"
+                    && method.IsGenericMethodDefinition
+                    && method.GetParameters().Length == 0)
+                .MakeGenericMethod(sampleTextureNodeType);
+
+            var sampleTextureNode = ((System.Collections.IEnumerable)getNodesMethod.Invoke(graph, null)!)
+                .Cast<object>()
+                .FirstOrDefault();
+            Assert.IsNotNull(sampleTextureNode, "Expected the validation graph window to contain a Sample Texture 2D node.");
+
+            var textureTypeProperty = sampleTextureNodeType.GetProperty("textureType", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var normalMapSpaceProperty = sampleTextureNodeType.GetProperty("normalMapSpace", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var useGlobalMipBiasProperty = sampleTextureNodeType.GetProperty("enableGlobalMipBias", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var mipSamplingModeProperty = sampleTextureNodeType.GetProperty("mipSamplingMode", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+            Assert.IsNotNull(textureTypeProperty);
+            Assert.IsNotNull(normalMapSpaceProperty);
+            Assert.IsNotNull(useGlobalMipBiasProperty);
+            Assert.IsNotNull(mipSamplingModeProperty);
+
+            return new SampleTexture2DWindowState
+            {
+                TextureType = textureTypeProperty!.GetValue(sampleTextureNode)!.ToString()!,
+                NormalMapSpace = normalMapSpaceProperty!.GetValue(sampleTextureNode)!.ToString()!,
+                UseGlobalMipBias = (bool)useGlobalMipBiasProperty!.GetValue(sampleTextureNode)!,
+                MipSamplingMode = mipSamplingModeProperty!.GetValue(sampleTextureNode)!.ToString()!
+            };
+        }
+
+        static EditorWindow[] FindOpenShaderGraphWindows(string assetPath)
+        {
+            var shaderGraphAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .First(assembly => assembly.GetName().Name == "Unity.ShaderGraph.Editor");
+            var windowType = shaderGraphAssembly.GetType("UnityEditor.ShaderGraph.Drawing.MaterialGraphEditWindow", throwOnError: true)!;
+            var selectedGuidProperty = windowType.GetProperty("selectedGuid", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.IsNotNull(selectedGuidProperty, "Expected MaterialGraphEditWindow.selectedGuid to be available.");
+
+            var findObjectsMethod = typeof(Resources)
+                .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Single(method => method.Name == "FindObjectsOfTypeAll"
+                    && method.IsGenericMethodDefinition
+                    && method.GetParameters().Length == 0)
+                .MakeGenericMethod(windowType);
+
+            var assetGuid = AssetDatabase.AssetPathToGUID(assetPath);
+            return ((Array)findObjectsMethod.Invoke(null, null)!)
+                .Cast<EditorWindow>()
+                .Where(window => string.Equals(
+                    selectedGuidProperty!.GetValue(window) as string,
+                    assetGuid,
+                    StringComparison.Ordinal))
+                .ToArray();
         }
     }
 }

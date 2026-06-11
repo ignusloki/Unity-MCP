@@ -603,7 +603,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
         static ShaderGraphNodeDefinitionData ParseNodeDefinition(JsonElement root, string objectId)
         {
-            return new ShaderGraphNodeDefinitionData
+            var node = new ShaderGraphNodeDefinitionData
             {
                 ObjectId = objectId,
                 Type = GetString(root, "m_Type"),
@@ -617,6 +617,29 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 SerializedDescriptor = GetString(root, "m_SerializedDescriptor"),
                 PropertyObjectId = GetStringAt(root, "m_Property", "m_Id"),
                 SlotObjectIds = GetIdArray(root, "m_Slots")
+            };
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal))
+                node.SampleTexture2D = ParseSampleTexture2DNodeSettings(root);
+
+            return node;
+        }
+
+        static ShaderGraphSampleTexture2DNodeSettingsData ParseSampleTexture2DNodeSettings(JsonElement root)
+        {
+            var textureTypeValue = GetInt(root, "m_TextureType");
+            var normalMapSpaceValue = GetInt(root, "m_NormalMapSpace");
+            var mipSamplingModeValue = GetInt(root, "m_MipSamplingMode");
+
+            return new ShaderGraphSampleTexture2DNodeSettingsData
+            {
+                TextureTypeValue = textureTypeValue,
+                TextureType = FormatSampleTexture2DTextureType(textureTypeValue),
+                NormalMapSpaceValue = normalMapSpaceValue,
+                NormalMapSpace = FormatNormalMapSpace(normalMapSpaceValue),
+                UseGlobalMipBias = GetBool(root, "m_EnableGlobalMipBias"),
+                MipSamplingModeValue = mipSamplingModeValue,
+                MipSamplingMode = FormatTexture2DMipSamplingMode(mipSamplingModeValue)
             };
         }
 
@@ -801,6 +824,41 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             }
 
             return true;
+        }
+
+        static string? FormatSampleTexture2DTextureType(int? value)
+        {
+            return value switch
+            {
+                0 => "default",
+                1 => "normal",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatNormalMapSpace(int? value)
+        {
+            return value switch
+            {
+                0 => "tangent",
+                1 => "object",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatTexture2DMipSamplingMode(int? value)
+        {
+            return value switch
+            {
+                0 => "standard",
+                1 => "lod",
+                2 => "gradient",
+                3 => "bias",
+                null => null,
+                _ => $"unknown({value})"
+            };
         }
 
         static string ResolvePhysicalAssetPath(string assetPath)

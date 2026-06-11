@@ -63,6 +63,32 @@ namespace AIGD
         public string? NodeObjectId { get; set; }
     }
 
+    [Description("Structured input for updating supported serialized settings on an existing Shader Graph node.")]
+    public class ShaderGraphUpdateNodeSettingsInput
+    {
+        [Description("Serialized object id of the node to update.")]
+        public string? NodeObjectId { get; set; }
+
+        [Description("Structured settings updates for a Sample Texture 2D node. Current Epic 8 support is limited to this node family.")]
+        public ShaderGraphSampleTexture2DNodeSettingsUpdateInput? SampleTexture2D { get; set; }
+    }
+
+    [Description("Structured settings updates for a Sample Texture 2D node.")]
+    public class ShaderGraphSampleTexture2DNodeSettingsUpdateInput
+    {
+        [Description("Texture interpretation mode. Supported values: default, normal.")]
+        public string? TextureType { get; set; }
+
+        [Description("Normal map space. Supported values: tangent, object.")]
+        public string? NormalMapSpace { get; set; }
+
+        [Description("Whether Use Global Mip Bias should be enabled.")]
+        public bool? UseGlobalMipBias { get; set; }
+
+        [Description("Mip sampling mode. Supported values: standard, lod, gradient, bias.")]
+        public string? MipSamplingMode { get; set; }
+    }
+
     [Description("Result of adding an allowlisted Shader Graph node and re-importing the graph.")]
     public class ShaderGraphNodeMutationResultData
     {

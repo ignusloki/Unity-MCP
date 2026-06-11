@@ -149,6 +149,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
                     ("assets-shadergraph-add-property-node",    "Add Property nodes for existing blackboard properties"),
                     ("assets-shadergraph-add-node",             "Add allowlisted graph nodes for URP authoring"),
                     ("assets-shadergraph-delete-node",          "Delete existing graph nodes with edge cleanup"),
+                    ("assets-shadergraph-update-node-settings", "Update supported serialized settings on existing graph nodes"),
                     ("assets-shadergraph-update-node-position", "Move existing graph nodes by serialized id"),
                     ("assets-shadergraph-connect-edge",         "Connect compatible existing graph slots"),
                     ("assets-shadergraph-disconnect-edge",      "Disconnect existing graph edges"),

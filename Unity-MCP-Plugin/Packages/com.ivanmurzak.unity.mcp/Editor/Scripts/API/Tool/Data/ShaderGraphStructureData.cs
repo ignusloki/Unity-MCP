@@ -139,6 +139,33 @@ namespace AIGD
 
         [Description("Resolved slot definitions attached to the node.")]
         public List<ShaderGraphSlotDefinitionData>? Slots { get; set; }
+
+        [Description("Resolved Sample Texture 2D settings when the node is a supported Sample Texture 2D node.")]
+        public ShaderGraphSampleTexture2DNodeSettingsData? SampleTexture2D { get; set; }
+    }
+
+    public class ShaderGraphSampleTexture2DNodeSettingsData
+    {
+        [Description("Serialized texture type enum value.")]
+        public int? TextureTypeValue { get; set; }
+
+        [Description("Formatted texture type when recognized.")]
+        public string? TextureType { get; set; }
+
+        [Description("Serialized normal map space enum value.")]
+        public int? NormalMapSpaceValue { get; set; }
+
+        [Description("Formatted normal map space when recognized.")]
+        public string? NormalMapSpace { get; set; }
+
+        [Description("Whether Use Global Mip Bias is enabled.")]
+        public bool? UseGlobalMipBias { get; set; }
+
+        [Description("Serialized mip sampling mode enum value.")]
+        public int? MipSamplingModeValue { get; set; }
+
+        [Description("Formatted mip sampling mode when recognized.")]
+        public string? MipSamplingMode { get; set; }
     }
 
     public class ShaderGraphSlotDefinitionData
