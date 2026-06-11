@@ -13,6 +13,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using AIGD;
 using com.IvanMurzak.Unity.MCP.Editor.API;
 using NUnit.Framework;
@@ -1185,6 +1186,331 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_UpdateNodeSettings_ReloadsExpandedNodeWindowState()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_Expanded_WindowReload.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var tilingNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "tilingAndOffset", PositionX = -900f, PositionY = 0f });
+                var branchNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "branch", PositionX = -900f, PositionY = 180f });
+                var combineNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "combine", PositionX = -900f, PositionY = 360f });
+
+                OpenShaderGraphWindow(assetPath);
+
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = tilingNode.Node!.ObjectId,
+                        TilingAndOffset = new ShaderGraphTilingAndOffsetNodeSettingsUpdateInput
+                        {
+                            Tiling = new ShaderGraphVector2ValueUpdateInput { X = 2f, Y = 3f },
+                            Offset = new ShaderGraphVector2ValueUpdateInput { X = 0.25f, Y = 0.75f }
+                        }
+                    });
+
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = branchNode.Node!.ObjectId,
+                        Branch = new ShaderGraphBranchNodeSettingsUpdateInput
+                        {
+                            Predicate = true,
+                            TrueValue = new ShaderGraphVector4ValueUpdateInput { X = 1f, Y = 0.5f, Z = 0.25f, W = 1f },
+                            FalseValue = new ShaderGraphVector4ValueUpdateInput { X = 0.1f, Y = 0.2f, Z = 0.3f, W = 0.4f }
+                        }
+                    });
+
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = combineNode.Node!.ObjectId,
+                        Combine = new ShaderGraphCombineNodeSettingsUpdateInput
+                        {
+                            R = 0.11f,
+                            G = 0.22f,
+                            B = 0.33f,
+                            A = 0.44f
+                        }
+                    });
+
+                var tilingSlot = ResolveOpenShaderGraphInputSlot(assetPath, "TilingAndOffsetNode", "Tiling");
+                var offsetSlot = ResolveOpenShaderGraphInputSlot(assetPath, "TilingAndOffsetNode", "Offset");
+                var predicateSlot = ResolveOpenShaderGraphInputSlot(assetPath, "BranchNode", "Predicate");
+                var trueSlot = ResolveOpenShaderGraphInputSlot(assetPath, "BranchNode", "True");
+                var combineRSlot = ResolveOpenShaderGraphInputSlot(assetPath, "CombineNode", "R");
+
+                AssertPrivateVector2Field(tilingSlot, "m_Value", 2f, 3f, "Tiling value");
+                AssertPrivateVector2Field(tilingSlot, "m_DefaultValue", 2f, 3f, "Tiling defaultValue");
+                AssertPrivateVector2Field(offsetSlot, "m_Value", 0.25f, 0.75f, "Offset value");
+                AssertPrivateVector2Field(offsetSlot, "m_DefaultValue", 0.25f, 0.75f, "Offset defaultValue");
+
+                Assert.AreEqual(true, ReadPrivateField<bool>(predicateSlot, "m_Value"), "Unexpected Branch.Predicate value.");
+                Assert.AreEqual(true, ReadPrivateField<bool>(predicateSlot, "m_DefaultValue"), "Unexpected Branch.Predicate defaultValue.");
+
+                AssertPrivateVector4Field(trueSlot, "m_Value", 1f, 0.5f, 0.25f, 1f, "Branch.True value");
+                AssertPrivateVector4Field(trueSlot, "m_DefaultValue", 1f, 0.5f, 0.25f, 1f, "Branch.True defaultValue");
+                Assert.IsTrue(ReadPrivateField<bool>(trueSlot, "m_LiteralMode"), "Expected Branch.True to stay in literal mode.");
+                Assert.AreEqual("Vector4", ReadPrivateField<object>(trueSlot, "m_ConcreteValueType").ToString(), "Expected Branch.True to keep a Vector4 concrete type.");
+
+                Assert.AreEqual(0.11f, ReadPrivateField<float>(combineRSlot, "m_Value"), 0.0001f, "Unexpected Combine.R value.");
+                Assert.AreEqual(0.11f, ReadPrivateField<float>(combineRSlot, "m_DefaultValue"), 0.0001f, "Unexpected Combine.R defaultValue.");
+                Assert.IsTrue(ReadPrivateField<bool>(combineRSlot, "m_LiteralMode"), "Expected Combine.R to stay in literal mode.");
+            }
+            finally
+            {
+                CloseShaderGraphWindows(assetPath);
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_UpdateNodeSettings_UpdatesExpandedNodeDefaultSlots()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_Expanded.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var tilingNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "tilingAndOffset", PositionX = -900f, PositionY = 0f });
+                var branchNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "branch", PositionX = -900f, PositionY = 180f });
+                var splitNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "split", PositionX = -900f, PositionY = 360f });
+                var combineNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "combine", PositionX = -900f, PositionY = 540f });
+                var addNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "add", PositionX = -620f, PositionY = 0f });
+                var subtractNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "subtract", PositionX = -620f, PositionY = 180f });
+                var divideNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "divide", PositionX = -620f, PositionY = 360f });
+                var lerpNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "lerp", PositionX = -620f, PositionY = 540f });
+                var oneMinusNode = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "oneMinus", PositionX = -620f, PositionY = 720f });
+
+                var tilingResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = tilingNode.Node!.ObjectId,
+                        TilingAndOffset = new ShaderGraphTilingAndOffsetNodeSettingsUpdateInput
+                        {
+                            Tiling = new ShaderGraphVector2ValueUpdateInput { X = 2f, Y = 3f },
+                            Offset = new ShaderGraphVector2ValueUpdateInput { X = 0.25f, Y = 0.75f }
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var branchResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = branchNode.Node!.ObjectId,
+                        Branch = new ShaderGraphBranchNodeSettingsUpdateInput
+                        {
+                            Predicate = true,
+                            TrueValue = new ShaderGraphVector4ValueUpdateInput { X = 1f, Y = 0.5f, Z = 0.25f, W = 1f },
+                            FalseValue = new ShaderGraphVector4ValueUpdateInput { X = 0.1f, Y = 0.2f, Z = 0.3f, W = 0.4f }
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var splitResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = splitNode.Node!.ObjectId,
+                        Split = new ShaderGraphSplitNodeSettingsUpdateInput
+                        {
+                            Input = new ShaderGraphVector4ValueUpdateInput { X = 0.9f, Y = 0.8f, Z = 0.7f, W = 0.6f }
+                        }
+                    });
+
+                var combineResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = combineNode.Node!.ObjectId,
+                        Combine = new ShaderGraphCombineNodeSettingsUpdateInput
+                        {
+                            R = 0.11f,
+                            G = 0.22f,
+                            B = 0.33f,
+                            A = 0.44f
+                        }
+                    });
+
+                var addResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = addNode.Node!.ObjectId,
+                        Add = new ShaderGraphBinaryVectorNodeSettingsUpdateInput
+                        {
+                            A = new ShaderGraphVector4ValueUpdateInput { X = 1f, Y = 2f, Z = 3f, W = 4f },
+                            B = new ShaderGraphVector4ValueUpdateInput { X = 5f, Y = 6f, Z = 7f, W = 8f }
+                        }
+                    });
+
+                var subtractResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = subtractNode.Node!.ObjectId,
+                        Subtract = new ShaderGraphBinaryVectorNodeSettingsUpdateInput
+                        {
+                            A = new ShaderGraphVector4ValueUpdateInput { X = 8f, Y = 7f, Z = 6f, W = 5f },
+                            B = new ShaderGraphVector4ValueUpdateInput { X = 4f, Y = 3f, Z = 2f, W = 1f }
+                        }
+                    });
+
+                var divideResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = divideNode.Node!.ObjectId,
+                        Divide = new ShaderGraphBinaryVectorNodeSettingsUpdateInput
+                        {
+                            A = new ShaderGraphVector4ValueUpdateInput { X = 16f, Y = 12f, Z = 8f, W = 4f },
+                            B = new ShaderGraphVector4ValueUpdateInput { X = 2f, Y = 3f, Z = 4f, W = 5f }
+                        }
+                    });
+
+                var lerpResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = lerpNode.Node!.ObjectId,
+                        Lerp = new ShaderGraphLerpNodeSettingsUpdateInput
+                        {
+                            A = new ShaderGraphVector4ValueUpdateInput { X = 0f, Y = 0.25f, Z = 0.5f, W = 0.75f },
+                            B = new ShaderGraphVector4ValueUpdateInput { X = 1f, Y = 0.75f, Z = 0.5f, W = 0.25f },
+                            T = new ShaderGraphVector4ValueUpdateInput { X = 0.4f, Y = 0.4f, Z = 0.4f, W = 0.4f }
+                        }
+                    });
+
+                var oneMinusResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = oneMinusNode.Node!.ObjectId,
+                        OneMinus = new ShaderGraphOneMinusNodeSettingsUpdateInput
+                        {
+                            Input = new ShaderGraphVector4ValueUpdateInput { X = 0.2f, Y = 0.4f, Z = 0.6f, W = 0.8f }
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                AssertSlotVector2(tilingResult.Node!, "Tiling", 2f, 3f);
+                AssertSlotVector2(tilingResult.Node!, "Offset", 0.25f, 0.75f);
+
+                AssertSlotBool(branchResult.Node!, "Predicate", true);
+                AssertSlotVector4(branchResult.Node!, "True", 1f, 0.5f, 0.25f, 1f);
+                AssertSlotVector4(branchResult.Node!, "False", 0.1f, 0.2f, 0.3f, 0.4f);
+
+                AssertSlotVector4(splitResult.Node!, "In", 0.9f, 0.8f, 0.7f, 0.6f);
+                AssertSlotFloat(combineResult.Node!, "R", 0.11f);
+                AssertSlotFloat(combineResult.Node!, "G", 0.22f);
+                AssertSlotFloat(combineResult.Node!, "B", 0.33f);
+                AssertSlotFloat(combineResult.Node!, "A", 0.44f);
+
+                AssertSlotVector4(addResult.Node!, "A", 1f, 2f, 3f, 4f);
+                AssertSlotVector4(addResult.Node!, "B", 5f, 6f, 7f, 8f);
+                AssertSlotVector4(subtractResult.Node!, "A", 8f, 7f, 6f, 5f);
+                AssertSlotVector4(subtractResult.Node!, "B", 4f, 3f, 2f, 1f);
+                AssertSlotVector4(divideResult.Node!, "A", 16f, 12f, 8f, 4f);
+                AssertSlotVector4(divideResult.Node!, "B", 2f, 3f, 4f, 5f);
+
+                AssertSlotVector4(lerpResult.Node!, "A", 0f, 0.25f, 0.5f, 0.75f);
+                AssertSlotVector4(lerpResult.Node!, "B", 1f, 0.75f, 0.5f, 0.25f);
+                AssertSlotVector4(lerpResult.Node!, "T", 0.4f, 0.4f, 0.4f, 0.4f);
+                AssertSlotVector4(oneMinusResult.Node!, "In", 0.2f, 0.4f, 0.6f, 0.8f);
+
+                Assert.IsNotNull(oneMinusResult.Graph);
+                Assert.IsTrue(oneMinusResult.Graph!.ShaderResolved, "Updating supported node default slots should keep the Shader Graph import valid.");
+                Assert.IsFalse(oneMinusResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Updating supported node default slots should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_UpdateNodeSettings_UpdatesMultiplyType()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_Multiply.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var multiplyNodeResult = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -620f, PositionY = 40f });
+
+                var result = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = multiplyNodeResult.Node!.ObjectId,
+                        Multiply = new ShaderGraphMultiplyNodeSettingsUpdateInput
+                        {
+                            MultiplyType = "matrix"
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(result);
+                Assert.IsTrue(result.ChangedFields!.Contains("node.multiply.multiplyType"));
+                Assert.IsNotNull(result.Node);
+                Assert.IsNotNull(result.Node!.Multiply);
+                Assert.AreEqual("matrix", result.Node.Multiply!.MultiplyType);
+
+                Assert.IsNotNull(result.Graph);
+                Assert.IsTrue(result.Graph!.ShaderResolved, "Updating Multiply settings should keep the Shader Graph import valid.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Updating Multiply settings should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_UpdateNodeSettings_UnsupportedNodeFamily_Throws()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_Unsupported.shadergraph");
@@ -1434,6 +1760,109 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     "Disconnecting and reconnecting a compatible edge should not introduce import errors.");
                 Assert.IsTrue(connectResult.Graph.Properties!.Any(p => p.Name == "_AccentColor"),
                     "Compiled shader properties should still include the added Accent color property.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ConnectEdge_AllowsVector2SlotsToFeedUvSlots()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateEdge_Vector2Uv.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector2",
+                        DisplayName = "UV Seed",
+                        OverrideReferenceName = "_UvSeed",
+                        VectorX = 0.125f,
+                        VectorY = 0.875f
+                    });
+
+                var uvSeedNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_UvSeed",
+                        PositionX = -900f,
+                        PositionY = 40f
+                    });
+                var tilingNodeResult = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "tilingAndOffset",
+                        PositionX = -640f,
+                        PositionY = 40f
+                    });
+
+                var structureBeforeConnect = tool.GetStructure(new AssetObjectRef(shader));
+                var tilingNode = structureBeforeConnect.Nodes!
+                    .First(n => n.ObjectId == tilingNodeResult.Node!.ObjectId);
+                var tilingUvInput = tilingNode.Slots!
+                    .First(s => s.DisplayName == "UV");
+                var tilingOut = tilingNode.Slots
+                    .First(s => s.DisplayName == "Out");
+                var sampleTextureNode = structureBeforeConnect.Nodes
+                    .First(n => n.Name == "Sample Texture 2D");
+                var sampleUvInput = sampleTextureNode.Slots!
+                    .First(s => s.DisplayName == "UV");
+                var uvSeedOutput = uvSeedNodeResult.Node!.Slots!.Single();
+
+                var connectSeedToUv = tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = uvSeedNodeResult.Node.ObjectId,
+                        OutputSlotObjectId = uvSeedOutput.ObjectId,
+                        InputNodeObjectId = tilingNode.ObjectId,
+                        InputSlotObjectId = tilingUvInput.ObjectId
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var connectUvToSample = tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = tilingNode.ObjectId,
+                        OutputSlotObjectId = tilingOut.ObjectId,
+                        InputNodeObjectId = sampleTextureNode.ObjectId,
+                        InputSlotObjectId = sampleUvInput.ObjectId
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(connectSeedToUv);
+                Assert.IsTrue(connectSeedToUv.ChangedFields!.Contains("edge.connected"));
+                Assert.IsNotNull(connectUvToSample);
+                Assert.IsTrue(connectUvToSample.ChangedFields!.Contains("edge.connected"));
+
+                Assert.IsNotNull(connectUvToSample.Structure);
+                Assert.IsTrue(connectUvToSample.Structure!.Edges!.Any(e =>
+                    e.OutputNodeId == uvSeedNodeResult.Node.ObjectId
+                    && e.OutputSlotId == uvSeedOutput.SlotId
+                    && e.InputNodeId == tilingNode.ObjectId
+                    && e.InputSlotId == tilingUvInput.SlotId));
+                Assert.IsTrue(connectUvToSample.Structure.Edges.Any(e =>
+                    e.OutputNodeId == tilingNode.ObjectId
+                    && e.OutputSlotId == tilingOut.SlotId
+                    && e.InputNodeId == sampleTextureNode.ObjectId
+                    && e.InputSlotId == sampleUvInput.SlotId));
+
+                Assert.IsNotNull(connectUvToSample.Graph);
+                Assert.IsTrue(connectUvToSample.Graph!.ShaderResolved, "UV/vector2-compatible edge connections should keep the Shader Graph import valid.");
+                Assert.IsFalse(connectUvToSample.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Connecting vector2-compatible outputs into UV inputs should not introduce import errors.");
             }
             finally
             {
@@ -1751,6 +2180,91 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
+        static ShaderGraphSlotDefinitionData FindSlot(ShaderGraphNodeDefinitionData node, string displayName)
+        {
+            Assert.IsNotNull(node.Slots, $"Expected resolved slots for node '{node.Name ?? node.ObjectId}'.");
+
+            var slot = node.Slots!.FirstOrDefault(s => string.Equals(s.DisplayName, displayName, StringComparison.Ordinal));
+            Assert.IsNotNull(slot, $"Expected slot '{displayName}' on node '{node.Name ?? node.ObjectId}'.");
+            return slot!;
+        }
+
+        static void AssertSlotFloat(ShaderGraphNodeDefinitionData node, string displayName, float expectedValue)
+        {
+            var slot = FindSlot(node, displayName);
+            Assert.AreEqual(expectedValue, ParseScalarValue(slot.ValueJson), 0.0001f, $"Unexpected ValueJson for slot '{displayName}'.");
+            Assert.AreEqual(expectedValue, ParseScalarValue(slot.DefaultValueJson), 0.0001f, $"Unexpected DefaultValueJson for slot '{displayName}'.");
+        }
+
+        static void AssertSlotBool(ShaderGraphNodeDefinitionData node, string displayName, bool expectedValue)
+        {
+            var slot = FindSlot(node, displayName);
+            Assert.AreEqual(expectedValue, ParseBoolValue(slot.ValueJson), $"Unexpected ValueJson for slot '{displayName}'.");
+            Assert.AreEqual(expectedValue, ParseBoolValue(slot.DefaultValueJson), $"Unexpected DefaultValueJson for slot '{displayName}'.");
+        }
+
+        static void AssertSlotVector2(ShaderGraphNodeDefinitionData node, string displayName, float x, float y)
+        {
+            var slot = FindSlot(node, displayName);
+            AssertVectorComponent(slot.ValueJson, "x", x, displayName, "ValueJson");
+            AssertVectorComponent(slot.ValueJson, "y", y, displayName, "ValueJson");
+            AssertVectorComponent(slot.DefaultValueJson, "x", x, displayName, "DefaultValueJson");
+            AssertVectorComponent(slot.DefaultValueJson, "y", y, displayName, "DefaultValueJson");
+        }
+
+        static void AssertSlotVector4(ShaderGraphNodeDefinitionData node, string displayName, float x, float y, float z, float w)
+        {
+            var slot = FindSlot(node, displayName);
+            AssertVectorComponent(slot.ValueJson, "x", x, displayName, "ValueJson");
+            AssertVectorComponent(slot.ValueJson, "y", y, displayName, "ValueJson");
+            AssertVectorComponent(slot.ValueJson, "z", z, displayName, "ValueJson");
+            AssertVectorComponent(slot.ValueJson, "w", w, displayName, "ValueJson");
+            AssertVectorComponent(slot.DefaultValueJson, "x", x, displayName, "DefaultValueJson");
+            AssertVectorComponent(slot.DefaultValueJson, "y", y, displayName, "DefaultValueJson");
+            AssertVectorComponent(slot.DefaultValueJson, "z", z, displayName, "DefaultValueJson");
+            AssertVectorComponent(slot.DefaultValueJson, "w", w, displayName, "DefaultValueJson");
+        }
+
+        static float ParseScalarValue(string? json)
+        {
+            Assert.IsNotNull(json, "Expected slot scalar JSON to be present.");
+            using var document = JsonDocument.Parse(json!);
+            return document.RootElement.ValueKind switch
+            {
+                JsonValueKind.Number when document.RootElement.TryGetSingle(out var singleValue) => singleValue,
+                JsonValueKind.Number when document.RootElement.TryGetDouble(out var doubleValue) => (float)doubleValue,
+                _ => throw new AssertionException($"Expected scalar numeric JSON but received '{json}'.")
+            };
+        }
+
+        static bool ParseBoolValue(string? json)
+        {
+            Assert.IsNotNull(json, "Expected slot bool JSON to be present.");
+            using var document = JsonDocument.Parse(json!);
+            return document.RootElement.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                _ => throw new AssertionException($"Expected boolean JSON but received '{json}'.")
+            };
+        }
+
+        static void AssertVectorComponent(string? json, string componentName, float expectedValue, string slotDisplayName, string jsonKind)
+        {
+            Assert.IsNotNull(json, $"Expected {jsonKind} to be present for slot '{slotDisplayName}'.");
+            using var document = JsonDocument.Parse(json!);
+            Assert.IsTrue(document.RootElement.TryGetProperty(componentName, out var property),
+                $"Expected component '{componentName}' in {jsonKind} for slot '{slotDisplayName}'.");
+
+            var actualValue = property.TryGetSingle(out var singleValue)
+                ? singleValue
+                : (property.TryGetDouble(out var doubleValue)
+                    ? (float)doubleValue
+                    : throw new AssertionException($"Expected numeric component '{componentName}' in {jsonKind} for slot '{slotDisplayName}'."));
+
+            Assert.AreEqual(expectedValue, actualValue, 0.0001f, $"Unexpected component '{componentName}' in {jsonKind} for slot '{slotDisplayName}'.");
+        }
+
         sealed class SampleTexture2DWindowState
         {
             public string TextureType { get; set; } = string.Empty;
@@ -1835,6 +2349,105 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 UseGlobalMipBias = (bool)useGlobalMipBiasProperty!.GetValue(sampleTextureNode)!,
                 MipSamplingMode = mipSamplingModeProperty!.GetValue(sampleTextureNode)!.ToString()!
             };
+        }
+
+        static object ResolveOpenShaderGraphInputSlot(string assetPath, string nodeTypeName, string slotDisplayName)
+        {
+            var window = FindOpenShaderGraphWindows(assetPath).FirstOrDefault();
+            Assert.IsNotNull(window, $"Expected a Shader Graph editor window to be open for '{assetPath}'.");
+
+            var shaderGraphAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .First(assembly => assembly.GetName().Name == "Unity.ShaderGraph.Editor");
+            var graphObjectType = shaderGraphAssembly.GetType("UnityEditor.Graphing.GraphObject", throwOnError: true)!;
+            var abstractNodeType = shaderGraphAssembly.GetType("UnityEditor.ShaderGraph.AbstractMaterialNode", throwOnError: true)!;
+            var materialSlotType = shaderGraphAssembly.GetType("UnityEditor.ShaderGraph.MaterialSlot", throwOnError: true)!;
+
+            var graphObjectProperty = window!.GetType().GetProperty("graphObject", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.IsNotNull(graphObjectProperty, "Expected MaterialGraphEditWindow.graphObject to be available.");
+
+            var graphObject = graphObjectProperty!.GetValue(window);
+            Assert.IsNotNull(graphObject, "Expected an initialized GraphObject for the open Shader Graph window.");
+
+            var graphProperty = graphObjectType.GetProperty("graph", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.IsNotNull(graphProperty, "Expected GraphObject.graph to be available.");
+
+            var graph = graphProperty!.GetValue(graphObject);
+            Assert.IsNotNull(graph, "Expected GraphObject.graph to be available for the open Shader Graph window.");
+
+            var getNodesMethod = graph!.GetType()
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .First(method => method.Name == "GetNodes"
+                    && method.IsGenericMethodDefinition
+                    && method.GetParameters().Length == 0)
+                .MakeGenericMethod(abstractNodeType);
+
+            var node = ((System.Collections.IEnumerable)getNodesMethod.Invoke(graph, null)!)
+                .Cast<object>()
+                .FirstOrDefault(candidate => string.Equals(candidate.GetType().Name, nodeTypeName, StringComparison.Ordinal));
+            Assert.IsNotNull(node, $"Expected the open Shader Graph window to contain a '{nodeTypeName}' node.");
+
+            var slotListType = typeof(List<>).MakeGenericType(materialSlotType);
+            var slotList = Activator.CreateInstance(slotListType);
+            Assert.IsNotNull(slotList, "Expected a temporary MaterialSlot list instance.");
+
+            var getInputSlotsMethod = node!.GetType()
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .First(method => method.Name == "GetInputSlots"
+                    && method.IsGenericMethodDefinition
+                    && method.GetParameters().Length == 1)
+                .MakeGenericMethod(materialSlotType);
+
+            getInputSlotsMethod.Invoke(node, new[] { slotList });
+
+            var slot = ((System.Collections.IEnumerable)slotList!).Cast<object>()
+                .FirstOrDefault(candidate =>
+                {
+                    var displayNameField = candidate.GetType().GetField("m_DisplayName", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    var fieldValue = displayNameField?.GetValue(candidate) as string;
+                    if (string.IsNullOrEmpty(fieldValue))
+                    {
+                        var displayNameProperty = candidate.GetType().GetProperty("displayName", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                        fieldValue = displayNameProperty?.GetValue(candidate) as string;
+                    }
+
+                    if (!string.IsNullOrEmpty(fieldValue))
+                    {
+                        var suffixIndex = fieldValue.IndexOf('(');
+                        if (suffixIndex > 0)
+                            fieldValue = fieldValue[..suffixIndex];
+                    }
+
+                    return string.Equals(fieldValue, slotDisplayName, StringComparison.Ordinal);
+                });
+
+            Assert.IsNotNull(slot, $"Expected node '{nodeTypeName}' to expose an input slot named '{slotDisplayName}'.");
+            return slot!;
+        }
+
+        static T ReadPrivateField<T>(object target, string fieldName)
+        {
+            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.IsNotNull(field, $"Expected field '{target.GetType().FullName}.{fieldName}' to be available.");
+
+            var value = field!.GetValue(target);
+            Assert.IsNotNull(value, $"Expected field '{target.GetType().FullName}.{fieldName}' to have a value.");
+            return (T)value!;
+        }
+
+        static void AssertPrivateVector2Field(object target, string fieldName, float x, float y, string label)
+        {
+            var value = ReadPrivateField<Vector2>(target, fieldName);
+            Assert.AreEqual(x, value.x, 0.0001f, $"Unexpected X component for {label}.");
+            Assert.AreEqual(y, value.y, 0.0001f, $"Unexpected Y component for {label}.");
+        }
+
+        static void AssertPrivateVector4Field(object target, string fieldName, float x, float y, float z, float w, string label)
+        {
+            var value = ReadPrivateField<Vector4>(target, fieldName);
+            Assert.AreEqual(x, value.x, 0.0001f, $"Unexpected X component for {label}.");
+            Assert.AreEqual(y, value.y, 0.0001f, $"Unexpected Y component for {label}.");
+            Assert.AreEqual(z, value.z, 0.0001f, $"Unexpected Z component for {label}.");
+            Assert.AreEqual(w, value.w, 0.0001f, $"Unexpected W component for {label}.");
         }
 
         static EditorWindow[] FindOpenShaderGraphWindows(string assetPath)

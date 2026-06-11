@@ -54,7 +54,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- requires the input slot to be currently unconnected\n" +
             "- supports exact slot-type matches\n" +
             "- supports compatible UV/vector2 slot pairs\n" +
-            "- supports dynamic numeric/vector/color slots via `DynamicValueMaterialSlot`\n\n" +
+            "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect node ids, slot ids, and slot types.")]
         [Description("Connect two existing Shader Graph slots and re-import the graph.")]
         public ShaderGraphEdgeMutationResultData ConnectEdge(
@@ -304,8 +304,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (Vector2LikeSlotTypes.Contains(outputType) && Vector2LikeSlotTypes.Contains(inputType))
                 return;
 
-            var outputIsDynamic = string.Equals(outputType, "UnityEditor.ShaderGraph.DynamicValueMaterialSlot", StringComparison.Ordinal);
-            var inputIsDynamic = string.Equals(inputType, "UnityEditor.ShaderGraph.DynamicValueMaterialSlot", StringComparison.Ordinal);
+            var outputIsDynamic = IsDynamicSlotType(outputType);
+            var inputIsDynamic = IsDynamicSlotType(inputType);
 
             if (outputIsDynamic && DynamicCompatibleSlotTypes.Contains(inputType))
                 return;
@@ -316,6 +316,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             throw new InvalidOperationException(
                 $"Unsupported slot compatibility: '{outputType}' -> '{inputType}'.");
         }
+
+        static bool IsDynamicSlotType(string slotType)
+            => string.Equals(slotType, "UnityEditor.ShaderGraph.DynamicValueMaterialSlot", StringComparison.Ordinal)
+               || string.Equals(slotType, "UnityEditor.ShaderGraph.DynamicVectorMaterialSlot", StringComparison.Ordinal);
 
         static JsonArray EnsureEdgeArray(JsonObject root)
         {

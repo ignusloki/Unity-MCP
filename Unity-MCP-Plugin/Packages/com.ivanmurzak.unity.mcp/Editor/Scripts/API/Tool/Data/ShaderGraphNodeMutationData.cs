@@ -69,8 +69,38 @@ namespace AIGD
         [Description("Serialized object id of the node to update.")]
         public string? NodeObjectId { get; set; }
 
-        [Description("Structured settings updates for a Sample Texture 2D node. Current Epic 8 support is limited to this node family.")]
+        [Description("Structured settings updates for a Sample Texture 2D node.")]
         public ShaderGraphSampleTexture2DNodeSettingsUpdateInput? SampleTexture2D { get; set; }
+
+        [Description("Structured settings updates for a Tiling And Offset node.")]
+        public ShaderGraphTilingAndOffsetNodeSettingsUpdateInput? TilingAndOffset { get; set; }
+
+        [Description("Structured settings updates for a Branch node.")]
+        public ShaderGraphBranchNodeSettingsUpdateInput? Branch { get; set; }
+
+        [Description("Structured settings updates for a Split node.")]
+        public ShaderGraphSplitNodeSettingsUpdateInput? Split { get; set; }
+
+        [Description("Structured settings updates for a Combine node.")]
+        public ShaderGraphCombineNodeSettingsUpdateInput? Combine { get; set; }
+
+        [Description("Structured settings updates for an Add node.")]
+        public ShaderGraphBinaryVectorNodeSettingsUpdateInput? Add { get; set; }
+
+        [Description("Structured settings updates for a Subtract node.")]
+        public ShaderGraphBinaryVectorNodeSettingsUpdateInput? Subtract { get; set; }
+
+        [Description("Structured settings updates for a Divide node.")]
+        public ShaderGraphBinaryVectorNodeSettingsUpdateInput? Divide { get; set; }
+
+        [Description("Structured settings updates for a Lerp node.")]
+        public ShaderGraphLerpNodeSettingsUpdateInput? Lerp { get; set; }
+
+        [Description("Structured settings updates for a One Minus node.")]
+        public ShaderGraphOneMinusNodeSettingsUpdateInput? OneMinus { get; set; }
+
+        [Description("Structured settings updates for a Multiply node.")]
+        public ShaderGraphMultiplyNodeSettingsUpdateInput? Multiply { get; set; }
     }
 
     [Description("Structured settings updates for a Sample Texture 2D node.")]
@@ -87,6 +117,115 @@ namespace AIGD
 
         [Description("Mip sampling mode. Supported values: standard, lod, gradient, bias.")]
         public string? MipSamplingMode { get; set; }
+    }
+
+    [Description("Structured vector2 value update.")]
+    public class ShaderGraphVector2ValueUpdateInput
+    {
+        [Description("X component.")]
+        public float? X { get; set; }
+
+        [Description("Y component.")]
+        public float? Y { get; set; }
+    }
+
+    [Description("Structured vector4 value update.")]
+    public class ShaderGraphVector4ValueUpdateInput
+    {
+        [Description("X component.")]
+        public float? X { get; set; }
+
+        [Description("Y component.")]
+        public float? Y { get; set; }
+
+        [Description("Z component.")]
+        public float? Z { get; set; }
+
+        [Description("W component.")]
+        public float? W { get; set; }
+    }
+
+    [Description("Structured settings updates for a Tiling And Offset node.")]
+    public class ShaderGraphTilingAndOffsetNodeSettingsUpdateInput
+    {
+        [Description("Default value for the Tiling input slot.")]
+        public ShaderGraphVector2ValueUpdateInput? Tiling { get; set; }
+
+        [Description("Default value for the Offset input slot.")]
+        public ShaderGraphVector2ValueUpdateInput? Offset { get; set; }
+    }
+
+    [Description("Structured settings updates for a Branch node.")]
+    public class ShaderGraphBranchNodeSettingsUpdateInput
+    {
+        [Description("Default value for the Predicate input slot.")]
+        public bool? Predicate { get; set; }
+
+        [Description("Default value for the True input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? TrueValue { get; set; }
+
+        [Description("Default value for the False input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? FalseValue { get; set; }
+    }
+
+    [Description("Structured settings updates for a Split node.")]
+    public class ShaderGraphSplitNodeSettingsUpdateInput
+    {
+        [Description("Default value for the In input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
+    }
+
+    [Description("Structured settings updates for a Combine node.")]
+    public class ShaderGraphCombineNodeSettingsUpdateInput
+    {
+        [Description("Default value for the R input slot.")]
+        public float? R { get; set; }
+
+        [Description("Default value for the G input slot.")]
+        public float? G { get; set; }
+
+        [Description("Default value for the B input slot.")]
+        public float? B { get; set; }
+
+        [Description("Default value for the A input slot.")]
+        public float? A { get; set; }
+    }
+
+    [Description("Structured settings updates for binary vector nodes such as Add, Subtract, and Divide.")]
+    public class ShaderGraphBinaryVectorNodeSettingsUpdateInput
+    {
+        [Description("Default value for the A input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? A { get; set; }
+
+        [Description("Default value for the B input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? B { get; set; }
+    }
+
+    [Description("Structured settings updates for a Lerp node.")]
+    public class ShaderGraphLerpNodeSettingsUpdateInput
+    {
+        [Description("Default value for the A input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? A { get; set; }
+
+        [Description("Default value for the B input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? B { get; set; }
+
+        [Description("Default value for the T input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? T { get; set; }
+    }
+
+    [Description("Structured settings updates for a One Minus node.")]
+    public class ShaderGraphOneMinusNodeSettingsUpdateInput
+    {
+        [Description("Default value for the In input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
+    }
+
+    [Description("Structured settings updates for a Multiply node.")]
+    public class ShaderGraphMultiplyNodeSettingsUpdateInput
+    {
+        [Description("Multiply mode. Supported values: vector, matrix, mixed.")]
+        public string? MultiplyType { get; set; }
     }
 
     [Description("Result of adding an allowlisted Shader Graph node and re-importing the graph.")]

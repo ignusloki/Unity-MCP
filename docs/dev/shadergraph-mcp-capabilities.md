@@ -127,13 +127,84 @@ This document is the single source of truth for what the local ShaderGraph MCP i
 ### Node Settings Mutation
 
 - `assets-shadergraph-update-node-settings`
-  - Current supported node family:
+  - Current supported node families and typed fields:
     - `Sample Texture 2D`
-  - Supported typed fields:
-    - `textureType`
-    - `normalMapSpace`
-    - `useGlobalMipBias`
-    - `mipSamplingMode`
+      - `textureType`
+      - `normalMapSpace`
+      - `useGlobalMipBias`
+      - `mipSamplingMode`
+    - `Tiling And Offset`
+      - `tiling.x`
+      - `tiling.y`
+      - `offset.x`
+      - `offset.y`
+    - `Branch`
+      - `predicate`
+      - `trueValue.x`
+      - `trueValue.y`
+      - `trueValue.z`
+      - `trueValue.w`
+      - `falseValue.x`
+      - `falseValue.y`
+      - `falseValue.z`
+      - `falseValue.w`
+    - `Split`
+      - `input.x`
+      - `input.y`
+      - `input.z`
+      - `input.w`
+    - `Combine`
+      - `r`
+      - `g`
+      - `b`
+      - `a`
+    - `Add`
+      - `a.x`
+      - `a.y`
+      - `a.z`
+      - `a.w`
+      - `b.x`
+      - `b.y`
+      - `b.z`
+      - `b.w`
+    - `Subtract`
+      - `a.x`
+      - `a.y`
+      - `a.z`
+      - `a.w`
+      - `b.x`
+      - `b.y`
+      - `b.z`
+      - `b.w`
+    - `Divide`
+      - `a.x`
+      - `a.y`
+      - `a.z`
+      - `a.w`
+      - `b.x`
+      - `b.y`
+      - `b.z`
+      - `b.w`
+    - `Lerp`
+      - `a.x`
+      - `a.y`
+      - `a.z`
+      - `a.w`
+      - `b.x`
+      - `b.y`
+      - `b.z`
+      - `b.w`
+      - `t.x`
+      - `t.y`
+      - `t.z`
+      - `t.w`
+    - `One Minus`
+      - `input.x`
+      - `input.y`
+      - `input.z`
+      - `input.w`
+    - `Multiply`
+      - `multiplyType`
 
 ### Edge Mutation
 
@@ -141,9 +212,28 @@ This document is the single source of truth for what the local ShaderGraph MCP i
   - Selects slots by `nodeObjectId` plus `slotObjectId`.
   - Requires the input slot to be currently unconnected.
   - Supports exact slot-type matches.
-  - Supports `DynamicValueMaterialSlot` connections for compatible numeric, vector, and color slot families.
+  - Supports compatible dynamic numeric, vector, and color slot families including `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`.
 - `assets-shadergraph-disconnect-edge`
   - Removes an existing edge selected by output node and slot plus input node and slot.
+
+## Known Limitation And Current Workaround
+
+- Direct typed node-setting mutation now exists for the high-value URP node families listed above, but editor-facing validation showed that some dynamic-vector-driven default-slot edits are not surfaced reliably enough in the Shader Graph UI to be the preferred authoring flow.
+- The current recommended workflow for those cases is:
+  - create or update a blackboard property
+  - add a `PropertyNode`
+  - connect that property-backed output into the target node input
+- This workaround has been validated in the local Unity project for:
+  - `Tiling And Offset`
+  - `Branch`
+  - `Split`
+  - `Combine`
+  - `Add`
+  - `Subtract`
+  - `Divide`
+  - `Lerp`
+  - `One Minus`
+- A better long-term solution is still needed so direct literal and default-slot editing can become reliable enough to stand on its own instead of depending on property-backed inputs.
 
 ## Current Extensions Window Group
 
@@ -170,8 +260,8 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 ## Not Yet Exposed
 
 - Node duplication.
-- Broad typed settings coverage for `Tiling And Offset`, `Branch`, `Split`, `Combine`, and the allowlisted math nodes.
-- Typed constant and default-slot editing for the common math and utility nodes.
+- Robust editor-visible direct literal/default-slot mutation for the common dynamic-vector-driven node families without relying on the property-node workaround.
+- Multiply input-slot literal editing beyond the current `multiplyType` support.
 - Property deletion, reordering, and category placement.
 - Project texture assignment workflows across blackboard properties and texture-consuming nodes.
 - Edge replacement and reconnect semantics for already-connected inputs.

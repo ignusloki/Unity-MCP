@@ -663,6 +663,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal))
                 node.SampleTexture2D = ParseSampleTexture2DNodeSettings(root);
 
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.MultiplyNode", StringComparison.Ordinal))
+                node.Multiply = ParseMultiplyNodeSettings(root);
+
             return node;
         }
 
@@ -681,6 +684,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 UseGlobalMipBias = GetBool(root, "m_EnableGlobalMipBias"),
                 MipSamplingModeValue = mipSamplingModeValue,
                 MipSamplingMode = FormatTexture2DMipSamplingMode(mipSamplingModeValue)
+            };
+        }
+
+        static ShaderGraphMultiplyNodeSettingsData ParseMultiplyNodeSettings(JsonElement root)
+        {
+            var multiplyTypeValue = GetInt(root, "m_MultiplyType");
+
+            return new ShaderGraphMultiplyNodeSettingsData
+            {
+                MultiplyTypeValue = multiplyTypeValue,
+                MultiplyType = FormatMultiplyType(multiplyTypeValue)
             };
         }
 
@@ -910,6 +924,18 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 1 => "lod",
                 2 => "gradient",
                 3 => "bias",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatMultiplyType(int? value)
+        {
+            return value switch
+            {
+                0 => "vector",
+                1 => "matrix",
+                2 => "mixed",
                 null => null,
                 _ => $"unknown({value})"
             };

@@ -13,8 +13,8 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 ## Scope Now
 
 - Current ShaderGraph integration branch: `custom/shadergraph-mcp`
-- Latest validated slice on that branch: Epic 9 PropertyNode expansion
-- Current package baseline in the local validation project: `com.ivanmurzak.unity.mcp` version `0.80.0`
+- Latest validated slice on that branch: Epic 8 node-parameter expansion with the property-node workaround for the remaining dynamic-vector-driven inputs
+- Current package baseline in the local validation project: `com.ivanmurzak.unity.mcp` version `0.80.1`
 - Base branch: `custom/main`
 - Date opened: `2026-06-05`
 
@@ -102,6 +102,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 - Raw `.shadergraph` file authoring risks asset corruption and should not be the default first creation path
 - CI and test environments may not always have Shader Graph installed, so tests must fail gracefully or be conditionally scoped
 - The current Extensions UI is package-install oriented; ShaderGraph currently lives in the core package, so future UI integration may require a built-in toggle mode or a package split instead of a plain installable extension entry
+- Direct literal/default-slot mutation for several dynamic-vector-driven nodes is still not reliable enough in the editor UI to be the primary authoring workflow, so the current stable path uses blackboard properties plus `PropertyNode` wiring as a workaround
 
 ## Working Recommendation
 
@@ -124,8 +125,8 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 ## Current Capability Gaps
 
 - No node duplication
-- No broad node-parameter editing for common URP nodes such as `Tiling And Offset`, `Multiply`, `Add`, `Lerp`, `Split`, `Combine`, `Branch`, and normal-map helpers
-- No typed constant/default-slot editing for the allowlisted math and utility nodes
+- No robust editor-visible direct literal/default-slot mutation path yet for the common dynamic-vector-driven node families; the current validated workflow for those cases is property-backed input wiring
+- No typed Multiply input-slot literal editing yet beyond `multiplyType`
 - No property deletion, reordering, or category management
 - No project-asset texture assignment workflow yet for blackboard properties or texture-consuming nodes
 - Edge mutation is still narrow: connect/disconnect exists, but replacement flows, reconnect semantics, and broader compatibility handling are not complete
@@ -160,7 +161,10 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
      - default slot values for nodes where editing constants is practical and safe
    - Current state:
      - typed updates exist for `Sample Texture 2D`
-     - broader node-family coverage is still missing
+     - typed direct support also exists for `Tiling And Offset`, `Branch`, `Split`, `Combine`, `Add`, `Subtract`, `Divide`, `Lerp`, `One Minus`, and `Multiply.multiplyType`
+     - editor validation showed the direct literal/default-slot path is still not reliable enough to be the preferred authoring flow for several dynamic-vector-driven inputs
+     - the currently validated workflow for those cases is: blackboard property -> `PropertyNode` -> edge wiring
+     - a better direct literal/default-slot solution should still be researched and implemented later
 
 3. **Epic 9: Blackboard Expansion**
    - Expand property creation/update support beyond `color` and `float`
@@ -312,6 +316,13 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 - Edge baseline validated live in Unity through `script_execute` and user verification:
   - Created validation graph: `Assets/ShaderGraphValidation/Codex_Edge_Validation.shadergraph`
   - Connect/disconnect flows re-routed graph wiring without import errors
+- Epic 8 workaround slice validated live in Unity through `script_execute` and user verification:
+  - Created validation graph: `Assets/ShaderGraphValidation/Codex_Epic8_NodeSlots.shadergraph`
+  - Final graph summary: `GraphPropertyCount = 20`, `NodeCount = 32`, `EdgeCount = 18`
+  - `assets-shadergraph-get-data` returned `HasErrors = false`
+  - Validated workaround coverage: `Tiling And Offset`, `Branch`, `Split`, `Combine`, `Add`, `Subtract`, `Divide`, `Lerp`, `One Minus`
+  - Stable authoring path used blackboard properties plus `PropertyNode` creation and edge wiring
+  - Edge compatibility was expanded to accept `DynamicVectorMaterialSlot` in addition to `DynamicValueMaterialSlot`
 - Shader Graph live result after creation:
   - `SourceParsed = true`
   - `ShaderResolved = true`
@@ -342,7 +353,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 - [ ] Epic 7: Node lifecycle foundation
   - current state: allowlisted node creation and node deletion are done; duplication is still missing
 - [ ] Epic 8: Node parameter editing
-  - current state: `Sample Texture 2D` typed updates are done; broader node-family editing is still missing
+  - current state: direct typed coverage exists for `Sample Texture 2D`, `Multiply.multiplyType`, and the main dynamic-vector-driven node families, but the stable validated workflow for those node inputs currently uses the property-node workaround; a better direct solution remains future work
 - [ ] Epic 9: Blackboard expansion
   - current state: typed add/update and PropertyNode support are done for the high-value URP property types; delete/reorder/category work is still missing
 - [ ] Epic 10: Edge system V2
@@ -356,16 +367,18 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 ## Current Checkpoint
 
 - The roadmap is now reprioritized around closing the control gaps required for practical URP authoring parity
-- The current integrated branch already carries the validated Epic 7, Epic 8 first-slice, and Epic 9 work
-- The latest validated slice belongs to **Epic 9: Blackboard expansion**
+- The current integrated branch already carries the validated Epic 7, Epic 8 slices, and Epic 9 work
+- The latest validated slice belongs to **Epic 8: Node parameter editing**
 - Texture asset-reference workflows remain deferred behind the higher-value graph-control gaps
 - Epic numbering is not the execution order; the next slice is chosen by priority, not by the largest epic number already touched
 - This is **not** the last epic required for broad ShaderGraph parity in MCP
+- The current Epic 8 workaround is good enough to proceed, but it is not the long-term final answer for direct literal/default-slot editing
 - The next epic to focus is:
-  - **Epic 8: Node parameter editing**
-- First slice recommendation inside Epic 8:
-  - add typed settings coverage for `Tiling And Offset`, `Branch`, `Split`, `Combine`, and the allowlisted math nodes where serialized constant/default-value editing is stable
-  - keep the API typed and explicit rather than exposing raw node JSON mutation
+  - **Epic 10: Edge system V2**
+- First slice recommendation inside Epic 10:
+  - add explicit replace/reconnect semantics for already-connected inputs
+  - support guarded auto-disconnect so an agent can rewire graphs without manual cleanup between every step
+  - build on the expanded dynamic slot compatibility work instead of creating a second edge-mutation path
 - Existing committed foundation still stands:
   - discovery and diagnostics
   - safe graph/material creation

@@ -190,6 +190,9 @@ namespace AIGD
 
         [Description("Resolved Sample Texture 2D settings when the node is a supported Sample Texture 2D node.")]
         public ShaderGraphSampleTexture2DNodeSettingsData? SampleTexture2D { get; set; }
+
+        [Description("Resolved Multiply settings when the node is a supported Multiply node.")]
+        public ShaderGraphMultiplyNodeSettingsData? Multiply { get; set; }
     }
 
     public class ShaderGraphSampleTexture2DNodeSettingsData
@@ -214,6 +217,15 @@ namespace AIGD
 
         [Description("Formatted mip sampling mode when recognized.")]
         public string? MipSamplingMode { get; set; }
+    }
+
+    public class ShaderGraphMultiplyNodeSettingsData
+    {
+        [Description("Serialized multiply type enum value.")]
+        public int? MultiplyTypeValue { get; set; }
+
+        [Description("Formatted multiply type when recognized.")]
+        public string? MultiplyType { get; set; }
     }
 
     public class ShaderGraphSlotDefinitionData
