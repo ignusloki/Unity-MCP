@@ -12,7 +12,8 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 ## Scope Now
 
-- Current implementation checkpoint: validated Property Node expansion on `custom/shadergraph-epic10-property-nodes`
+- Current ShaderGraph integration branch: `custom/shadergraph-mcp`
+- Latest validated slice on that branch: Epic 9 PropertyNode expansion
 - Current package baseline in the local validation project: `com.ivanmurzak.unity.mcp` version `0.80.0`
 - Base branch: `custom/main`
 - Date opened: `2026-06-05`
@@ -21,8 +22,17 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 - Follow `git.MD`
 - Private branches for this work must start from `custom/main`
+- Ongoing ShaderGraph MCP feature work now lives on a single private branch: `custom/shadergraph-mcp`
+- Historical epic-named branches are treated as slice branches only and are superseded by the integration branch once their code is carried forward
 - Do not commit, push, merge, or open a PR without explicit user approval
 - User-authorized exception: this tracker file was created during Epic 0 even though the prompt says "Do not modify files yet"
+
+## Sequencing Rule
+
+- Epic numbers identify workstreams, not a mandatory execution order
+- The next slice should come from the highest-value unresolved gap, even if that means returning from a later-numbered epic to an earlier-numbered one
+- The integration branch does not need to match any epic number
+- If temporary slice branches are used, their names should match the slice they contain, not the next epic that will be worked later
 
 ## Initial Assessment
 
@@ -210,103 +220,19 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
    - Add higher-signal end-to-end authoring validation cases
    - Document the supported URP node/property matrix for AI agents and users
 
-## ShaderGraph Extension UI Status
+## Capability Reference
 
-- Add a `ShaderGraph` row to Ivan's Extensions window once the control surface is mature enough to expose as a user-facing capability area
-- Let users explicitly allow or deny Shader Graph control rather than always exposing every Shader Graph tool
-- Reuse the existing tool-enable persistence path where possible:
-  - `tool-set-enabled-state`
-  - `ToolToggleInput`
-- Important design constraint:
-  - the current Extensions UI assumes installable packages
-  - ShaderGraph support currently lives in the core package
-  - implementation likely needs a built-in toggle-only extension mode or a later package split
-
-## Current Extension UI Slice
-
-- Implement `ShaderGraph` in the Extensions section as a built-in capability group, not as an installable package
-- Button behavior:
-  - `Disable` when the full ShaderGraph tool group is enabled
-  - `Enable` when any ShaderGraph tools in the group are disabled
-- Persistence path:
-  - batch-toggle the grouped ShaderGraph tool ids through `ToolManager.SetToolEnabled(...)`
-  - persist through `UnityMcpPluginEditor.Instance.Save()`
-- The row should refresh when tool enabled states change so the button text does not go stale after toggles from other UI surfaces
-- Grouped ShaderGraph tool ids currently enabled in the extensions row:
-  - `assets-shadergraph-find`
-  - `assets-shadergraph-get-data`
-  - `assets-shadergraph-get-structure`
-  - `assets-shadergraph-get-settings`
-  - `assets-shadergraph-add-property`
-  - `assets-shadergraph-add-property-node`
-  - `assets-shadergraph-add-node`
-  - `assets-shadergraph-delete-node`
-  - `assets-shadergraph-update-node-settings`
-  - `assets-shadergraph-update-node-position`
-  - `assets-shadergraph-connect-edge`
-  - `assets-shadergraph-disconnect-edge`
-  - `assets-shadergraph-create`
-  - `assets-shadergraph-create-material`
-  - `assets-shadergraph-create-from-style-recipe`
-  - `assets-shadergraph-set-settings`
-  - `assets-shadergraph-update-property`
-
-## Implemented On This Branch
-
-- New tool ids implemented in the package:
-  - `assets-shadergraph-find`
-  - `assets-shadergraph-get-data`
-  - `assets-shadergraph-get-structure`
-  - `assets-shadergraph-get-settings`
-  - `assets-shadergraph-add-property`
-  - `assets-shadergraph-add-property-node`
-  - `assets-shadergraph-add-node`
-  - `assets-shadergraph-delete-node`
-  - `assets-shadergraph-update-node-settings`
-  - `assets-shadergraph-update-node-position`
-  - `assets-shadergraph-connect-edge`
-  - `assets-shadergraph-disconnect-edge`
-  - `assets-shadergraph-create`
-  - `assets-shadergraph-create-material`
-  - `assets-shadergraph-create-from-style-recipe`
-  - `assets-shadergraph-set-settings`
-  - `assets-shadergraph-update-property`
-- Implementation strategy:
-  - No compile-time Shader Graph asmdef dependency was added
-  - Source `.shadergraph` files are parsed directly as concatenated JSON objects
-  - Compiled shader state is read through Unity's normal imported `Shader` asset path
-  - Creation uses safe template cloning from package templates rather than ad hoc graph synthesis
-  - Style recipes are validated as declarative JSON and then mapped onto safe template creation plus material property application
-- New package files added:
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Common.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Find.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetData.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetStructure.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetSettings.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddProperty.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddPropertyNode.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddNode.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.DeleteNode.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateNodeSettings.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateNodePosition.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateEdge.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Create.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateMaterial.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateFromStyleRecipe.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.SetSettings.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Settings.Common.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Reflection.cs`
-  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateProperty.cs`
-  - `Editor/Scripts/API/Tool/Data/ShaderGraphData.cs`
-  - `Editor/Scripts/API/Tool/Data/ShaderGraphDiagnosticData.cs`
-  - `Editor/Scripts/API/Tool/Data/ShaderGraphEdgeMutationData.cs`
-  - `Editor/Scripts/API/Tool/Data/ShaderGraphNodeMutationData.cs`
-  - `Editor/Scripts/API/Tool/Data/ShaderGraphPropertyMutationData.cs`
-  - `Editor/Scripts/API/Tool/Data/ShaderGraphSettingsData.cs`
-  - `Editor/Scripts/API/Tool/Data/ShaderGraphStructureData.cs`
-  - `Editor/Scripts/API/Tool/Data/ShaderStyleRecipeData.cs`
-  - `Tests/Editor/Tool/Assets/AssetsShaderGraphTests.cs`
+- The single source of truth for the currently exposed ShaderGraph MCP surface is [shadergraph-mcp-capabilities.md](/Users/suporte/Unity-MCP/docs/dev/shadergraph-mcp-capabilities.md)
+- That capability document owns:
+  - exposed tool ids
+  - supported node, property, settings, and edge coverage
+  - the ShaderGraph entry in Ivan's Extensions window
+  - explicit "not yet exposed" items
+- This plan owns only:
+  - epic sequencing
+  - validation history
+  - remaining gaps and risks
+  - branch and checkpoint alignment
 
 ## Live Validation
 
@@ -430,7 +356,10 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 ## Current Checkpoint
 
 - The roadmap is now reprioritized around closing the control gaps required for practical URP authoring parity
+- The current integrated branch already carries the validated Epic 7, Epic 8 first-slice, and Epic 9 work
+- The latest validated slice belongs to **Epic 9: Blackboard expansion**
 - Texture asset-reference workflows remain deferred behind the higher-value graph-control gaps
+- Epic numbering is not the execution order; the next slice is chosen by priority, not by the largest epic number already touched
 - This is **not** the last epic required for broad ShaderGraph parity in MCP
 - The next epic to focus is:
   - **Epic 8: Node parameter editing**
