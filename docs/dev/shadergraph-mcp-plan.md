@@ -12,8 +12,8 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 ## Scope Now
 
-- Current authorized implementation scope at branch start: Epic 0 reconnaissance and planning
-- Working branch: `custom/shadergraph-epic0-plan`
+- Current implementation checkpoint: validated Property Node expansion on `custom/shadergraph-epic10-property-nodes`
+- Current package baseline in the local validation project: `com.ivanmurzak.unity.mcp` version `0.80.0`
 - Base branch: `custom/main`
 - Date opened: `2026-06-05`
 
@@ -33,15 +33,12 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 ## Current Repo Snapshot
 
-- Active starting branch before branching: `custom/main`
-- Working tree at review time: clean
+- Long-lived branches:
+  - `main` tracks `upstream/main`
+  - `custom/main` carries the private integrated branch
 - Remotes: `origin = ignusloki/Unity-MCP`, `upstream = IvanMurzak/Unity-MCP`
-- Local ref status at review time: `custom/main` is `14` commits ahead of local `upstream/main`
-- Local ref status at review time: `custom/main` is in sync with local `origin/custom/main`
-- Worktrees:
-  - `/Users/suporte/Unity-MCP` -> `custom/main` at review time
-  - `/Users/suporte/Unity-MCP-upstream` -> `main`
-- No existing `ShaderGraph` or `com.unity.shadergraph` references were found inside `Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp`
+- Current workspace uses the single-folder flow in `git.MD`
+- ShaderGraph MCP support now exists directly in `Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp`
 
 ## Local Test Project
 
@@ -116,17 +113,15 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 ## Current Capability Gaps
 
-- No general node creation: current node creation only supports `PropertyNode`, and only for existing `color` and `float` properties
-- No node deletion
 - No node duplication
-- No general node editing: current node mutation only moves nodes by `positionX` and `positionY`
-- No broad node-parameter editing for common URP nodes such as `Sample Texture 2D`, `Tiling And Offset`, `Multiply`, `Add`, `Lerp`, `Split`, `Combine`, `Branch`, and normal-map helpers
-- No broad blackboard support: current property creation is limited to `color` and `float`, and current property editing is limited to a few generic fields plus color default value
+- No broad node-parameter editing for common URP nodes such as `Tiling And Offset`, `Multiply`, `Add`, `Lerp`, `Split`, `Combine`, `Branch`, and normal-map helpers
+- No typed constant/default-slot editing for the allowlisted math and utility nodes
 - No property deletion, reordering, or category management
-- No texture-property authoring parity yet for common graph workflows
-- Edge mutation is still narrow: connect/disconnect exists, but replacement flows and broader compatibility handling are not complete
+- No project-asset texture assignment workflow yet for blackboard properties or texture-consuming nodes
+- Edge mutation is still narrow: connect/disconnect exists, but replacement flows, reconnect semantics, and broader compatibility handling are not complete
 - No graph organization parity for groups, sticky notes, or other cleanup-oriented editing
 - No advanced URP authoring support yet for subgraphs, custom-function workflows, keywords/enums, or long-tail node families
+- No stack/block mutation parity yet beyond the current URP graph/target settings allowlist
 
 ## URP Priority Roadmap
 
@@ -140,6 +135,11 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
      - texture sampling: `Sample Texture 2D`, `Tiling And Offset`
      - control flow: `Branch`
      - retain existing `PropertyNode` support
+   - Current state:
+     - allowlisted node creation is implemented for the first target families
+     - node deletion is implemented with edge cleanup
+     - PropertyNode creation now supports `color`, `float`, `texture2D`, `vector2`, `vector3`, `vector4`, and `boolean`
+     - duplication is still missing
 
 2. **Epic 8: Node Parameter Editing**
    - Add structured update tools for supported node families
@@ -148,6 +148,9 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
      - `Sample Texture 2D`: type/space and other serialized modes that matter in URP workflows
      - `Tiling And Offset`, math nodes, branch, split/combine where there are stable serialized settings
      - default slot values for nodes where editing constants is practical and safe
+   - Current state:
+     - typed updates exist for `Sample Texture 2D`
+     - broader node-family coverage is still missing
 
 3. **Epic 9: Blackboard Expansion**
    - Expand property creation/update support beyond `color` and `float`
@@ -160,12 +163,19 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
    - Add property deletion
    - Add property reordering and category placement
    - Add broader typed default-value editing
+   - Current state:
+     - add/update support exists for `color`, `float`, `texture2D`, `vector2`, `vector3`, `vector4`, and `boolean`
+     - PropertyNode creation for those property types is implemented
+     - property deletion, reordering, and category management are still missing
 
 4. **Epic 10: Edge System V2**
    - Keep current connect/disconnect behavior as the baseline
    - Add safe edge replacement workflows for already-connected inputs
    - Expand slot compatibility handling for supported URP node families
    - Add explicit semantics for reconnect, replace, and guarded auto-disconnect
+   - Current state:
+     - connect/disconnect baseline exists
+     - replace/reconnect flows are still missing
 
 5. **Epic 11: URP Stack And Target Coverage**
    - Expand URP settings coverage beyond the current allowlist
@@ -222,6 +232,24 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - batch-toggle the grouped ShaderGraph tool ids through `ToolManager.SetToolEnabled(...)`
   - persist through `UnityMcpPluginEditor.Instance.Save()`
 - The row should refresh when tool enabled states change so the button text does not go stale after toggles from other UI surfaces
+- Grouped ShaderGraph tool ids currently enabled in the extensions row:
+  - `assets-shadergraph-find`
+  - `assets-shadergraph-get-data`
+  - `assets-shadergraph-get-structure`
+  - `assets-shadergraph-get-settings`
+  - `assets-shadergraph-add-property`
+  - `assets-shadergraph-add-property-node`
+  - `assets-shadergraph-add-node`
+  - `assets-shadergraph-delete-node`
+  - `assets-shadergraph-update-node-settings`
+  - `assets-shadergraph-update-node-position`
+  - `assets-shadergraph-connect-edge`
+  - `assets-shadergraph-disconnect-edge`
+  - `assets-shadergraph-create`
+  - `assets-shadergraph-create-material`
+  - `assets-shadergraph-create-from-style-recipe`
+  - `assets-shadergraph-set-settings`
+  - `assets-shadergraph-update-property`
 
 ## Implemented On This Branch
 
@@ -232,6 +260,9 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `assets-shadergraph-get-settings`
   - `assets-shadergraph-add-property`
   - `assets-shadergraph-add-property-node`
+  - `assets-shadergraph-add-node`
+  - `assets-shadergraph-delete-node`
+  - `assets-shadergraph-update-node-settings`
   - `assets-shadergraph-update-node-position`
   - `assets-shadergraph-connect-edge`
   - `assets-shadergraph-disconnect-edge`
@@ -255,6 +286,9 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.GetSettings.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddProperty.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddPropertyNode.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.AddNode.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.DeleteNode.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateNodeSettings.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateNodePosition.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateEdge.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Create.cs`
@@ -262,6 +296,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.CreateFromStyleRecipe.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.SetSettings.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Settings.Common.cs`
+  - `Editor/Scripts/API/Tool/Assets.ShaderGraph.Reflection.cs`
   - `Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateProperty.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphData.cs`
   - `Editor/Scripts/API/Tool/Data/ShaderGraphDiagnosticData.cs`
@@ -332,6 +367,25 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
     - `FloatValue = 0.75`
   - Reimported compiled shader kept resolving without `Error`
   - Compiled shader properties included `_AccentColor` and `_GlowStrength`
+- Epic 7 slices validated live in Unity through `script_execute` and user verification:
+  - Created validation graph for node creation: `Assets/ShaderGraphValidation/Codex_Node_Validation.shadergraph`
+  - Created validation graph for delete flows: `Assets/ShaderGraphValidation/Codex_NodeLifecycle_Validation.shadergraph`
+  - Created validation graph for node movement: `Assets/ShaderGraphValidation/Codex_NodeMove_Validation.shadergraph`
+  - Allowlisted node creation validated for math, vector, texture, control-flow, and PropertyNode families
+  - Node deletion validated with automatic edge cleanup
+- Epic 8 first slice validated live in Unity through `script_execute` and user verification:
+  - Created validation graph: `Assets/ShaderGraphValidation/Codex_NodeSettings_Validation.shadergraph`
+  - `Sample Texture 2D` typed settings mutation validated
+- Epic 9 expanded slices validated live in Unity through `script_execute` and user verification:
+  - Created validation graph: `Assets/ShaderGraphValidation/Codex_Blackboard_Validation.shadergraph`
+  - Expanded add/update support validated for `texture2D`, `float`, `vector2`, `vector3`, `vector4`, and `boolean`
+  - Typed structure readback validated for the same property set
+- PropertyNode expansion slice validated live in Unity through `script_execute` and user verification:
+  - Created validation graph: `Assets/ShaderGraphValidation/Codex_PropertyNode_Validation.shadergraph`
+  - PropertyNode slot generation validated for `_BaseColor`, `_BaseMap`, `_CodexGlowStrength`, `_CodexUVScale`, `_CodexFlowDirection`, `_CodexPackedControls`, and `_CodexUseDetail`
+- Edge baseline validated live in Unity through `script_execute` and user verification:
+  - Created validation graph: `Assets/ShaderGraphValidation/Codex_Edge_Validation.shadergraph`
+  - Connect/disconnect flows re-routed graph wiring without import errors
 - Shader Graph live result after creation:
   - `SourceParsed = true`
   - `ShaderResolved = true`
@@ -360,9 +414,13 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - limited edge connect/disconnect
 - [x] Epic 6: ShaderGraph Extensions entry and capability gating
 - [ ] Epic 7: Node lifecycle foundation
+  - current state: allowlisted node creation and node deletion are done; duplication is still missing
 - [ ] Epic 8: Node parameter editing
+  - current state: `Sample Texture 2D` typed updates are done; broader node-family editing is still missing
 - [ ] Epic 9: Blackboard expansion
+  - current state: typed add/update and PropertyNode support are done for the high-value URP property types; delete/reorder/category work is still missing
 - [ ] Epic 10: Edge system V2
+  - current state: connect/disconnect baseline is done; replace/reconnect flows are still missing
 - [ ] Epic 11: URP stack and target coverage
 - [ ] Epic 12: Texture and asset-reference workflows
 - [ ] Epic 13: Graph organization and cleanup
@@ -372,19 +430,21 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 ## Current Checkpoint
 
 - The roadmap is now reprioritized around closing the control gaps required for practical URP authoring parity
-- The current uncommitted style-recipe texture slice is explicitly **paused**, not the next priority
-- The next epic to start is:
-  - **Epic 7: Node lifecycle foundation**
-- First slice recommendation inside Epic 7:
-  - generalized allowlisted node-creation infrastructure
-  - node deletion with safe edge cleanup
-  - first node families: `Add`, `Multiply`, `Lerp`, `Split`, `Combine`, `Sample Texture 2D`, `Tiling And Offset`, `Branch`
+- Texture asset-reference workflows remain deferred behind the higher-value graph-control gaps
+- This is **not** the last epic required for broad ShaderGraph parity in MCP
+- The next epic to focus is:
+  - **Epic 8: Node parameter editing**
+- First slice recommendation inside Epic 8:
+  - add typed settings coverage for `Tiling And Offset`, `Branch`, `Split`, `Combine`, and the allowlisted math nodes where serialized constant/default-value editing is stable
+  - keep the API typed and explicit rather than exposing raw node JSON mutation
 - Existing committed foundation still stands:
   - discovery and diagnostics
   - safe graph/material creation
   - baseline URP settings mutation
-  - limited property mutation
-  - limited node/edge mutation proof
+  - expanded blackboard property mutation
+  - allowlisted node creation/deletion
+  - PropertyNode creation across the common URP property types
+  - baseline node/edge mutation proof
   - ShaderGraph Extensions gating
 
 ## Open Questions

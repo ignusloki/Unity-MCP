@@ -32,9 +32,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Add a Shader Graph Property node for an existing blackboard property, then re-import the graph and return the created node and diagnostics.")]
         [AiSkillBody("Add a safe allowlisted Property node to a '.shadergraph' asset.\n\n" +
-            "Current support is intentionally narrow and safe:\n" +
+            "Current support is intentionally scoped to common URP Blackboard property types:\n" +
             "- existing blackboard properties only\n" +
-            "- property types: `color`, `float`\n" +
+            "- property types: `color`, `float`, `texture2D`, `vector2`, `vector3`, `vector4`, `boolean`\n" +
             "- no edge wiring yet\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n" +
@@ -112,10 +112,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             AddNodeReferenceToRoot(document.Root, nodeObjectId);
 
             WriteMutableDocument(document);
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+            FinalizeShaderGraphMutation(assetPath);
 
             var graphRef = new AssetObjectRef(assetPath);
             var structure = BuildShaderGraphStructureData(graphRef);
@@ -236,52 +233,129 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             return propertyType switch
             {
-                "UnityEditor.ShaderGraph.Internal.ColorShaderProperty" => new JsonObject
-                {
-                    ["m_SGVersion"] = 0,
-                    ["m_Type"] = "UnityEditor.ShaderGraph.Vector4MaterialSlot",
-                    ["m_ObjectId"] = slotObjectId,
-                    ["m_Id"] = 0,
-                    ["m_DisplayName"] = displayName,
-                    ["m_SlotType"] = 1,
-                    ["m_Hidden"] = false,
-                    ["m_ShaderOutputName"] = "Out",
-                    ["m_StageCapability"] = 3,
-                    ["m_Value"] = new JsonObject
-                    {
-                        ["x"] = 0.0,
-                        ["y"] = 0.0,
-                        ["z"] = 0.0,
-                        ["w"] = 0.0
-                    },
-                    ["m_DefaultValue"] = new JsonObject
-                    {
-                        ["x"] = 0.0,
-                        ["y"] = 0.0,
-                        ["z"] = 0.0,
-                        ["w"] = 0.0
-                    },
-                    ["m_Labels"] = new JsonArray()
-                },
-                "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty" => new JsonObject
-                {
-                    ["m_SGVersion"] = 0,
-                    ["m_Type"] = "UnityEditor.ShaderGraph.Vector1MaterialSlot",
-                    ["m_ObjectId"] = slotObjectId,
-                    ["m_Id"] = 0,
-                    ["m_DisplayName"] = displayName,
-                    ["m_SlotType"] = 1,
-                    ["m_Hidden"] = false,
-                    ["m_ShaderOutputName"] = "Out",
-                    ["m_StageCapability"] = 3,
-                    ["m_Value"] = 0.0,
-                    ["m_DefaultValue"] = 0.0,
-                    ["m_Labels"] = new JsonArray()
-                },
+                "UnityEditor.ShaderGraph.Internal.ColorShaderProperty" => CreateVectorSlotObject(
+                    slotObjectId,
+                    "UnityEditor.ShaderGraph.Vector4MaterialSlot",
+                    displayName,
+                    dimension: 4),
+                "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty" => CreateFloatSlotObject(
+                    slotObjectId,
+                    displayName),
+                "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty" => CreateTexture2DSlotObject(
+                    slotObjectId,
+                    displayName),
+                "UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty" => CreateVectorSlotObject(
+                    slotObjectId,
+                    "UnityEditor.ShaderGraph.Vector2MaterialSlot",
+                    displayName,
+                    dimension: 2),
+                "UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty" => CreateVectorSlotObject(
+                    slotObjectId,
+                    "UnityEditor.ShaderGraph.Vector3MaterialSlot",
+                    displayName,
+                    dimension: 3),
+                "UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty" => CreateVectorSlotObject(
+                    slotObjectId,
+                    "UnityEditor.ShaderGraph.Vector4MaterialSlot",
+                    displayName,
+                    dimension: 4),
+                "UnityEditor.ShaderGraph.Internal.BooleanShaderProperty" => CreateBooleanSlotObject(
+                    slotObjectId,
+                    displayName),
                 _ => throw new InvalidOperationException(
-                    $"Property nodes currently support only color and float properties. Property type: '{propertyType}'.")
+                    $"Property nodes currently support color, float, texture2D, vector2, vector3, vector4, and boolean properties. Property type: '{propertyType}'.")
             };
         }
+
+        static JsonObject CreateFloatSlotObject(string slotObjectId, string displayName)
+            => new()
+            {
+                ["m_SGVersion"] = 0,
+                ["m_Type"] = "UnityEditor.ShaderGraph.Vector1MaterialSlot",
+                ["m_ObjectId"] = slotObjectId,
+                ["m_Id"] = 0,
+                ["m_DisplayName"] = displayName,
+                ["m_SlotType"] = 1,
+                ["m_Hidden"] = false,
+                ["m_ShaderOutputName"] = "Out",
+                ["m_StageCapability"] = 3,
+                ["m_Value"] = 0.0,
+                ["m_DefaultValue"] = 0.0,
+                ["m_Labels"] = new JsonArray()
+            };
+
+        static JsonObject CreateVectorSlotObject(
+            string slotObjectId,
+            string slotType,
+            string displayName,
+            int dimension)
+        {
+            var value = CreateVectorValueObject(dimension);
+
+            return new JsonObject
+            {
+                ["m_SGVersion"] = 0,
+                ["m_Type"] = slotType,
+                ["m_ObjectId"] = slotObjectId,
+                ["m_Id"] = 0,
+                ["m_DisplayName"] = displayName,
+                ["m_SlotType"] = 1,
+                ["m_Hidden"] = false,
+                ["m_ShaderOutputName"] = "Out",
+                ["m_StageCapability"] = 3,
+                ["m_Value"] = value.DeepClone(),
+                ["m_DefaultValue"] = value,
+                ["m_Labels"] = new JsonArray()
+            };
+        }
+
+        static JsonObject CreateVectorValueObject(int dimension)
+        {
+            var value = new JsonObject
+            {
+                ["x"] = 0.0,
+                ["y"] = 0.0
+            };
+
+            if (dimension >= 3)
+                value["z"] = 0.0;
+
+            if (dimension >= 4)
+                value["w"] = 0.0;
+
+            return value;
+        }
+
+        static JsonObject CreateBooleanSlotObject(string slotObjectId, string displayName)
+            => new()
+            {
+                ["m_SGVersion"] = 0,
+                ["m_Type"] = "UnityEditor.ShaderGraph.BooleanMaterialSlot",
+                ["m_ObjectId"] = slotObjectId,
+                ["m_Id"] = 0,
+                ["m_DisplayName"] = displayName,
+                ["m_SlotType"] = 1,
+                ["m_Hidden"] = false,
+                ["m_ShaderOutputName"] = "Out",
+                ["m_StageCapability"] = 3,
+                ["m_Value"] = false,
+                ["m_DefaultValue"] = false
+            };
+
+        static JsonObject CreateTexture2DSlotObject(string slotObjectId, string displayName)
+            => new()
+            {
+                ["m_SGVersion"] = 0,
+                ["m_Type"] = "UnityEditor.ShaderGraph.Texture2DMaterialSlot",
+                ["m_ObjectId"] = slotObjectId,
+                ["m_Id"] = 0,
+                ["m_DisplayName"] = displayName,
+                ["m_SlotType"] = 1,
+                ["m_Hidden"] = false,
+                ["m_ShaderOutputName"] = "Out",
+                ["m_StageCapability"] = 3,
+                ["m_BareResource"] = false
+            };
 
         static void AddNodeReferenceToRoot(JsonObject root, string nodeObjectId)
         {

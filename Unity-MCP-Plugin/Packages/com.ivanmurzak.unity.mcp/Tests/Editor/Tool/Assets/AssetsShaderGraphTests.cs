@@ -666,7 +666,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
-        public void ShaderGraph_AddPropertyNode_AddsColorAndFloatPropertyNodes()
+        public void ShaderGraph_AddPropertyNode_AddsSupportedPropertyNodes()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_AddPropertyNode.shadergraph");
             try
@@ -683,6 +683,48 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         DisplayName = "Glow Strength",
                         OverrideReferenceName = "_GlowStrength",
                         FloatValue = 0.75f
+                    });
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector2",
+                        DisplayName = "UV Scale",
+                        OverrideReferenceName = "_UVScale",
+                        VectorX = 2f,
+                        VectorY = 3f
+                    });
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector3",
+                        DisplayName = "Flow Direction",
+                        OverrideReferenceName = "_FlowDirection",
+                        VectorX = 0.5f,
+                        VectorY = 0.25f,
+                        VectorZ = 0.75f
+                    });
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector4",
+                        DisplayName = "Packed Controls",
+                        OverrideReferenceName = "_PackedControls",
+                        VectorX = 1f,
+                        VectorY = 2f,
+                        VectorZ = 3f,
+                        VectorW = 4f
+                    });
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "boolean",
+                        DisplayName = "Use Detail",
+                        OverrideReferenceName = "_UseDetail",
+                        BooleanValue = true
                     });
 
                 var colorNodeResult = tool.AddPropertyNode(
@@ -707,6 +749,61 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     includeMessages: true,
                     includeProperties: true);
 
+                var textureNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_BaseMap",
+                        PositionX = -720f,
+                        PositionY = 360f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var vector2NodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_UVScale",
+                        PositionX = -720f,
+                        PositionY = 460f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var vector3NodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_FlowDirection",
+                        PositionX = -720f,
+                        PositionY = 560f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var vector4NodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_PackedControls",
+                        PositionX = -720f,
+                        PositionY = 660f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var booleanNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_UseDetail",
+                        PositionX = -720f,
+                        PositionY = 760f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
                 Assert.IsNotNull(colorNodeResult);
                 Assert.IsNotNull(colorNodeResult.Node);
                 Assert.AreEqual("UnityEditor.ShaderGraph.PropertyNode", colorNodeResult.Node!.Type);
@@ -715,6 +812,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.AreEqual(160f, colorNodeResult.Node.PositionY);
                 Assert.IsNotEmpty(colorNodeResult.Node.Slots);
                 Assert.AreEqual("Color", colorNodeResult.Node.Slots![0].DisplayName);
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector4MaterialSlot", colorNodeResult.Node.Slots[0].Type);
 
                 Assert.IsNotNull(floatNodeResult);
                 Assert.IsNotNull(floatNodeResult.Node);
@@ -725,15 +823,44 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.AreEqual("Glow Strength", floatNodeResult.Node.Slots![0].DisplayName);
                 Assert.AreEqual("UnityEditor.ShaderGraph.Vector1MaterialSlot", floatNodeResult.Node.Slots[0].Type);
 
-                Assert.IsNotNull(floatNodeResult.Structure);
-                Assert.IsTrue(floatNodeResult.Structure!.Nodes!.Count >= 4,
-                    "The graph should contain the original nodes plus the added Property nodes.");
-                Assert.IsTrue(floatNodeResult.Structure.Nodes.Any(n => n.PropertyReferenceName == "_BaseColor"));
-                Assert.IsTrue(floatNodeResult.Structure.Nodes.Any(n => n.PropertyReferenceName == "_GlowStrength"));
+                Assert.IsNotNull(textureNodeResult.Node);
+                Assert.AreEqual("_BaseMap", textureNodeResult.Node!.PropertyReferenceName);
+                Assert.AreEqual("UnityEditor.ShaderGraph.Texture2DMaterialSlot", textureNodeResult.Node.Slots![0].Type);
 
-                Assert.IsNotNull(floatNodeResult.Graph);
-                Assert.IsTrue(floatNodeResult.Graph!.ShaderResolved, "Updated Shader Graph should still resolve a compiled shader.");
-                Assert.IsFalse(floatNodeResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                Assert.IsNotNull(vector2NodeResult.Node);
+                Assert.AreEqual("_UVScale", vector2NodeResult.Node!.PropertyReferenceName);
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector2MaterialSlot", vector2NodeResult.Node.Slots![0].Type);
+                StringAssert.Contains("\"x\":0", vector2NodeResult.Node.Slots[0].ValueJson);
+                StringAssert.Contains("\"y\":0", vector2NodeResult.Node.Slots[0].ValueJson);
+
+                Assert.IsNotNull(vector3NodeResult.Node);
+                Assert.AreEqual("_FlowDirection", vector3NodeResult.Node!.PropertyReferenceName);
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector3MaterialSlot", vector3NodeResult.Node.Slots![0].Type);
+                StringAssert.Contains("\"z\":0", vector3NodeResult.Node.Slots[0].ValueJson);
+
+                Assert.IsNotNull(vector4NodeResult.Node);
+                Assert.AreEqual("_PackedControls", vector4NodeResult.Node!.PropertyReferenceName);
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector4MaterialSlot", vector4NodeResult.Node.Slots![0].Type);
+                StringAssert.Contains("\"w\":0", vector4NodeResult.Node.Slots[0].ValueJson);
+
+                Assert.IsNotNull(booleanNodeResult.Node);
+                Assert.AreEqual("_UseDetail", booleanNodeResult.Node!.PropertyReferenceName);
+                Assert.AreEqual("UnityEditor.ShaderGraph.BooleanMaterialSlot", booleanNodeResult.Node.Slots![0].Type);
+                Assert.AreEqual("false", booleanNodeResult.Node.Slots[0].ValueJson);
+                Assert.AreEqual("false", booleanNodeResult.Node.Slots[0].DefaultValueJson);
+
+                Assert.IsNotNull(booleanNodeResult.Structure);
+                Assert.IsTrue(booleanNodeResult.Structure!.Nodes!.Any(n => n.PropertyReferenceName == "_BaseColor"));
+                Assert.IsTrue(booleanNodeResult.Structure.Nodes.Any(n => n.PropertyReferenceName == "_BaseMap"));
+                Assert.IsTrue(booleanNodeResult.Structure.Nodes.Any(n => n.PropertyReferenceName == "_GlowStrength"));
+                Assert.IsTrue(booleanNodeResult.Structure.Nodes.Any(n => n.PropertyReferenceName == "_UVScale"));
+                Assert.IsTrue(booleanNodeResult.Structure.Nodes.Any(n => n.PropertyReferenceName == "_FlowDirection"));
+                Assert.IsTrue(booleanNodeResult.Structure.Nodes.Any(n => n.PropertyReferenceName == "_PackedControls"));
+                Assert.IsTrue(booleanNodeResult.Structure.Nodes.Any(n => n.PropertyReferenceName == "_UseDetail"));
+
+                Assert.IsNotNull(booleanNodeResult.Graph);
+                Assert.IsTrue(booleanNodeResult.Graph!.ShaderResolved, "Updated Shader Graph should still resolve a compiled shader.");
+                Assert.IsFalse(booleanNodeResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
                     "Adding safe Property nodes should not introduce import errors.");
             }
             finally
@@ -743,9 +870,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
-        public void ShaderGraph_AddPropertyNode_UnsupportedPropertyType_Throws()
+        public void ShaderGraph_AddPropertyNode_MissingProperty_Throws()
         {
-            var assetPath = CreateShaderGraphAssetCopy("Validation_AddPropertyNode_Unsupported.shadergraph");
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddPropertyNode_Missing.shadergraph");
             try
             {
                 var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
@@ -756,7 +883,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     new AssetObjectRef(shader),
                     new ShaderGraphAddPropertyNodeInput
                     {
-                        PropertyReferenceName = "_BaseMap",
+                        PropertyReferenceName = "_MissingProperty",
                         PositionX = -720f,
                         PositionY = 120f
                     }));
