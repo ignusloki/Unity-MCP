@@ -587,17 +587,58 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
         static ShaderGraphPropertyDefinitionData ParsePropertyDefinition(JsonElement root, string objectId)
         {
+            var propertyType = GetString(root, "m_Type");
+            var defaultReferenceName = GetString(root, "m_DefaultReferenceName");
+            var overrideReferenceName = GetString(root, "m_OverrideReferenceName");
+            var textureDefaultTypeValue = GetInt(root, "m_DefaultType");
+
             return new ShaderGraphPropertyDefinitionData
             {
                 ObjectId = objectId,
-                Type = GetString(root, "m_Type"),
+                Type = propertyType,
                 Name = GetString(root, "m_Name"),
-                DefaultReferenceName = GetString(root, "m_DefaultReferenceName"),
-                OverrideReferenceName = GetString(root, "m_OverrideReferenceName"),
+                DefaultReferenceName = defaultReferenceName,
+                OverrideReferenceName = overrideReferenceName,
+                EffectiveReferenceName = string.IsNullOrEmpty(overrideReferenceName)
+                    ? defaultReferenceName
+                    : overrideReferenceName,
                 Guid = GetStringAt(root, "m_Guid", "m_GuidSerialized"),
                 Hidden = GetBool(root, "m_Hidden") ?? false,
                 GeneratePropertyBlock = GetBool(root, "m_GeneratePropertyBlock") ?? false,
-                ValueJson = GetRawText(root, "m_Value")
+                ValueJson = GetRawText(root, "m_Value"),
+                PropertyKind = FormatShaderGraphPropertyKind(propertyType),
+                ColorHex = ParsePropertyColorHex(root, propertyType),
+                FloatValue = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty", StringComparison.Ordinal)
+                    ? GetFloat(root, "m_Value")
+                    : null,
+                VectorX = ParseVectorPropertyComponent(root, propertyType, "x"),
+                VectorY = ParseVectorPropertyComponent(root, propertyType, "y"),
+                VectorZ = ParseVectorPropertyComponent(root, propertyType, "z"),
+                VectorW = ParseVectorPropertyComponent(root, propertyType, "w"),
+                BooleanValue = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.BooleanShaderProperty", StringComparison.Ordinal)
+                    ? GetBool(root, "m_Value")
+                    : null,
+                TextureDefaultTypeValue = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal)
+                    ? textureDefaultTypeValue
+                    : null,
+                TextureDefaultType = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal)
+                    ? FormatTexture2DDefaultType(textureDefaultTypeValue)
+                    : null,
+                TextureUseTilingAndOffset = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal)
+                    ? GetBool(root, "useTilingAndOffset")
+                    : null,
+                TextureUseTexelSize = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal)
+                    ? GetBool(root, "useTexelSize")
+                    : null,
+                TextureIsMainTexture = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal)
+                    ? GetBool(root, "isMainTexture")
+                    : null,
+                TextureIsHdr = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal)
+                    ? GetBool(root, "isHDR")
+                    : null,
+                TextureModifiable = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal)
+                    ? GetBool(root, "m_Modifiable")
+                    : null
             };
         }
 
@@ -803,6 +844,19 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return property.GetBoolean();
         }
 
+        static float? GetFloat(JsonElement root, string propertyName)
+        {
+            if (!root.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.Number)
+                return null;
+
+            if (property.TryGetSingle(out var singleValue))
+                return singleValue;
+
+            return property.TryGetDouble(out var doubleValue)
+                ? (float)doubleValue
+                : null;
+        }
+
         static string? GetRawText(JsonElement root, string propertyName)
         {
             if (!root.TryGetProperty(propertyName, out var property))
@@ -858,6 +912,71 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 3 => "bias",
                 null => null,
                 _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatShaderGraphPropertyKind(string? propertyType)
+        {
+            return propertyType switch
+            {
+                "UnityEditor.ShaderGraph.Internal.ColorShaderProperty" => "color",
+                "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty" => "float",
+                "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty" => "texture2D",
+                "UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty" => "vector2",
+                "UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty" => "vector3",
+                "UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty" => "vector4",
+                "UnityEditor.ShaderGraph.Internal.BooleanShaderProperty" => "boolean",
+                null => null,
+                _ => $"unknown({propertyType})"
+            };
+        }
+
+        static string? FormatTexture2DDefaultType(int? value)
+        {
+            return value switch
+            {
+                0 => "white",
+                1 => "black",
+                2 => "grey",
+                3 => "normalMap",
+                4 => "linearGrey",
+                5 => "red",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? ParsePropertyColorHex(JsonElement root, string? propertyType)
+        {
+            if (!string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.ColorShaderProperty", StringComparison.Ordinal)
+                || !TryGetPropertyByPath(root, out var value, "m_Value")
+                || value.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            var r = GetFloatAt(value, "r");
+            var g = GetFloatAt(value, "g");
+            var b = GetFloatAt(value, "b");
+            var a = GetFloatAt(value, "a") ?? 1f;
+
+            if (!r.HasValue || !g.HasValue || !b.HasValue)
+                return null;
+
+            return "#" + ColorUtility.ToHtmlStringRGBA(new Color(r.Value, g.Value, b.Value, a));
+        }
+
+        static float? ParseVectorPropertyComponent(JsonElement root, string? propertyType, string component)
+        {
+            return propertyType switch
+            {
+                "UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty"
+                    when component is "x" or "y" => GetFloatAt(root, "m_Value", component),
+                "UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty"
+                    when component is "x" or "y" or "z" => GetFloatAt(root, "m_Value", component),
+                "UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty"
+                    when component is "x" or "y" or "z" or "w" => GetFloatAt(root, "m_Value", component),
+                _ => null
             };
         }
 

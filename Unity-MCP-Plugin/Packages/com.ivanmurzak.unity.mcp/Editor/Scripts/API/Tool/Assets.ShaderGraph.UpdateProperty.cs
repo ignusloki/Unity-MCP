@@ -32,9 +32,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Update an existing Shader Graph blackboard property by object id or reference name, then re-import the graph and return the updated property and diagnostics.")]
         [AiSkillBody("Update an existing Shader Graph blackboard property on a '.shadergraph' asset.\n\n" +
-            "Current support is intentionally narrow and safe:\n" +
+            "Current support is intentionally scoped to common URP Blackboard property types:\n" +
             "- generic property fields: display name, override reference name, hidden, generate property block\n" +
-            "- color property default value via `colorHex`\n\n" +
+            "- color property default value via `colorHex`\n" +
+            "- float property default value via `floatValue`\n" +
+            "- vector2/vector3/vector4 default components via `vectorX`, `vectorY`, `vectorZ`, `vectorW`\n" +
+            "- boolean default value via `booleanValue`\n" +
+            "- Texture2D default type and toggles via `textureDefaultType`, `textureUseTilingAndOffset`, `textureUseTexelSize`, `textureIsMainTexture`, `textureIsHdr`, `textureModifiable`\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n" +
             "- `property` — selector plus requested updates.\n" +
@@ -95,10 +99,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (changedFields.Count > 0)
             {
                 WriteMutableDocument(document);
-                UnityEditor.AssetDatabase.ImportAsset(assetPath, UnityEditor.ImportAssetOptions.ForceSynchronousImport);
-                UnityEditor.AssetDatabase.SaveAssets();
-                UnityEditor.AssetDatabase.Refresh(UnityEditor.ImportAssetOptions.ForceSynchronousImport);
-                com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+                FinalizeShaderGraphMutation(assetPath);
             }
 
             var graphRef = new AssetObjectRef(assetPath);
@@ -160,7 +161,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || !string.IsNullOrWhiteSpace(property.OverrideReferenceName)
                || property.Hidden.HasValue
                || property.GeneratePropertyBlock.HasValue
-               || !string.IsNullOrWhiteSpace(property.ColorHex);
+               || !string.IsNullOrWhiteSpace(property.ColorHex)
+               || property.FloatValue.HasValue
+               || HasAnyVectorUpdates(property)
+               || property.BooleanValue.HasValue
+               || HasAnyTextureUpdates(property);
 
         static void ApplyGenericPropertyUpdates(
             JsonObject propertyObject,
@@ -228,15 +233,31 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ShaderGraphPropertyUpdateInput property,
             List<string> changedFields)
         {
-            if (string.IsNullOrWhiteSpace(property.ColorHex))
-                return;
-
             var propertyType = GetString(propertyObject, "m_Type");
-            if (!string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.ColorShaderProperty", StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException(
-                    $"colorHex is only supported for ColorShaderProperty. Property type: '{propertyType ?? "null"}'.");
-            }
+
+            if (!string.IsNullOrWhiteSpace(property.ColorHex))
+                ApplyColorPropertyUpdates(propertyObject, propertyType, property, changedFields);
+
+            if (property.FloatValue.HasValue)
+                ApplyFloatPropertyUpdates(propertyObject, propertyType, property, changedFields);
+
+            if (HasAnyVectorUpdates(property))
+                ApplyVectorPropertyUpdates(propertyObject, propertyType, property, changedFields);
+
+            if (property.BooleanValue.HasValue)
+                ApplyBooleanPropertyUpdates(propertyObject, propertyType, property, changedFields);
+
+            if (HasAnyTextureUpdates(property))
+                ApplyTexture2DPropertyUpdates(propertyObject, propertyType, property, changedFields);
+        }
+
+        static void ApplyColorPropertyUpdates(
+            JsonObject propertyObject,
+            string? propertyType,
+            ShaderGraphPropertyUpdateInput property,
+            List<string> changedFields)
+        {
+            RequirePropertyType(propertyType, "UnityEditor.ShaderGraph.Internal.ColorShaderProperty", "colorHex");
 
             if (!ColorUtility.TryParseHtmlString(property.ColorHex!.Trim(), out var color))
                 throw new ArgumentException($"Invalid colorHex '{property.ColorHex}'. Expected formats like '#RRGGBB' or '#RRGGBBAA'.");
@@ -248,6 +269,172 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             SetFloat(colorValue, "g", color.g, "property.color.g", changedFields);
             SetFloat(colorValue, "b", color.b, "property.color.b", changedFields);
             SetFloat(colorValue, "a", color.a, "property.color.a", changedFields);
+        }
+
+        static void ApplyFloatPropertyUpdates(
+            JsonObject propertyObject,
+            string? propertyType,
+            ShaderGraphPropertyUpdateInput property,
+            List<string> changedFields)
+        {
+            RequirePropertyType(propertyType, "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty", "floatValue");
+            SetFloat(propertyObject, "m_Value", property.FloatValue!.Value, "property.floatValue", changedFields);
+        }
+
+        static void ApplyVectorPropertyUpdates(
+            JsonObject propertyObject,
+            string? propertyType,
+            ShaderGraphPropertyUpdateInput property,
+            List<string> changedFields)
+        {
+            var dimension = GetVectorPropertyDimension(propertyType);
+            if (!dimension.HasValue)
+            {
+                throw new InvalidOperationException(
+                    $"vectorX/vectorY/vectorZ/vectorW are only supported for vector properties. Property type: '{propertyType ?? "null"}'.");
+            }
+
+            if (propertyObject["m_Value"] is not JsonObject vectorValue)
+                throw new InvalidOperationException("Vector property is missing its serialized m_Value object.");
+
+            SetVectorComponent(vectorValue, "x", property.VectorX, 1, dimension.Value, "property.vector.x", changedFields);
+            SetVectorComponent(vectorValue, "y", property.VectorY, 2, dimension.Value, "property.vector.y", changedFields);
+            SetVectorComponent(vectorValue, "z", property.VectorZ, 3, dimension.Value, "property.vector.z", changedFields);
+            SetVectorComponent(vectorValue, "w", property.VectorW, 4, dimension.Value, "property.vector.w", changedFields);
+        }
+
+        static void ApplyBooleanPropertyUpdates(
+            JsonObject propertyObject,
+            string? propertyType,
+            ShaderGraphPropertyUpdateInput property,
+            List<string> changedFields)
+        {
+            RequirePropertyType(propertyType, "UnityEditor.ShaderGraph.Internal.BooleanShaderProperty", "booleanValue");
+            SetBool(propertyObject, "m_Value", property.BooleanValue!.Value, "property.booleanValue", changedFields);
+        }
+
+        static void ApplyTexture2DPropertyUpdates(
+            JsonObject propertyObject,
+            string? propertyType,
+            ShaderGraphPropertyUpdateInput property,
+            List<string> changedFields)
+        {
+            RequirePropertyType(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", "texture fields");
+
+            if (!string.IsNullOrWhiteSpace(property.TextureDefaultType))
+            {
+                SetInt(
+                    propertyObject,
+                    "m_DefaultType",
+                    ParseTexture2DDefaultType(property.TextureDefaultType),
+                    "property.texture.defaultType",
+                    changedFields);
+            }
+
+            if (property.TextureUseTilingAndOffset.HasValue)
+            {
+                SetBool(
+                    propertyObject,
+                    "useTilingAndOffset",
+                    property.TextureUseTilingAndOffset.Value,
+                    "property.texture.useTilingAndOffset",
+                    changedFields);
+            }
+
+            if (property.TextureUseTexelSize.HasValue)
+            {
+                SetBool(
+                    propertyObject,
+                    "useTexelSize",
+                    property.TextureUseTexelSize.Value,
+                    "property.texture.useTexelSize",
+                    changedFields);
+            }
+
+            if (property.TextureIsMainTexture.HasValue)
+            {
+                SetBool(
+                    propertyObject,
+                    "isMainTexture",
+                    property.TextureIsMainTexture.Value,
+                    "property.texture.isMainTexture",
+                    changedFields);
+            }
+
+            if (property.TextureIsHdr.HasValue)
+            {
+                SetBool(
+                    propertyObject,
+                    "isHDR",
+                    property.TextureIsHdr.Value,
+                    "property.texture.isHdr",
+                    changedFields);
+            }
+
+            if (property.TextureModifiable.HasValue)
+            {
+                SetBool(
+                    propertyObject,
+                    "m_Modifiable",
+                    property.TextureModifiable.Value,
+                    "property.texture.modifiable",
+                    changedFields);
+            }
+        }
+
+        static bool HasAnyVectorUpdates(ShaderGraphPropertyUpdateInput property)
+            => property.VectorX.HasValue
+               || property.VectorY.HasValue
+               || property.VectorZ.HasValue
+               || property.VectorW.HasValue;
+
+        static bool HasAnyTextureUpdates(ShaderGraphPropertyUpdateInput property)
+            => !string.IsNullOrWhiteSpace(property.TextureDefaultType)
+               || property.TextureUseTilingAndOffset.HasValue
+               || property.TextureUseTexelSize.HasValue
+               || property.TextureIsMainTexture.HasValue
+               || property.TextureIsHdr.HasValue
+               || property.TextureModifiable.HasValue;
+
+        static void RequirePropertyType(string? actualPropertyType, string expectedPropertyType, string fieldName)
+        {
+            if (string.Equals(actualPropertyType, expectedPropertyType, StringComparison.Ordinal))
+                return;
+
+            throw new InvalidOperationException(
+                $"{fieldName} is only supported for {expectedPropertyType}. Property type: '{actualPropertyType ?? "null"}'.");
+        }
+
+        static int? GetVectorPropertyDimension(string? propertyType)
+        {
+            return propertyType switch
+            {
+                "UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty" => 2,
+                "UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty" => 3,
+                "UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty" => 4,
+                _ => null
+            };
+        }
+
+        static void SetVectorComponent(
+            JsonObject vectorValue,
+            string componentName,
+            float? value,
+            int requiredDimension,
+            int actualDimension,
+            string changedFieldName,
+            List<string> changedFields)
+        {
+            if (!value.HasValue)
+                return;
+
+            if (actualDimension < requiredDimension)
+            {
+                throw new ArgumentException(
+                    $"{changedFieldName} requires a vector{requiredDimension} or larger property, but the selected property is vector{actualDimension}.");
+            }
+
+            SetFloat(vectorValue, componentName, value.Value, changedFieldName, changedFields);
         }
 
         static void ValidateUniqueDisplayName(

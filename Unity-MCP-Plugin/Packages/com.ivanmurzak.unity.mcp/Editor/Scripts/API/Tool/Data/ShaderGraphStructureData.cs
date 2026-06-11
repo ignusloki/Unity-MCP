@@ -83,6 +83,9 @@ namespace AIGD
         [Description("Overridden reference name if set.")]
         public string? OverrideReferenceName { get; set; }
 
+        [Description("Effective reference name used by the generated shader.")]
+        public string? EffectiveReferenceName { get; set; }
+
         [Description("Serialized GUID for the property definition.")]
         public string? Guid { get; set; }
 
@@ -94,6 +97,51 @@ namespace AIGD
 
         [Description("Serialized property value JSON.")]
         public string? ValueJson { get; set; }
+
+        [Description("Normalized property kind when recognized, such as color, float, texture2D, vector2, vector3, vector4, or boolean.")]
+        public string? PropertyKind { get; set; }
+
+        [Description("Formatted color value for color properties. Example: '#FF7A00CC'.")]
+        public string? ColorHex { get; set; }
+
+        [Description("Float default value for float properties.")]
+        public float? FloatValue { get; set; }
+
+        [Description("Vector X default component for vector properties.")]
+        public float? VectorX { get; set; }
+
+        [Description("Vector Y default component for vector properties.")]
+        public float? VectorY { get; set; }
+
+        [Description("Vector Z default component for vector properties.")]
+        public float? VectorZ { get; set; }
+
+        [Description("Vector W default component for vector properties.")]
+        public float? VectorW { get; set; }
+
+        [Description("Boolean default value for boolean properties.")]
+        public bool? BooleanValue { get; set; }
+
+        [Description("Texture2D default texture type enum value.")]
+        public int? TextureDefaultTypeValue { get; set; }
+
+        [Description("Texture2D default texture type when recognized.")]
+        public string? TextureDefaultType { get; set; }
+
+        [Description("Whether Texture2D properties generate tiling and offset data.")]
+        public bool? TextureUseTilingAndOffset { get; set; }
+
+        [Description("Whether Texture2D properties generate texel size data.")]
+        public bool? TextureUseTexelSize { get; set; }
+
+        [Description("Whether this Texture2D property is marked as the graph's main texture.")]
+        public bool? TextureIsMainTexture { get; set; }
+
+        [Description("Whether this Texture2D property is marked HDR.")]
+        public bool? TextureIsHdr { get; set; }
+
+        [Description("Whether this Texture2D property is modifiable.")]
+        public bool? TextureModifiable { get; set; }
     }
 
     public class ShaderGraphNodeDefinitionData

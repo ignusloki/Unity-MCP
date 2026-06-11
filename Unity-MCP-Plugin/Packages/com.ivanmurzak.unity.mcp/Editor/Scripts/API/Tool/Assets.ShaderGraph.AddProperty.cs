@@ -33,9 +33,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Add a new Shader Graph blackboard property to the default category, then re-import the graph and return the created property and diagnostics.")]
         [AiSkillBody("Add a new Shader Graph blackboard property to a '.shadergraph' asset.\n\n" +
-            "Current support is intentionally narrow and safe:\n" +
+            "Current support is intentionally scoped to common URP Blackboard property types:\n" +
             "- `propertyType = color`\n" +
-            "- `propertyType = float`\n\n" +
+            "- `propertyType = float`\n" +
+            "- `propertyType = texture2D`\n" +
+            "- `propertyType = vector2`, `vector3`, or `vector4`\n" +
+            "- `propertyType = boolean`\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n" +
             "- `property` — creation payload for the new property.\n" +
@@ -125,10 +128,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             AddPropertyReferenceToCategory(document, propertyObjectId);
 
             WriteMutableDocument(document);
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+            FinalizeShaderGraphMutation(assetPath);
 
             var graphRef = new AssetObjectRef(assetPath);
             var structure = BuildShaderGraphStructureData(graphRef);
@@ -173,8 +173,46 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     defaultReferenceName,
                     overrideReferenceName,
                     property),
+                "texture2d" => CreateTexture2DPropertyObject(
+                    propertyObjectId,
+                    propertyGuid,
+                    displayName,
+                    defaultReferenceName,
+                    overrideReferenceName,
+                    property),
+                "vector2" => CreateVectorPropertyObject(
+                    propertyType,
+                    propertyObjectId,
+                    propertyGuid,
+                    displayName,
+                    defaultReferenceName,
+                    overrideReferenceName,
+                    property),
+                "vector3" => CreateVectorPropertyObject(
+                    propertyType,
+                    propertyObjectId,
+                    propertyGuid,
+                    displayName,
+                    defaultReferenceName,
+                    overrideReferenceName,
+                    property),
+                "vector4" => CreateVectorPropertyObject(
+                    propertyType,
+                    propertyObjectId,
+                    propertyGuid,
+                    displayName,
+                    defaultReferenceName,
+                    overrideReferenceName,
+                    property),
+                "boolean" => CreateBooleanPropertyObject(
+                    propertyObjectId,
+                    propertyGuid,
+                    displayName,
+                    defaultReferenceName,
+                    overrideReferenceName,
+                    property),
                 _ => throw new ArgumentException(
-                    $"Unsupported propertyType '{property.PropertyType}'. Supported values: color, float.")
+                    $"Unsupported propertyType '{property.PropertyType}'. Supported values: color, float, texture2D, vector2, vector3, vector4, boolean.")
             };
         }
 
@@ -266,6 +304,157 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     ["x"] = 0.0,
                     ["y"] = 1.0
                 }
+            };
+        }
+
+        static JsonObject CreateTexture2DPropertyObject(
+            string propertyObjectId,
+            string propertyGuid,
+            string displayName,
+            string defaultReferenceName,
+            string overrideReferenceName,
+            ShaderGraphAddPropertyInput property)
+        {
+            return new JsonObject
+            {
+                ["m_SGVersion"] = 0,
+                ["m_Type"] = "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty",
+                ["m_ObjectId"] = propertyObjectId,
+                ["m_Guid"] = new JsonObject
+                {
+                    ["m_GuidSerialized"] = propertyGuid
+                },
+                ["m_Name"] = displayName,
+                ["m_DefaultRefNameVersion"] = 1,
+                ["m_RefNameGeneratedByDisplayName"] = displayName,
+                ["m_DefaultReferenceName"] = defaultReferenceName,
+                ["m_OverrideReferenceName"] = overrideReferenceName,
+                ["m_GeneratePropertyBlock"] = property.GeneratePropertyBlock ?? true,
+                ["m_UseCustomSlotLabel"] = false,
+                ["m_CustomSlotLabel"] = string.Empty,
+                ["m_DismissedVersion"] = 0,
+                ["m_Precision"] = 0,
+                ["overrideHLSLDeclaration"] = false,
+                ["hlslDeclarationOverride"] = 0,
+                ["m_Hidden"] = property.Hidden ?? false,
+                ["m_PerRendererData"] = false,
+                ["m_customAttributes"] = new JsonArray(),
+                ["m_Value"] = new JsonObject
+                {
+                    ["m_SerializedTexture"] = string.Empty,
+                    ["m_Guid"] = string.Empty
+                },
+                ["isMainTexture"] = property.TextureIsMainTexture ?? false,
+                ["useTilingAndOffset"] = property.TextureUseTilingAndOffset ?? false,
+                ["useTexelSize"] = property.TextureUseTexelSize ?? true,
+                ["isHDR"] = property.TextureIsHdr ?? false,
+                ["m_Modifiable"] = property.TextureModifiable ?? true,
+                ["m_DefaultType"] = ParseTexture2DDefaultType(property.TextureDefaultType)
+            };
+        }
+
+        static JsonObject CreateVectorPropertyObject(
+            string propertyType,
+            string propertyObjectId,
+            string propertyGuid,
+            string displayName,
+            string defaultReferenceName,
+            string overrideReferenceName,
+            ShaderGraphAddPropertyInput property)
+        {
+            var shaderGraphType = propertyType switch
+            {
+                "vector2" => "UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty",
+                "vector3" => "UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty",
+                "vector4" => "UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty",
+                _ => throw new ArgumentException($"Unsupported vector property type '{propertyType}'.")
+            };
+
+            return new JsonObject
+            {
+                ["m_SGVersion"] = 1,
+                ["m_Type"] = shaderGraphType,
+                ["m_ObjectId"] = propertyObjectId,
+                ["m_Guid"] = new JsonObject
+                {
+                    ["m_GuidSerialized"] = propertyGuid
+                },
+                ["m_Name"] = displayName,
+                ["m_DefaultRefNameVersion"] = 1,
+                ["m_RefNameGeneratedByDisplayName"] = displayName,
+                ["m_DefaultReferenceName"] = defaultReferenceName,
+                ["m_OverrideReferenceName"] = overrideReferenceName,
+                ["m_GeneratePropertyBlock"] = property.GeneratePropertyBlock ?? true,
+                ["m_UseCustomSlotLabel"] = false,
+                ["m_CustomSlotLabel"] = string.Empty,
+                ["m_DismissedVersion"] = 0,
+                ["m_Precision"] = 0,
+                ["overrideHLSLDeclaration"] = false,
+                ["hlslDeclarationOverride"] = 0,
+                ["m_Hidden"] = property.Hidden ?? false,
+                ["m_PerRendererData"] = false,
+                ["m_customAttributes"] = new JsonArray(),
+                ["m_Value"] = new JsonObject
+                {
+                    ["x"] = property.VectorX ?? 0f,
+                    ["y"] = property.VectorY ?? 0f,
+                    ["z"] = property.VectorZ ?? 0f,
+                    ["w"] = property.VectorW ?? 0f
+                }
+            };
+        }
+
+        static JsonObject CreateBooleanPropertyObject(
+            string propertyObjectId,
+            string propertyGuid,
+            string displayName,
+            string defaultReferenceName,
+            string overrideReferenceName,
+            ShaderGraphAddPropertyInput property)
+        {
+            return new JsonObject
+            {
+                ["m_SGVersion"] = 0,
+                ["m_Type"] = "UnityEditor.ShaderGraph.Internal.BooleanShaderProperty",
+                ["m_ObjectId"] = propertyObjectId,
+                ["m_Guid"] = new JsonObject
+                {
+                    ["m_GuidSerialized"] = propertyGuid
+                },
+                ["m_Name"] = displayName,
+                ["m_DefaultRefNameVersion"] = 1,
+                ["m_RefNameGeneratedByDisplayName"] = displayName,
+                ["m_DefaultReferenceName"] = defaultReferenceName,
+                ["m_OverrideReferenceName"] = overrideReferenceName,
+                ["m_GeneratePropertyBlock"] = property.GeneratePropertyBlock ?? true,
+                ["m_UseCustomSlotLabel"] = false,
+                ["m_CustomSlotLabel"] = string.Empty,
+                ["m_DismissedVersion"] = 0,
+                ["m_Precision"] = 0,
+                ["overrideHLSLDeclaration"] = false,
+                ["hlslDeclarationOverride"] = 0,
+                ["m_Hidden"] = property.Hidden ?? false,
+                ["m_PerRendererData"] = false,
+                ["m_customAttributes"] = new JsonArray(),
+                ["m_Value"] = property.BooleanValue ?? false
+            };
+        }
+
+        static int ParseTexture2DDefaultType(string? defaultType)
+        {
+            if (string.IsNullOrWhiteSpace(defaultType))
+                return 0;
+
+            return NormalizeEnumValue(defaultType!) switch
+            {
+                "white" => 0,
+                "black" => 1,
+                "grey" or "gray" => 2,
+                "normalmap" or "normal" or "bump" => 3,
+                "lineargrey" or "lineargray" => 4,
+                "red" => 5,
+                _ => throw new ArgumentException(
+                    $"Unsupported textureDefaultType '{defaultType}'. Supported values: white, black, grey, normalMap, bump, linearGrey, red.")
             };
         }
 

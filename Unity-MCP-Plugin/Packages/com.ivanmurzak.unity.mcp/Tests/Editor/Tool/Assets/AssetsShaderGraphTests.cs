@@ -275,7 +275,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     {
                         PropertyReferenceName = "_BaseMap",
                         DisplayName = "Diffuse Map",
-                        OverrideReferenceName = "_DiffuseTex"
+                        OverrideReferenceName = "_DiffuseTex",
+                        TextureDefaultType = "black",
+                        TextureUseTilingAndOffset = false,
+                        TextureUseTexelSize = false,
+                        TextureIsMainTexture = false,
+                        TextureIsHdr = true,
+                        TextureModifiable = false
                     },
                     includeMessages: true,
                     includeProperties: true);
@@ -293,6 +299,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsNotNull(textureResult.Property);
                 Assert.AreEqual("Diffuse Map", textureResult.Property!.Name);
                 Assert.AreEqual("_DiffuseTex", textureResult.Property.OverrideReferenceName);
+                Assert.AreEqual("texture2D", textureResult.Property.PropertyKind);
+                Assert.AreEqual("black", textureResult.Property.TextureDefaultType);
+                Assert.AreEqual(1, textureResult.Property.TextureDefaultTypeValue);
+                Assert.IsFalse(textureResult.Property.TextureUseTilingAndOffset ?? true);
+                Assert.IsFalse(textureResult.Property.TextureUseTexelSize ?? true);
+                Assert.IsFalse(textureResult.Property.TextureIsMainTexture ?? true);
+                Assert.IsTrue(textureResult.Property.TextureIsHdr ?? false);
+                Assert.IsFalse(textureResult.Property.TextureModifiable ?? true);
 
                 Assert.IsNotNull(textureResult.Structure);
                 Assert.IsTrue(textureResult.Structure!.Properties!.Any(p => p.OverrideReferenceName == "_TintColor"));
@@ -306,6 +320,106 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     "Compiled shader properties should include the renamed color reference.");
                 Assert.IsTrue(textureResult.Graph.Properties.Any(p => p.Name == "_DiffuseTex"),
                     "Compiled shader properties should include the renamed texture reference.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_UpdateProperty_UpdatesExpandedDefaultValues()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateProperty_Expanded.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Glow Strength",
+                        OverrideReferenceName = "_GlowStrength",
+                        FloatValue = 0.25f
+                    });
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector3",
+                        DisplayName = "Flow Direction",
+                        OverrideReferenceName = "_FlowDirection",
+                        VectorX = 0f,
+                        VectorY = 1f,
+                        VectorZ = 0f
+                    });
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "boolean",
+                        DisplayName = "Use Rim",
+                        OverrideReferenceName = "_UseRim",
+                        BooleanValue = false
+                    });
+
+                var floatResult = tool.UpdateProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphPropertyUpdateInput
+                    {
+                        PropertyReferenceName = "_GlowStrength",
+                        FloatValue = 1.25f
+                    });
+                var vectorResult = tool.UpdateProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphPropertyUpdateInput
+                    {
+                        PropertyReferenceName = "_FlowDirection",
+                        VectorX = 0.5f,
+                        VectorY = 0.25f,
+                        VectorZ = 0.75f
+                    });
+                var booleanResult = tool.UpdateProperty(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphPropertyUpdateInput
+                    {
+                        PropertyReferenceName = "_UseRim",
+                        BooleanValue = true
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(floatResult.Property);
+                Assert.AreEqual("float", floatResult.Property!.PropertyKind);
+                Assert.AreEqual(1.25f, floatResult.Property.FloatValue);
+                Assert.IsTrue(floatResult.ChangedFields!.Contains("property.floatValue"));
+
+                Assert.IsNotNull(vectorResult.Property);
+                Assert.AreEqual("vector3", vectorResult.Property!.PropertyKind);
+                Assert.AreEqual(0.5f, vectorResult.Property.VectorX);
+                Assert.AreEqual(0.25f, vectorResult.Property.VectorY);
+                Assert.AreEqual(0.75f, vectorResult.Property.VectorZ);
+                Assert.IsNull(vectorResult.Property.VectorW);
+                Assert.IsTrue(vectorResult.ChangedFields!.Contains("property.vector.x"));
+                Assert.IsTrue(vectorResult.ChangedFields.Contains("property.vector.y"));
+                Assert.IsTrue(vectorResult.ChangedFields.Contains("property.vector.z"));
+
+                Assert.IsNotNull(booleanResult.Property);
+                Assert.AreEqual("boolean", booleanResult.Property!.PropertyKind);
+                Assert.IsTrue(booleanResult.Property.BooleanValue ?? false);
+                Assert.IsTrue(booleanResult.ChangedFields!.Contains("property.booleanValue"));
+
+                Assert.IsNotNull(booleanResult.Graph);
+                Assert.IsTrue(booleanResult.Graph!.ShaderResolved, "Updated Shader Graph should still resolve a compiled shader.");
+                Assert.IsFalse(booleanResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Updating expanded blackboard property defaults should not introduce import errors.");
+                Assert.IsTrue(booleanResult.Graph.Properties!.Any(p => p.Name == "_GlowStrength"));
+                Assert.IsTrue(booleanResult.Graph.Properties.Any(p => p.Name == "_FlowDirection"));
+                Assert.IsTrue(booleanResult.Graph.Properties.Any(p => p.Name == "_UseRim"));
             }
             finally
             {
@@ -395,6 +509,129 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     "Compiled shader properties should include the added color property.");
                 Assert.IsTrue(floatResult.Graph.Properties.Any(p => p.Name == "_GlowStrength"),
                     "Compiled shader properties should include the added float property.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_AddProperty_AddsExpandedBlackboardPropertyTypes()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddProperty_Expanded.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var textureResult = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "texture2D",
+                        DisplayName = "Mask Map",
+                        OverrideReferenceName = "_MaskMap",
+                        TextureDefaultType = "linearGrey",
+                        TextureUseTilingAndOffset = true,
+                        TextureUseTexelSize = false,
+                        TextureIsHdr = true
+                    });
+                var vector2Result = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector2",
+                        DisplayName = "UV Scale",
+                        OverrideReferenceName = "_UVScale",
+                        VectorX = 2f,
+                        VectorY = 3f
+                    });
+                var vector3Result = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector3",
+                        DisplayName = "Wind Direction",
+                        OverrideReferenceName = "_WindDirection",
+                        VectorX = 0.1f,
+                        VectorY = 0.2f,
+                        VectorZ = 0.3f
+                    });
+                var vector4Result = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector4",
+                        DisplayName = "Packed Controls",
+                        OverrideReferenceName = "_PackedControls",
+                        VectorX = 1f,
+                        VectorY = 2f,
+                        VectorZ = 3f,
+                        VectorW = 4f
+                    });
+                var booleanResult = tool.AddProperty(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "boolean",
+                        DisplayName = "Use Detail",
+                        OverrideReferenceName = "_UseDetail",
+                        BooleanValue = true
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(textureResult.Property);
+                Assert.AreEqual("texture2D", textureResult.Property!.PropertyKind);
+                Assert.AreEqual("_MaskMap", textureResult.Property.OverrideReferenceName);
+                Assert.AreEqual("linearGrey", textureResult.Property.TextureDefaultType);
+                Assert.IsTrue(textureResult.Property.TextureUseTilingAndOffset ?? false);
+                Assert.IsFalse(textureResult.Property.TextureUseTexelSize ?? true);
+                Assert.IsTrue(textureResult.Property.TextureIsHdr ?? false);
+
+                Assert.IsNotNull(vector2Result.Property);
+                Assert.AreEqual("vector2", vector2Result.Property!.PropertyKind);
+                Assert.AreEqual(2f, vector2Result.Property.VectorX);
+                Assert.AreEqual(3f, vector2Result.Property.VectorY);
+                Assert.IsNull(vector2Result.Property.VectorZ);
+                Assert.IsNull(vector2Result.Property.VectorW);
+
+                Assert.IsNotNull(vector3Result.Property);
+                Assert.AreEqual("vector3", vector3Result.Property!.PropertyKind);
+                Assert.AreEqual(0.1f, vector3Result.Property.VectorX);
+                Assert.AreEqual(0.2f, vector3Result.Property.VectorY);
+                Assert.AreEqual(0.3f, vector3Result.Property.VectorZ);
+                Assert.IsNull(vector3Result.Property.VectorW);
+
+                Assert.IsNotNull(vector4Result.Property);
+                Assert.AreEqual("vector4", vector4Result.Property!.PropertyKind);
+                Assert.AreEqual(1f, vector4Result.Property.VectorX);
+                Assert.AreEqual(2f, vector4Result.Property.VectorY);
+                Assert.AreEqual(3f, vector4Result.Property.VectorZ);
+                Assert.AreEqual(4f, vector4Result.Property.VectorW);
+
+                Assert.IsNotNull(booleanResult.Property);
+                Assert.AreEqual("boolean", booleanResult.Property!.PropertyKind);
+                Assert.IsTrue(booleanResult.Property.BooleanValue ?? false);
+
+                Assert.IsNotNull(booleanResult.Structure);
+                Assert.IsTrue(booleanResult.Structure!.Properties!.Any(p => p.OverrideReferenceName == "_MaskMap"));
+                Assert.IsTrue(booleanResult.Structure.Properties.Any(p => p.OverrideReferenceName == "_UVScale"));
+                Assert.IsTrue(booleanResult.Structure.Properties.Any(p => p.OverrideReferenceName == "_WindDirection"));
+                Assert.IsTrue(booleanResult.Structure.Properties.Any(p => p.OverrideReferenceName == "_PackedControls"));
+                Assert.IsTrue(booleanResult.Structure.Properties.Any(p => p.OverrideReferenceName == "_UseDetail"));
+
+                Assert.IsNotNull(booleanResult.Graph);
+                Assert.IsTrue(booleanResult.Graph!.ShaderResolved, "Updated Shader Graph should still resolve a compiled shader.");
+                Assert.IsFalse(booleanResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Adding expanded blackboard property types should not introduce import errors.");
+                Assert.IsTrue(booleanResult.Graph.Properties!.Any(p => p.Name == "_MaskMap"));
+                Assert.IsTrue(booleanResult.Graph.Properties.Any(p => p.Name == "_UVScale"));
+                Assert.IsTrue(booleanResult.Graph.Properties.Any(p => p.Name == "_WindDirection"));
+                Assert.IsTrue(booleanResult.Graph.Properties.Any(p => p.Name == "_PackedControls"));
+                Assert.IsTrue(booleanResult.Graph.Properties.Any(p => p.Name == "_UseDetail"));
             }
             finally
             {
