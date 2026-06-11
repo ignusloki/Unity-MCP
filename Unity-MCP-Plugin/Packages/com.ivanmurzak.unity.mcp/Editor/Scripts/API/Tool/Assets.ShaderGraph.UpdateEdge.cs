@@ -36,6 +36,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "UnityEditor.ShaderGraph.ColorRGBAMaterialSlot"
         };
 
+        static readonly HashSet<string> Vector2LikeSlotTypes = new(StringComparer.Ordinal)
+        {
+            "UnityEditor.ShaderGraph.Vector2MaterialSlot",
+            "UnityEditor.ShaderGraph.UVMaterialSlot"
+        };
+
         [AiTool
         (
             AssetsShaderGraphConnectEdgeToolId,
@@ -47,6 +53,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- selection by node object id plus slot object id\n" +
             "- requires the input slot to be currently unconnected\n" +
             "- supports exact slot-type matches\n" +
+            "- supports compatible UV/vector2 slot pairs\n" +
             "- supports dynamic numeric/vector/color slots via `DynamicValueMaterialSlot`\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect node ids, slot ids, and slot types.")]
         [Description("Connect two existing Shader Graph slots and re-import the graph.")]
@@ -292,6 +299,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 throw new InvalidOperationException("Both slots must expose a serialized m_Type.");
 
             if (string.Equals(outputType, inputType, StringComparison.Ordinal))
+                return;
+
+            if (Vector2LikeSlotTypes.Contains(outputType) && Vector2LikeSlotTypes.Contains(inputType))
                 return;
 
             var outputIsDynamic = string.Equals(outputType, "UnityEditor.ShaderGraph.DynamicValueMaterialSlot", StringComparison.Ordinal);
