@@ -27,6 +27,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
     {
         const string TemplateAssetPath =
             "Packages/com.unity.shadergraph/GraphTemplates/Cross Pipeline/Unlit Simple.shadergraph";
+        const string LitFullTemplateAssetPath =
+            "Packages/com.unity.shadergraph/GraphTemplates/Cross Pipeline/1_Lit Full.shadergraph";
         const string TestFolder = "Assets/Unity-MCP-Test/ShaderGraphs";
 
         [Test]
@@ -333,6 +335,66 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsTrue(result.Graph.ShaderResolved, "Updated Shader Graph should still resolve a compiled shader.");
                 Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
                     "Adding a stable built-in stack block should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_SetBlocks_HandlesLitFragmentBlocks()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_SetBlocks_Lit.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var result = new Tool_Assets_ShaderGraph().SetBlocks(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphSetBlocksInput
+                    {
+                        Context = "fragment",
+                        Blocks = new()
+                        {
+                            "baseColor",
+                            "normalTS",
+                            "metallic",
+                            "specular",
+                            "smoothness",
+                            "occlusion",
+                            "emission",
+                            "alpha",
+                            "alphaClipThreshold",
+                            "bentNormal"
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                CollectionAssert.AreEqual(
+                    new[]
+                    {
+                        "SurfaceDescription.BaseColor",
+                        "SurfaceDescription.NormalTS",
+                        "SurfaceDescription.Metallic",
+                        "SurfaceDescription.Specular",
+                        "SurfaceDescription.Smoothness",
+                        "SurfaceDescription.Occlusion",
+                        "SurfaceDescription.Emission",
+                        "SurfaceDescription.Alpha",
+                        "SurfaceDescription.AlphaClipThreshold",
+                        "SurfaceDescription.BentNormal"
+                    },
+                    result.BlockDescriptors);
+                Assert.IsEmpty(result.RemovedBlockNodeIds);
+
+                Assert.IsNotNull(result.Graph);
+                Assert.IsTrue(result.Graph!.SourceParsed, "Updated Lit Shader Graph source should parse successfully.");
+                Assert.IsTrue(result.Graph.ShaderResolved, "Updated Lit Shader Graph should still resolve a compiled shader.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Reordering common Lit fragment blocks should not introduce import errors.");
             }
             finally
             {
@@ -3264,15 +3326,18 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         static string CreateShaderGraphAssetCopy(string fileName)
+            => CreateShaderGraphAssetCopy(fileName, TemplateAssetPath);
+
+        static string CreateShaderGraphAssetCopy(string fileName, string templateAssetPath)
         {
             var destinationPath = $"{TestFolder}/{fileName}";
             EnsureFolder(TestFolder);
 
-            var packageInfo = PackageInfo.FindForAssetPath(TemplateAssetPath);
-            Assert.IsNotNull(packageInfo, $"Expected package info for '{TemplateAssetPath}'.");
+            var packageInfo = PackageInfo.FindForAssetPath(templateAssetPath);
+            Assert.IsNotNull(packageInfo, $"Expected package info for '{templateAssetPath}'.");
 
             var packageRoot = $"Packages/{packageInfo!.name}";
-            var relativeTemplatePath = TemplateAssetPath.Substring(packageRoot.Length).TrimStart('/');
+            var relativeTemplatePath = templateAssetPath.Substring(packageRoot.Length).TrimStart('/');
             var sourcePath = Path.Combine(packageInfo.resolvedPath, relativeTemplatePath);
             Assert.IsTrue(File.Exists(sourcePath), $"Expected template source to exist at '{sourcePath}'.");
 

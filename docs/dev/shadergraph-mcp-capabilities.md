@@ -83,6 +83,7 @@ This document is the single source of truth for what the local ShaderGraph MCP i
     - `normalTS`
     - `normalOS`
     - `normalWS`
+    - `bentNormal`
     - `metallic`
     - `specular`
     - `smoothness`
@@ -90,6 +91,8 @@ This document is the single source of truth for what the local ShaderGraph MCP i
     - `emission`
     - `alpha`
     - `alphaClipThreshold`
+    - `coatMask`
+    - `coatSmoothness`
     - `normalAlpha`
     - `maosAlpha`
   - After block creation, use `assets-shadergraph-get-structure` to inspect block node ids and slots, then use the edge tools to connect values into those block slots.

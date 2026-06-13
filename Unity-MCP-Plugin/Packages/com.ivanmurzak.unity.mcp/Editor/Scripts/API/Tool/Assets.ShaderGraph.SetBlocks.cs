@@ -60,7 +60,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `blocks.blocks` — ordered descriptors or aliases.\n" +
             "- `blocks.allowRemovingConnectedBlocks` — when true, remove connected block edges while removing blocks.\n\n" +
             "Supported vertex blocks: `position`, `normal`, `tangent`, `motionVector`.\n" +
-            "Supported fragment blocks: `baseColor`, `normalTS`, `normalOS`, `normalWS`, `metallic`, `specular`, `smoothness`, `occlusion`, `emission`, `alpha`, `alphaClipThreshold`, `normalAlpha`, `maosAlpha`.\n\n" +
+            "Supported fragment blocks: `baseColor`, `normalTS`, `normalOS`, `normalWS`, `bentNormal`, `metallic`, `specular`, `smoothness`, `occlusion`, `emission`, `alpha`, `alphaClipThreshold`, `coatMask`, `coatSmoothness`, `normalAlpha`, `maosAlpha`.\n\n" +
             "Use `assets-shadergraph-get-structure` after mutation to inspect the created block node ids and slots before wiring edges.")]
         [Description("Set the ordered built-in Shader Graph block stack for one context and re-import the graph.")]
         public ShaderGraphBlockMutationResultData SetBlocks(
@@ -245,7 +245,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.IsNullOrWhiteSpace(block))
                 throw new ArgumentException("Block names must not be empty.");
 
-            var normalized = NormalizeEnumValue(block);
+            var normalized = NormalizeEnumValue(block!);
             var definition = AllowlistedBlockDefinitions
                 .Where(def => string.Equals(def.Context, context, StringComparison.Ordinal))
                 .FirstOrDefault(def =>
@@ -529,6 +529,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 },
                 new()
                 {
+                    ApiName = "bentNormal",
+                    Descriptor = "SurfaceDescription.BentNormal",
+                    Context = "fragment",
+                    DisplayName = "Bent Normal",
+                    ShaderOutputName = "BentNormal",
+                    SlotTypeName = "UnityEditor.ShaderGraph.NormalMaterialSlot",
+                    Space = 3
+                },
+                new()
+                {
                     ApiName = "metallic",
                     Descriptor = "SurfaceDescription.Metallic",
                     Context = "fragment",
@@ -598,6 +608,25 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     SlotTypeName = "UnityEditor.ShaderGraph.Vector1MaterialSlot",
                     DefaultFloat = 0.5f,
                     Aliases = new[] { "alphaClip", "clipThreshold" }
+                },
+                new()
+                {
+                    ApiName = "coatMask",
+                    Descriptor = "SurfaceDescription.CoatMask",
+                    Context = "fragment",
+                    DisplayName = "Coat Mask",
+                    ShaderOutputName = "CoatMask",
+                    SlotTypeName = "UnityEditor.ShaderGraph.Vector1MaterialSlot"
+                },
+                new()
+                {
+                    ApiName = "coatSmoothness",
+                    Descriptor = "SurfaceDescription.CoatSmoothness",
+                    Context = "fragment",
+                    DisplayName = "Coat Smoothness",
+                    ShaderOutputName = "CoatSmoothness",
+                    SlotTypeName = "UnityEditor.ShaderGraph.Vector1MaterialSlot",
+                    DefaultFloat = 1f
                 },
                 new()
                 {

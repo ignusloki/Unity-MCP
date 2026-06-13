@@ -13,10 +13,10 @@ Update this file during day-to-day implementation. Keep `docs/dev/shadergraph-mc
 - Current local package baseline: `com.ivanmurzak.unity.mcp` version `0.81.0`
 - Local Unity validation project: `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph`
 - Unity validation version: `6000.4.1f1`
-- Active epic: Epic 11, URP Stack And Target Coverage
-- Latest user-validated slice: Epic 11.3, stable built-in stack/block control
-- Current code state: Epic 11.3 is user-validated and ready to commit
-- Next planned slice: Epic 11.4, validate remaining common URP authoring target coverage
+- Active epic: Epic 12, Texture And Asset-Reference Workflows
+- Latest user-validated slice: Epic 11.4, common URP authoring target coverage
+- Current code state: Epic 11 is complete; Epic 12.1 has not started yet
+- Next planned slice: Epic 12.1, assign project texture assets to supported blackboard texture properties
 - Conditional future edge slice: Epic 10.5, additional compatibility cases only if concrete unsupported URP paths are found
 
 Current local environment note:
@@ -26,6 +26,14 @@ Current local environment note:
 - Refresh the running server process if version alignment matters before the next validation pass.
 
 ## Active Work
+
+Epic 12.1 starting point:
+
+- Existing blackboard texture property tools can create and update texture metadata such as default type, tiling/offset flags, texel size, HDR, and modifiable state.
+- Missing capability: assigning a concrete project `Texture2D` asset reference to a Shader Graph blackboard texture property.
+- First validation target: create or update a graph texture property so its default/reference texture points at a project texture asset, then verify graph import and material behavior where Unity exposes that reference.
+
+## Recently Completed
 
 Epic 11.1 audit result:
 
@@ -64,10 +72,30 @@ Epic 11.3 validation completed:
   - `SurfaceDescription.AlphaClipThreshold`
 - User validated that the fragment/master stack includes `Alpha Clip Threshold` after `Alpha`, with no console/import errors.
 
-Next Epic 11 decision point:
+Epic 11.4 implementation target:
 
-- Slice 11.4 still exists in the plan as common URP authoring-target validation.
-- If Slice 11.4 does not reveal missing stable stack/block controls, Epic 11 can close and Epic 12 starts next.
+- Validate a Lit graph stack that includes base color, tangent-space normal, metallic, specular, smoothness, occlusion, emission, alpha, alpha clip threshold, and bent normal.
+- Add stable built-in block descriptors discovered during validation if a stock URP Lit template blocks stack mutation.
+- Prepare Unity validation graph at `Assets/ShaderGraphValidation/Codex_URPAuthoringTargets_Validation.shadergraph`.
+
+Epic 11.4 validation completed:
+
+- Validation graph: `Assets/ShaderGraphValidation/Codex_URPAuthoringTargets_Validation.shadergraph`.
+- Created from `Packages/com.unity.shadergraph/GraphTemplates/Cross Pipeline/1_Lit Full.shadergraph`.
+- MCP result reported `SourceParsed=true`, `ShaderResolved=true`, and no error diagnostics.
+- Fragment stack order reported by MCP:
+  - `SurfaceDescription.BaseColor`
+  - `SurfaceDescription.NormalTS`
+  - `SurfaceDescription.Metallic`
+  - `SurfaceDescription.Specular`
+  - `SurfaceDescription.Smoothness`
+  - `SurfaceDescription.Occlusion`
+  - `SurfaceDescription.Emission`
+  - `SurfaceDescription.Alpha`
+  - `SurfaceDescription.AlphaClipThreshold`
+  - `SurfaceDescription.BentNormal`
+- User validated that the Lit fragment/master stack exposes those common URP authoring blocks with no console/import errors.
+- No additional stable URP stack/block gaps were found in the current validation path, so Epic 11 is closed.
 
 Epic 10.5 note:
 
@@ -221,27 +249,25 @@ Deferred conditional work:
 
 ### Epic 11: URP Stack And Target Coverage
 
-Status: in progress
+Status: complete
 
 Completed:
 
 - Slice 11.1: audited common URP target and stack/block fields in the local Unity package cache.
 - Slice 11.2: expand safe URP target settings.
 - Slice 11.3: added stable built-in stack/block control and user-validated `Alpha Clip Threshold` creation.
-
-Remaining:
-
-- Slice 11.4: validate common URP authoring targets and decide whether Epic 11 can close.
+- Slice 11.4: validated common Lit URP authoring targets and added stable descriptors for `BentNormal`, `CoatMask`, and `CoatSmoothness`.
 
 ### Epic 12: Texture And Asset-Reference Workflows
 
-Status: not started
+Status: in progress
 
 Remaining:
 
-- Assign project texture assets to supported blackboard texture properties.
-- Support project texture assignment for texture-consuming node workflows where the graph model permits it.
-- Validate material and graph behavior after texture assignment.
+- Slice 12.1: assign project texture assets to supported blackboard texture properties.
+- Slice 12.2: support project texture assignment for texture-consuming node workflows where the graph model permits it.
+- Slice 12.3: validate material and graph behavior after texture assignment.
+- Slice 12.4: revisit reference-image interpretation only after project asset texture flows are stable.
 
 ### Epic 13: Graph Organization And Cleanup
 
