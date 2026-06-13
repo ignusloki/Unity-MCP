@@ -1,447 +1,322 @@
-# Shader Graph MCP Plan
+# Shader Graph MCP Roadmap
+
+## Purpose
+
+This document is the stable roadmap for ShaderGraph MCP work in the user's private fork. It defines the goal, sequencing rules, and sorted epics/slices.
+
+Update this file only when the roadmap changes. For current status, active slice notes, and validation history, update `docs/dev/shadergraph-mcp-progress.md`.
+
+## Related Documents
+
+- `docs/dev/shadergraph-mcp-plan.md`
+  - stable roadmap, epic definitions, and slice order
+- `docs/dev/shadergraph-mcp-progress.md`
+  - current branch state, active slice, per-epic progress, and validation history
+- `docs/dev/shadergraph-mcp-capabilities.md`
+  - currently exposed ShaderGraph MCP tools and user-facing capability surface
 
 ## Goal
 
-Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics, safe creation, and progressively broader graph control in the user's private fork, with future user-facing capability gating in Ivan's Extensions UI.
+Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics, safe creation, and progressively broader graph control in the user's private fork, with user-facing capability gating in Ivan's Extensions UI.
 
-## Pivot
+The current priority is URP-first practical authoring parity: enough control for an AI agent to build, edit, and repair typical URP Shader Graphs without falling back to manual Unity work.
 
-- After Epic 5 validation, the user explicitly chose to defer template expansion work
-- Epic 6 is now considered lower priority than increasing raw MCP control over Shader Graph structure
-- The next implementation track is control-oriented rather than template-oriented
+## Direction
 
-## Scope Now
+The original template-expansion track was deferred after Epic 5. The active priority is now direct ShaderGraph control.
 
-- Current ShaderGraph integration branch: `custom/shadergraph-mcp`
-- Latest validated slice on that branch: Epic 10 Slice 10.2 reconnect edge flow
-- Current package baseline in the local validation project: `com.ivanmurzak.unity.mcp` version `0.81.0`
-- Base branch: `custom/main`
-- Date opened: `2026-06-05`
+Principles:
 
-## Workflow Constraints
+- Prefer explicit, typed mutation tools over broad raw JSON editing.
+- Keep support URP-first until common graph-authoring workflows are stable.
+- Validate each mutation slice in Unity before committing it.
+- Force graph reimport after mutations and return diagnostics.
+- Fail loudly on unsupported or ambiguous operations.
+- Keep long-tail node and render-pipeline support behind common URP graph-control gaps.
 
-- Follow `git.MD`
-- Private branches for this work must start from `custom/main`
-- Ongoing ShaderGraph MCP feature work now lives on a single private branch: `custom/shadergraph-mcp`
-- Historical epic-named branches are treated as slice branches only and are superseded by the integration branch once their code is carried forward
-- Do not commit, push, merge, or open a PR without explicit user approval
-- User-authorized exception: this tracker file was created during Epic 0 even though the prompt says "Do not modify files yet"
+## Branch And Workflow Rules
 
-## Sequencing Rule
+- Follow `git.MD`.
+- `main` stays clean and fast-forwardable to `upstream/main`.
+- `custom/main` is the private integration branch.
+- ShaderGraph MCP feature work lives on `custom/shadergraph-mcp`.
+- Historical epic-named branches are superseded once their code is integrated into `custom/shadergraph-mcp`.
+- Do not push, merge, or open a PR without explicit user approval.
+- Commit only after the user validates the current slice, unless the user explicitly asks for a docs-only or planning commit.
 
-- Epic numbers identify workstreams, not a mandatory execution order
-- The next slice should come from the highest-value unresolved gap, even if that means returning from a later-numbered epic to an earlier-numbered one
-- The integration branch does not need to match any epic number
-- If temporary slice branches are used, their names should match the slice they contain, not the next epic that will be worked later
+## Definition Of Done
 
-## Initial Assessment
+This ShaderGraph control track is done when an agent can:
 
-- The current implementation is a strong foundation, but it does **not** yet provide normal-user-equivalent Shader Graph control
-- The biggest remaining gaps are general node lifecycle control, node-specific parameter editing, broader blackboard coverage, and stronger edge mutation workflows
-- Full parity with every internal Shader Graph type across every Unity version is not a realistic short-term goal
-- The practical target is now **URP-first, high-value authoring parity**: enough control for an AI agent to build, edit, and repair typical URP graphs without falling back to ad hoc manual Unity work
+- Inspect a URP Shader Graph structurally and semantically.
+- Create, delete, and duplicate common URP authoring nodes.
+- Edit meaningful serialized settings on supported nodes.
+- Create, update, delete, reorder, and categorize common blackboard property types.
+- Create property nodes for supported property types.
+- Connect, disconnect, replace, and reconnect edges across the supported slot compatibility matrix.
+- Perform common graph-repair rewiring flows with explicit guardrails.
+- Control important URP graph settings, target settings, and stack/block coverage.
+- Assign project texture assets in common texture workflows.
+- Force reimport after mutations and return diagnostics.
+- Fail loudly on unsupported or ambiguous operations.
 
-## Current Repo Snapshot
+## Sequencing Rules
 
-- Long-lived branches:
-  - `main` tracks `upstream/main`
-  - `custom/main` carries the private integrated branch
-- Remotes: `origin = ignusloki/Unity-MCP`, `upstream = IvanMurzak/Unity-MCP`
-- Current workspace uses the single-folder flow in `git.MD`
-- ShaderGraph MCP support now exists directly in `Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp`
+- Epic numbers define workstreams, not mandatory execution order.
+- The next slice should come from the highest-value unresolved control gap.
+- A later epic may be worked before an earlier epic if it unlocks practical ShaderGraph control sooner.
+- When an epic is broken into slices, record those slices here before implementation starts.
+- Keep day-to-day status updates in `shadergraph-mcp-progress.md`, not in this roadmap.
 
-## Local Test Project
+## Epic 0: Reconnaissance, Workflow Review, And Branch Setup
 
-- Local Unity test project: `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph`
-- Parent repo ignore now excludes:
-  - `Unity-test/`
-  - `.codex/config.toml`
-- Important: the Unity test project is also its own nested git repo, so parent ignore does not stop changes from appearing inside that child repo
-- Project Unity version: `6000.4.1f1`
-- Package baseline still declares `unity: 2022.3`, so Unity 6 validation is useful but not the baseline compatibility proof
-- Project already resolves `com.unity.shadergraph` transitively through URP in `packages-lock.json`
-- Local package reference added in the test project manifest:
-  - `com.ivanmurzak.unity.mcp -> file:../../../Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp`
-- Unity plugin generated project-local Codex config:
-  - `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph/.codex/config.toml`
-- Repo workspace project-local Codex config added:
-  - `/Users/suporte/Unity-MCP/.codex/config.toml`
-- Active local MCP endpoint for Codex:
-  - `ai-game-developer -> http://localhost:28002`
-- Unity-side MCP auth mode in `UserSettings/AI-Game-Developer-Config.json` is currently `none`
-- Local `unity-mcp` server process is listening on TCP `28002`, which confirms the local MCP endpoint is up
+Purpose:
 
-## Relevant Code Map
+- Establish the repository workflow.
+- Confirm local Unity validation setup.
+- Create the initial ShaderGraph MCP roadmap.
 
-- Tool declarations: `Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp/Editor/Scripts/API/Tool/`
-- Current shader tools:
-  - `Assets.Shader.cs`
-  - `Assets.Shader.ListAll.cs`
-  - `Assets.Shader.GetData.cs`
-- Current material tool:
-  - `Assets.Material.Create.cs`
-- Tests:
-  - `Tests/Editor/Tool/Assets/AssetsShaderTests.cs`
-  - `Tests/Editor/Tool/Assets/AssetsMaterialTests.cs`
-  - `Tests/Editor/BaseTest.cs`
-- Package and assembly metadata:
-  - `package.json`
-  - `Editor/Scripts/com.IvanMurzak.Unity.MCP.Editor.asmdef`
-  - `Tests/Editor/com.IvanMurzak.Unity.MCP.Editor.Tests.asmdef`
-- Extension UI and tool-gating files relevant to future ShaderGraph capability toggles:
-  - `Editor/Scripts/UI/Window/MainWindowEditor.Extensions.cs`
-  - `Editor/Scripts/UI/Components/ExtensionPanel.cs`
-  - `Editor/Scripts/API/Tool/Tool.SetEnabledState.cs`
-  - `Editor/Scripts/API/Tool/Data/ToolToggleInput.cs`
+Scope:
 
-## Key Risks To Track
+- Read prompt and repo state.
+- Confirm branch rules from `git.MD`.
+- Create or select the correct private branch.
+- Install and validate local package usage in the Unity test project.
+- Keep Unity and Codex MCP configuration project-scoped.
 
-- No current compile-time Shader Graph dependency pattern exists in the package asmdefs
-- Shader Graph APIs may require soft dependency handling, reflection, version gating, or an isolated assembly split
-- Generated shader access from a `.shadergraph` asset may vary by Unity version and render pipeline
-- Raw `.shadergraph` file authoring risks asset corruption and should not be the default first creation path
-- CI and test environments may not always have Shader Graph installed, so tests must fail gracefully or be conditionally scoped
-- The current Extensions UI is package-install oriented; ShaderGraph currently lives in the core package, so future UI integration may require a built-in toggle mode or a package split instead of a plain installable extension entry
-- Direct literal/default-slot mutation for several dynamic-vector-driven nodes is still not reliable enough in the editor UI to be the primary authoring workflow, so the current stable path uses blackboard properties plus `PropertyNode` wiring as a workaround
+## Epic 1: Read-Only Shader Graph Discovery And Diagnostics
 
-## Working Recommendation
+Purpose:
 
-- Keep the existing discovery, creation, limited property/node/edge work, and Extensions gating as the foundation layer
-- Reprioritize all remaining work around closing the **actual control gaps** instead of expanding templates or recipe polish
-- Stay URP-only until common graph-authoring workflows are stable
-- Keep every new mutation slice explicit, validated, and import-checked after each write
-- Treat style-recipe texture/reference-image work as a supporting workflow, not the primary next milestone
+- Let agents discover Shader Graph assets and inspect compiled shader health without mutating graph files.
 
-## Definition Of Done For This Track
+Slices:
 
-- An AI agent can inspect a URP Shader Graph structurally and semantically
-- An AI agent can create, delete, and duplicate the common node types needed for practical URP graph authoring
-- An AI agent can edit the meaningful serialized settings of those nodes, not just their canvas positions
-- An AI agent can create, update, delete, reorder, and categorize the common blackboard property types used in URP graphs
-- An AI agent can connect, disconnect, and safely replace edges across the supported slot-compatibility matrix
-- An AI agent can control the important URP graph settings, target settings, and stack/block coverage required by normal material-authoring workflows
-- Every mutation path forces re-import, returns diagnostics, and fails loudly on unsupported or ambiguous operations
+- Slice 1.1: find Shader Graph assets by name and folder.
+- Slice 1.2: return compiled shader resolution, shader name, diagnostics, and optional messages.
+- Slice 1.3: return optional compiled shader properties.
 
-## Current Capability Gaps
+## Epic 2: Safe Creation, Material Creation, And Style-Recipe Foundation
 
-- No node duplication
-- Future follow-up from Epic 8: no robust editor-visible direct literal/default-slot mutation path yet for the common dynamic-vector-driven node families; the current validated workflow for those cases is property-backed input wiring
-- No typed Multiply input-slot literal editing yet beyond `multiplyType`
-- No property deletion, reordering, or category management
-- No project-asset texture assignment workflow yet for blackboard properties or texture-consuming nodes
-- Edge mutation is still incomplete: connect/disconnect and single-input replacement now exist, but broader reconnect semantics, batch rewiring flows, and wider compatibility handling are not complete
-- No graph organization parity for groups, sticky notes, or other cleanup-oriented editing
-- No advanced URP authoring support yet for subgraphs, custom-function workflows, keywords/enums, or long-tail node families
-- No stack/block mutation parity yet beyond the current URP graph/target settings allowlist
+Purpose:
 
-## URP Priority Roadmap
+- Create known-good Shader Graph and Material assets safely.
 
-1. **Epic 7: Node Lifecycle Foundation**
-   - Add a generalized node-creation framework with an explicit allowlist
-   - Add node deletion with safe cleanup of connected edges and root references
-   - Add node duplication for supported node families where serialized cloning is safe
-   - First target node families:
-     - math/utility: `Add`, `Subtract`, `Multiply`, `Divide`, `Lerp`, `One Minus`
-     - vector/channel: `Split`, `Combine`
-     - texture sampling: `Sample Texture 2D`, `Tiling And Offset`
-     - control flow: `Branch`
-     - retain existing `PropertyNode` support
-   - Current state:
-     - allowlisted node creation is implemented for the first target families
-     - node deletion is implemented with edge cleanup
-     - PropertyNode creation now supports `color`, `float`, `texture2D`, `vector2`, `vector3`, `vector4`, and `boolean`
-     - duplication is still missing
+Slices:
 
-2. **Epic 8: Node Parameter Editing**
-   - Add structured update tools for supported node families
-   - Support high-value node-specific fields and modes rather than broad raw JSON mutation
-   - First target coverage:
-     - `Sample Texture 2D`: type/space and other serialized modes that matter in URP workflows
-     - `Tiling And Offset`, math nodes, branch, split/combine where there are stable serialized settings
-     - default slot values for nodes where editing constants is practical and safe
-   - Current state:
-     - typed updates exist for `Sample Texture 2D`
-     - typed direct support also exists for `Tiling And Offset`, `Branch`, `Split`, `Combine`, `Add`, `Subtract`, `Divide`, `Lerp`, `One Minus`, and `Multiply.multiplyType`
-     - editor validation showed the direct literal/default-slot path is still not reliable enough to be the preferred authoring flow for several dynamic-vector-driven inputs
-     - the currently validated workflow for those cases is: blackboard property -> `PropertyNode` -> edge wiring
-     - for the current URP-first control target, this epic is considered done
-     - a better direct literal/default-slot solution is tracked as future work rather than a blocker for moving forward
+- Slice 2.1: clone a known-good `.shadergraph` template.
+- Slice 2.2: create a Material from the compiled shader resolved from a Shader Graph.
+- Slice 2.3: create graph and material assets from a style recipe.
+- Slice 2.4: return explicit warnings for recipe fields that are intentionally deferred.
 
-3. **Epic 9: Blackboard Expansion**
-   - Expand property creation/update support beyond `color` and `float`
-   - First target types:
-     - `texture2D`
-     - `vector2`
-     - `vector3`
-     - `vector4`
-     - `boolean`
-   - Add property deletion
-   - Add property reordering and category placement
-   - Add broader typed default-value editing
-   - Planned slices:
-     - Slice 9.1
-       - Add property deletion for supported blackboard property types
-       - Remove the backing property cleanly from the graph and fail loudly when a deletion would leave the graph in an ambiguous state
-     - Slice 9.2
-       - Add property reordering within the default blackboard category
-       - Return the updated property order so agents can verify the mutation without reopening the graph manually
-     - Slice 9.3
-       - Add category-aware placement so new or existing properties can be assigned to an explicit category instead of always landing in the default one
-       - Support safe category creation only if the serialized behavior is stable in the current Unity baseline
-     - Slice 9.4
-       - Normalize blackboard-management workflows across add, update, delete, reorder, and category placement
-       - Validate those flows against the common URP property sets already supported in the current branch
-   - Current state:
-     - add/update support exists for `color`, `float`, `texture2D`, `vector2`, `vector3`, `vector4`, and `boolean`
-     - PropertyNode creation for those property types is implemented
-     - property deletion, reordering, and category management are still missing
-     - those remaining items are independent blackboard-management features, not fallout from the Epic 8 node-setting limitation
-     - they were deferred because edge rewiring was the higher-priority control gap for practical URP authoring
+## Epic 3: Read-Only Graph Structure Introspection
 
-4. **Epic 10: Edge System V2**
-   - Keep current connect/disconnect behavior as the baseline
-   - Add safe edge replacement workflows for already-connected inputs
-   - Expand slot compatibility handling for supported URP node families
-   - Add explicit semantics for reconnect, replace, and guarded auto-disconnect
-   - Planned slices:
-     - Slice 10.1
-       - Add explicit single-input replacement on `assets-shadergraph-connect-edge`
-       - Return the removed incoming edge in the mutation result
-       - Keep the baseline connect/disconnect path unchanged unless replacement is explicitly requested
-     - Slice 10.2
-       - Add broader reconnect semantics so an agent can rewire a target input without issuing a separate manual disconnect
-       - Normalize result payloads and changed-field reporting across connect, disconnect, and replace flows
-     - Slice 10.3
-       - Expand safe compatibility handling for the high-value URP slot families still missing from the current matrix
-       - Validate replacement and reconnect flows against the common PropertyNode, math, vector, and texture node paths
-     - Slice 10.4
-       - Add higher-level guarded rewiring workflows for common graph-repair operations
-       - Keep these flows explicit and opt-in rather than introducing hidden auto-rewires
-   - Current state:
-     - connect/disconnect baseline exists
-     - Slice 10.1 is implemented: explicit single-input replacement now exists through `replaceExistingInputConnection`
-     - Slice 10.2 is implemented: explicit reconnect now moves an existing edge to a new output endpoint, input endpoint, or both
-     - expanded compatibility handling and higher-level rewiring workflows are still missing
+Purpose:
 
-5. **Epic 11: URP Stack And Target Coverage**
-   - Expand URP settings coverage beyond the current allowlist
-   - Investigate and implement safe stack/block control where serialized structure permits it
-   - Prioritize common URP authoring needs:
-     - base color
-     - normal
-     - emission
-     - alpha / alpha clip threshold
-     - metallic/specular-adjacent stack coverage as supported by the chosen template/target shape
+- Give agents a structural view of Shader Graph source files before they mutate anything.
 
-6. **Epic 12: Texture And Asset-Reference Workflows**
-   - Complete texture-property and texture-node workflows
-   - Support project texture assignment across the supported property/node surface
-   - Keep reference-image interpretation secondary; first stabilize project-asset texture flows
-   - The currently uncommitted `texture.referenceTextureAssetPath` style-recipe slice belongs here, not ahead of the node/property control gaps
+Slices:
 
-7. **Epic 13: Graph Organization And Cleanup**
-   - Groups
-   - Sticky notes
-   - Better layout and cleanup operations
-   - Safe bulk graph refactors for supported node families
+- Slice 3.1: read blackboard properties.
+- Slice 3.2: read nodes and slots.
+- Slice 3.3: read edges.
+- Slice 3.4: read active targets and vertex/fragment contexts.
 
-8. **Epic 14: Advanced / Long-Tail Research**
-   - Subgraphs
-   - Custom function nodes
-   - Keyword / enum-driven authoring
-   - Broader render-pipeline support later if still desired
+## Epic 4: Graph Settings Inspection And Mutation Baseline
 
-9. **Epic 15: Tests, Validation Harness, And Workflow Docs**
-   - Improve package-test discoverability in the Unity test project
-   - Add higher-signal end-to-end authoring validation cases
-   - Document the supported URP node/property matrix for AI agents and users
+Purpose:
 
-## Capability Reference
+- Expose safe root graph settings and URP target settings.
 
-- The single source of truth for the currently exposed ShaderGraph MCP surface is [shadergraph-mcp-capabilities.md](/Users/suporte/Unity-MCP/docs/dev/shadergraph-mcp-capabilities.md)
-- That capability document owns:
-  - exposed tool ids
-  - supported node, property, settings, and edge coverage
-  - the ShaderGraph entry in Ivan's Extensions window
-  - explicit "not yet exposed" items
-- This plan owns only:
-  - epic sequencing
-  - validation history
-  - remaining gaps and risks
-  - branch and checkpoint alignment
+Slices:
 
-## Live Validation
+- Slice 4.1: inspect graph root settings and URP target settings.
+- Slice 4.2: mutate root graph settings.
+- Slice 4.3: mutate safe URP target settings.
+- Slice 4.4: return changed fields, reimport diagnostics, and compiled shader health.
 
-- Unity plugin registry confirmed the new tool ids through `unity_tool_list`
-- Creation validated live in Unity through `script_execute`:
-  - Created graph asset: `Assets/ShaderGraphValidation/Codex_Validation_Unlit.shadergraph`
-  - Created material asset: `Assets/ShaderGraphValidation/Codex_Validation_Unlit.mat`
-  - Created scene object: `SampleScene/Codex_Validation_Cube`
-- Epic 4 validated live in Unity through `script_execute`:
-  - Source graph asset: `Assets/ShaderGraphValidation/Codex_Validation_Unlit.shadergraph`
-  - Created material from graph: `Assets/ShaderGraphValidation/Codex_Validation_FromGraph.mat`
-  - Material shader resolved to: `Unlit/Codex_Validation_Unlit`
-- Epic 5 validated live in Unity through `script_execute`:
-  - Created graph from recipe: `Assets/ShaderGraphValidation/Codex_Recipe_Toon.shadergraph`
-  - Created material from recipe: `Assets/ShaderGraphValidation/Codex_Recipe_Toon.mat`
-  - Resolved template id: `unlit-simple`
-  - Applied material property: `_BaseColor`
-  - Deferred recipe fields returned as explicit warnings instead of being silently ignored
-- Pivot slice validated live in Unity through `script_execute`:
-  - Structure tool asset path: `Assets/ShaderGraphValidation/Codex_Validation_Unlit.shadergraph`
-  - Resolved property count: `2`
-  - Resolved node count: `10`
-  - Resolved edge count: `4`
-  - Active targets included: `HDTarget`, `UniversalTarget`
-  - Resolved `Sample Texture 2D` slots included `Texture`, `UV`, and `Sampler`
-- Epic 4 first slice validated live in Unity through `script_execute`:
-  - Read settings from: `Assets/ShaderGraphValidation/Codex_Validation_Unlit.shadergraph`
-  - Root settings resolved: `ShaderMenuPath = Unlit`, `GraphPrecision = graph`, `PreviewMode = preview3d`
-  - Universal target resolved: `SurfaceType = opaque`, `AlphaMode = alpha`, `RenderFace = front`
-  - Created validation graph: `Assets/ShaderGraphValidation/Codex_Settings_Validation.shadergraph`
-  - Created validation material: `Assets/ShaderGraphValidation/Codex_Settings_Validation.mat`
-  - Applied root changes: `ShaderMenuPath = Codex/SettingsValidation`, `GraphPrecision = half`, `PreviewMode = preview2d`
-  - Applied URP target changes: `AllowMaterialOverride = true`, `SurfaceType = transparent`, `AlphaMode = premultiply`, `RenderFace = both`, `AlphaClip = true`, `CastShadows = false`, `ReceiveShadows = false`, `SupportsLodCrossFade = true`
-  - Reimported shader resolved to: `Codex/SettingsValidation/Codex_Settings_Validation`
-  - Diagnostics returned no `Error`
-- Epic 5 first slice validated live in Unity through `script_execute`:
-  - Created validation graph: `Assets/ShaderGraphValidation/Codex_Property_Validation.shadergraph`
-  - Created validation material: `Assets/ShaderGraphValidation/Codex_Property_Validation.mat`
-  - Updated color property:
-    - `DisplayName = Tint`
-    - `ReferenceName = _TintColor`
-    - `ColorHex = #FF7A00CC`
-  - Updated texture property:
-    - `DisplayName = Diffuse Map`
-    - `ReferenceName = _DiffuseTex`
-  - Reimported compiled shader kept resolving without `Error`
-  - Compiled shader properties included `_TintColor` and `_DiffuseTex`
-- Epic 5 second slice validated live in Unity through `script_execute`:
-  - Created validation graph: `Assets/ShaderGraphValidation/Codex_AddProperty_Validation.shadergraph`
-  - Created validation material: `Assets/ShaderGraphValidation/Codex_AddProperty_Validation.mat`
-  - Added color property:
-    - `DisplayName = Accent`
-    - `ReferenceName = _AccentColor`
-    - `ColorHex = #44CC88FF`
-  - Added float property:
-    - `DisplayName = Glow Strength`
-    - `ReferenceName = _GlowStrength`
-    - `FloatValue = 0.75`
-  - Reimported compiled shader kept resolving without `Error`
-  - Compiled shader properties included `_AccentColor` and `_GlowStrength`
-- Epic 7 slices validated live in Unity through `script_execute` and user verification:
-  - Created validation graph for node creation: `Assets/ShaderGraphValidation/Codex_Node_Validation.shadergraph`
-  - Created validation graph for delete flows: `Assets/ShaderGraphValidation/Codex_NodeLifecycle_Validation.shadergraph`
-  - Created validation graph for node movement: `Assets/ShaderGraphValidation/Codex_NodeMove_Validation.shadergraph`
-  - Allowlisted node creation validated for math, vector, texture, control-flow, and PropertyNode families
-  - Node deletion validated with automatic edge cleanup
-- Epic 8 first slice validated live in Unity through `script_execute` and user verification:
-  - Created validation graph: `Assets/ShaderGraphValidation/Codex_NodeSettings_Validation.shadergraph`
-  - `Sample Texture 2D` typed settings mutation validated
-- Epic 9 expanded slices validated live in Unity through `script_execute` and user verification:
-  - Created validation graph: `Assets/ShaderGraphValidation/Codex_Blackboard_Validation.shadergraph`
-  - Expanded add/update support validated for `texture2D`, `float`, `vector2`, `vector3`, `vector4`, and `boolean`
-  - Typed structure readback validated for the same property set
-- PropertyNode expansion slice validated live in Unity through `script_execute` and user verification:
-  - Created validation graph: `Assets/ShaderGraphValidation/Codex_PropertyNode_Validation.shadergraph`
-  - PropertyNode slot generation validated for `_BaseColor`, `_BaseMap`, `_CodexGlowStrength`, `_CodexUVScale`, `_CodexFlowDirection`, `_CodexPackedControls`, and `_CodexUseDetail`
-- Edge baseline validated live in Unity through `script_execute` and user verification:
-  - Created validation graph: `Assets/ShaderGraphValidation/Codex_Edge_Validation.shadergraph`
-  - Connect/disconnect flows re-routed graph wiring without import errors
-- Epic 8 workaround slice validated live in Unity through `script_execute` and user verification:
-  - Created validation graph: `Assets/ShaderGraphValidation/Codex_Epic8_NodeSlots.shadergraph`
-  - Final graph summary: `GraphPropertyCount = 20`, `NodeCount = 32`, `EdgeCount = 18`
-  - `assets-shadergraph-get-data` returned `HasErrors = false`
-  - Validated workaround coverage: `Tiling And Offset`, `Branch`, `Split`, `Combine`, `Add`, `Subtract`, `Divide`, `Lerp`, `One Minus`
-  - Stable authoring path used blackboard properties plus `PropertyNode` creation and edge wiring
-  - Edge compatibility was expanded to accept `DynamicVectorMaterialSlot` in addition to `DynamicValueMaterialSlot`
-- Epic 10 first slice validated live in Unity through `script_execute`:
-  - Created validation graph: `Assets/ShaderGraphValidation/Codex_EdgeReplace_Validation.shadergraph`
-  - Replaced `_BaseColor -> Multiply.B` with `_AccentColor -> Multiply.B` in one call
-  - Returned mutation summary included `edge.disconnected`, `edge.replaced`, and `edge.connected`
-  - Post-mutation structure kept `EdgeCount = 4`
-  - No Unity console errors were produced during the replacement
-- Epic 10 reconnect slice validated live in Unity through `script_execute` and user verification:
-  - Created validation graph: `Assets/ShaderGraphValidation/Codex_EdgeReconnect_Validation.shadergraph`
-  - Reconnected `_BaseColor -> Multiply.B` to `_AccentColor -> Multiply.B`
-  - Reconnected `Multiply.Out -> SurfaceDescription.BaseColor` to `Multiply.Out -> SurfaceDescription.Emission`
-  - Returned mutation summaries included `edge.disconnected`, `edge.reconnected`, and `edge.connected`
-  - Post-mutation structure kept `EdgeCount = 4`
-- Shader Graph live result after creation:
-  - `SourceParsed = true`
-  - `ShaderResolved = true`
-  - `ShaderName = Unlit/Codex_Validation_Unlit`
-  - `ActiveTargetTypes = 2` (`HDTarget`, `UniversalTarget`)
-  - Diagnostics returned only `OK`
-- `SampleScene` in the ignored Unity test project was saved after assigning the validation material to the cube
+## Epic 5: First-Wave Graph Mutation Proof
 
-## Validation Gaps
+Purpose:
 
-- `tests-run` did not discover the new package tests in the Unity test project
-- Likely cause: the local Unity test project does not currently expose this package as a testable package for the Unity Test Runner
-- The test file exists in the package and compiled cleanly, but automatic execution in this project still needs a test-runner configuration pass if we want green test automation inside `TestShadergraph`
+- Prove end-to-end graph mutation with a small set of property, node, and edge edits.
 
-## Epic Tracker
+Slices:
 
-- [x] Epic 0: reconnaissance, workflow review, and branch setup
-- [x] Epic 1: read-only Shader Graph discovery and diagnostics
-- [x] Epic 2: safe creation, material creation, and style-recipe foundation
-- [x] Epic 3: read-only graph structure introspection
-- [x] Epic 4: safe graph settings inspection and mutation baseline
-- [x] Epic 5: first-wave ShaderGraph mutation proof
-  - blackboard property operations
-  - limited `PropertyNode` creation
-  - node position mutation
-  - limited edge connect/disconnect
-- [x] Epic 6: ShaderGraph Extensions entry and capability gating
-- [ ] Epic 7: Node lifecycle foundation
-  - current state: allowlisted node creation and node deletion are done; duplication is still missing
-- [x] Epic 8: Node parameter editing
-  - current state: the high-value URP-first slice is validated and treated as done for the current track
-  - future follow-up: the stable validated workflow for several dynamic-vector-driven node inputs still relies on the property-node workaround
-- [ ] Epic 9: Blackboard expansion
-  - current state: the high-value URP-first slice is validated and usable today
-  - remaining gap: typed add/update and PropertyNode support are done for the key property types, but delete/reorder/category work is still missing
-  - note: the remaining Epic 9 work is not blocked by the Epic 8 limitation
-- [ ] Epic 10: Edge system V2
-  - current state: Slices 10.1 and 10.2 are validated; expanded compatibility and higher-level rewiring flows are still missing
-- [ ] Epic 11: URP stack and target coverage
-- [ ] Epic 12: Texture and asset-reference workflows
-- [ ] Epic 13: Graph organization and cleanup
-- [ ] Epic 14: Advanced / long-tail research
-- [ ] Epic 15: tests, validation harness, and workflow docs
+- Slice 5.1: update existing blackboard properties.
+- Slice 5.2: add basic blackboard properties.
+- Slice 5.3: create basic PropertyNode entries.
+- Slice 5.4: move existing graph nodes.
+- Slice 5.5: connect and disconnect baseline graph edges.
 
-## Current Checkpoint
+## Epic 6: ShaderGraph Extensions Entry And Capability Gating
 
-- The roadmap is now reprioritized around closing the control gaps required for practical URP authoring parity
-- The current integrated branch already carries the validated Epic 7, Epic 8 slices, and Epic 9 work
-- The latest validated slice belongs to **Epic 10: Edge System V2, Slice 10.2**
-- Epic 8 is considered done for the current URP-first track, with the workaround and limitation explicitly accepted and tracked as future follow-up
-- Epic 9 is only partially complete; its remaining work is independent of Epic 8 and was deferred because edge rewiring had higher immediate value for practical MCP control
-- Texture asset-reference workflows remain deferred behind the higher-value graph-control gaps
-- Epic numbering is not the execution order; the next slice is chosen by priority, not by the largest epic number already touched
-- This is **not** the last epic required for broad ShaderGraph parity in MCP
-- The current Epic 8 workaround is accepted for now, but it is not the long-term final answer for direct literal/default-slot editing
-- The next epic to focus is:
-  - **Epic 10: Edge system V2**
-- Next slice recommendation inside Epic 10:
-  - Slice 10.3: expand safe compatibility handling for the high-value URP slot families still missing from the current matrix
-  - validate replacement and reconnect flows against common PropertyNode, math, vector, and texture node paths
-  - keep all rewiring behavior explicit and opt-in
-- After Epic 10 is completed for the current priority track:
-  - return to Epic 9 starting with Slice 9.1 property deletion
-- Existing committed foundation still stands:
-  - discovery and diagnostics
-  - safe graph/material creation
-  - baseline URP settings mutation
-  - expanded blackboard property mutation
-  - allowlisted node creation/deletion
-  - PropertyNode creation across the common URP property types
-  - baseline node/edge mutation proof
-  - ShaderGraph Extensions gating
+Purpose:
 
-## Open Questions
+- Let users enable or disable ShaderGraph MCP control from Ivan's Extensions UI.
 
-- Which Unity versions in practice must this support first: `2022.3` only, or also `2023.x` and `Unity 6`?
-- How broad should the first allowlisted node set be before we stop and validate in-editor?
-- Should the broad-control implementation stay fork-only until the mutation model is proven, or should it be kept upstream-shaped from the start?
+Slices:
+
+- Slice 6.1: add a built-in `ShaderGraph` entry to the Extensions window.
+- Slice 6.2: group ShaderGraph tool ids behind that entry.
+- Slice 6.3: validate that disabling the group disables ShaderGraph tools without affecting unrelated MCP tools.
+
+## Epic 7: Node Lifecycle Foundation
+
+Purpose:
+
+- Give agents lifecycle control over common URP authoring nodes.
+
+Slices:
+
+- Slice 7.1: add allowlisted node creation.
+- Slice 7.2: add node deletion with edge cleanup and Unity `canDeleteNode` guardrails.
+- Slice 7.3: add node duplication for supported node families.
+- Slice 7.4: normalize lifecycle result payloads across add, delete, duplicate, and move operations.
+
+Initial node families:
+
+- `add`
+- `subtract`
+- `multiply`
+- `divide`
+- `lerp`
+- `oneMinus`
+- `split`
+- `combine`
+- `sampleTexture2D`
+- `tilingAndOffset`
+- `branch`
+- `PropertyNode`
+
+## Epic 8: Node Parameter Editing
+
+Purpose:
+
+- Let agents update meaningful serialized settings on supported nodes.
+
+Slices:
+
+- Slice 8.1: typed settings for `Sample Texture 2D`.
+- Slice 8.2: typed direct settings for `Tiling And Offset`.
+- Slice 8.3: typed direct settings for `Branch`.
+- Slice 8.4: typed direct settings for `Split` and `Combine`.
+- Slice 8.5: typed direct settings for `Add`, `Subtract`, `Divide`, `Lerp`, and `One Minus`.
+- Slice 8.6: typed settings for `Multiply.multiplyType`.
+- Slice 8.7: document and validate the property-backed workaround for dynamic-vector-driven inputs.
+- Slice 8.8: future direct literal/default-slot mutation research.
+
+Accepted authoring workaround:
+
+- When direct default-slot editing is unreliable in the Shader Graph UI, create or update a blackboard property, create a `PropertyNode`, and connect it into the target input.
+
+## Epic 9: Blackboard Expansion
+
+Purpose:
+
+- Give agents broader control over common URP blackboard property workflows.
+
+Slices:
+
+- Slice 9.1: delete supported blackboard property types.
+- Slice 9.2: reorder properties in the default blackboard category.
+- Slice 9.3: place properties into explicit categories.
+- Slice 9.4: safely create categories if the serialized behavior is stable in the Unity baseline.
+- Slice 9.5: normalize add, update, delete, reorder, and category placement workflows.
+
+Supported property types for the first track:
+
+- `color`
+- `float`
+- `texture2D`
+- `vector2`
+- `vector3`
+- `vector4`
+- `boolean`
+
+## Epic 10: Edge System V2
+
+Purpose:
+
+- Give agents robust, explicit graph rewiring control.
+
+Slices:
+
+- Slice 10.1: add explicit single-input edge replacement through `replaceExistingInputConnection`.
+- Slice 10.2: add explicit reconnect semantics for moving an existing edge to a new output endpoint, input endpoint, or both.
+- Slice 10.3: expand slot compatibility for high-value URP paths, starting with Texture2D property outputs into Texture2D input slots.
+- Slice 10.4: add higher-level guarded rewiring workflows for common graph-repair operations.
+- Slice 10.5: add additional compatibility cases only when concrete unsupported URP paths are found.
+
+Compatibility families in scope:
+
+- exact slot-type matches
+- UV/vector2 pairs
+- Texture2D property output to Texture2D input
+- dynamic numeric/vector/color slots
+
+## Epic 11: URP Stack And Target Coverage
+
+Purpose:
+
+- Expand URP graph, target, and stack/block control beyond the current settings allowlist.
+
+Slices:
+
+- Slice 11.1: audit common URP target and stack/block fields.
+- Slice 11.2: expand safe URP target settings.
+- Slice 11.3: add stack/block control where serialized structure is stable.
+- Slice 11.4: validate common authoring targets such as base color, normal, emission, alpha, alpha clip threshold, and metallic/specular-adjacent coverage.
+
+## Epic 12: Texture And Asset-Reference Workflows
+
+Purpose:
+
+- Let agents assign project texture assets across common ShaderGraph texture workflows.
+
+Slices:
+
+- Slice 12.1: assign project texture assets to supported blackboard texture properties.
+- Slice 12.2: support texture assignment for texture-consuming node workflows where the graph model permits it.
+- Slice 12.3: validate material and graph behavior after texture assignment.
+- Slice 12.4: revisit reference-image interpretation only after project asset texture flows are stable.
+
+## Epic 13: Graph Organization And Cleanup
+
+Purpose:
+
+- Add graph cleanup and organization tools used by normal Shader Graph authors.
+
+Slices:
+
+- Slice 13.1: groups.
+- Slice 13.2: sticky notes.
+- Slice 13.3: layout cleanup.
+- Slice 13.4: safe bulk graph refactors for supported node families.
+
+## Epic 14: Advanced And Long-Tail Research
+
+Purpose:
+
+- Research advanced authoring workflows after common URP control is stable.
+
+Slices:
+
+- Slice 14.1: subgraphs.
+- Slice 14.2: custom function nodes.
+- Slice 14.3: keyword and enum-driven authoring.
+- Slice 14.4: broader render-pipeline support if still desired.
+- Slice 14.5: long-tail node families.
+
+## Epic 15: Tests, Validation Harness, And Workflow Docs
+
+Purpose:
+
+- Improve validation automation and keep user/agent docs coherent.
+
+Slices:
+
+- Slice 15.1: make package editor tests discoverable from the local Unity validation project.
+- Slice 15.2: add higher-signal end-to-end ShaderGraph authoring validation cases.
+- Slice 15.3: document the supported URP node, property, settings, and edge matrix.
+- Slice 15.4: keep roadmap, progress, and capability docs aligned without duplicating ownership.

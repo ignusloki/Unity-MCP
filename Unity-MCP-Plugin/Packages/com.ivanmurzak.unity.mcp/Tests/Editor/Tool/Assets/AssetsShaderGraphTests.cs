@@ -1940,6 +1940,101 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_ReconnectEdge_RetargetsSampleTextureInputToTexturePropertyNode()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ReconnectEdge_Texture.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "texture2D",
+                        DisplayName = "Detail Map",
+                        OverrideReferenceName = "_DetailMap",
+                        TextureDefaultType = "black"
+                    });
+
+                var detailNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_DetailMap",
+                        PositionX = -760f,
+                        PositionY = 20f
+                    });
+
+                var structureBeforeReconnect = tool.GetStructure(new AssetObjectRef(shader));
+                var sampleTextureNode = structureBeforeReconnect.Nodes!
+                    .First(n => n.Name == "Sample Texture 2D");
+                var sampleTextureInput = sampleTextureNode.Slots!
+                    .First(s => s.DisplayName == "Texture");
+                var baseMapNode = structureBeforeReconnect.Nodes
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseMap");
+                var baseMapOutput = baseMapNode.Slots!.Single();
+                var detailOutput = detailNodeResult.Node!.Slots!.Single();
+
+                var reconnectResult = tool.ReconnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphReconnectEdgeInput
+                    {
+                        ExistingOutputNodeObjectId = baseMapNode.ObjectId,
+                        ExistingOutputSlotObjectId = baseMapOutput.ObjectId,
+                        ExistingInputNodeObjectId = sampleTextureNode.ObjectId,
+                        ExistingInputSlotObjectId = sampleTextureInput.ObjectId,
+                        NewOutputNodeObjectId = detailNodeResult.Node.ObjectId,
+                        NewOutputSlotObjectId = detailOutput.ObjectId
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(reconnectResult);
+                Assert.IsTrue(reconnectResult.ChangedFields!.Contains("edge.disconnected"));
+                Assert.IsTrue(reconnectResult.ChangedFields.Contains("edge.reconnected"));
+                Assert.IsTrue(reconnectResult.ChangedFields.Contains("edge.connected"));
+
+                Assert.IsNotNull(reconnectResult.RemovedEdge);
+                Assert.AreEqual(baseMapNode.ObjectId, reconnectResult.RemovedEdge!.OutputNodeId);
+                Assert.AreEqual(baseMapOutput.SlotId, reconnectResult.RemovedEdge.OutputSlotId);
+                Assert.AreEqual(sampleTextureNode.ObjectId, reconnectResult.RemovedEdge.InputNodeId);
+                Assert.AreEqual(sampleTextureInput.SlotId, reconnectResult.RemovedEdge.InputSlotId);
+
+                Assert.IsNotNull(reconnectResult.Edge);
+                Assert.AreEqual(detailNodeResult.Node.ObjectId, reconnectResult.Edge!.OutputNodeId);
+                Assert.AreEqual(detailOutput.SlotId, reconnectResult.Edge.OutputSlotId);
+                Assert.AreEqual(sampleTextureNode.ObjectId, reconnectResult.Edge.InputNodeId);
+                Assert.AreEqual(sampleTextureInput.SlotId, reconnectResult.Edge.InputSlotId);
+
+                Assert.IsNotNull(reconnectResult.Structure);
+                Assert.IsTrue(reconnectResult.Structure!.Edges!.Any(e =>
+                    e.OutputNodeId == detailNodeResult.Node.ObjectId
+                    && e.OutputSlotId == detailOutput.SlotId
+                    && e.InputNodeId == sampleTextureNode.ObjectId
+                    && e.InputSlotId == sampleTextureInput.SlotId));
+                Assert.IsFalse(reconnectResult.Structure.Edges.Any(e =>
+                    e.OutputNodeId == baseMapNode.ObjectId
+                    && e.OutputSlotId == baseMapOutput.SlotId
+                    && e.InputNodeId == sampleTextureNode.ObjectId
+                    && e.InputSlotId == sampleTextureInput.SlotId),
+                    "The previous _BaseMap connection into Sample Texture 2D.Texture should be removed during reconnect.");
+
+                Assert.IsNotNull(reconnectResult.Graph);
+                Assert.IsTrue(reconnectResult.Graph!.ShaderResolved, "Reconnecting a Texture2D edge should keep the Shader Graph import valid.");
+                Assert.IsFalse(reconnectResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Reconnecting a Texture2D property into a Texture2D input should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_ConnectEdge_ReplaceExistingInputConnection_ReroutesMultiplyColorInput()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateEdge_Replace.shadergraph");
@@ -2028,6 +2123,100 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     "Replacing a compatible incoming edge should not introduce import errors.");
                 Assert.IsTrue(replaceResult.Graph.Properties!.Any(p => p.Name == "_AccentColor"),
                     "Compiled shader properties should still include the added Accent color property.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ConnectEdge_ReplaceExistingInputConnection_ReroutesSampleTextureInput()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateEdge_ReplaceTexture.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "texture2D",
+                        DisplayName = "Detail Map",
+                        OverrideReferenceName = "_DetailMap",
+                        TextureDefaultType = "black"
+                    });
+
+                var detailNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_DetailMap",
+                        PositionX = -760f,
+                        PositionY = 20f
+                    });
+
+                var structureBeforeReplace = tool.GetStructure(new AssetObjectRef(shader));
+                var sampleTextureNode = structureBeforeReplace.Nodes!
+                    .First(n => n.Name == "Sample Texture 2D");
+                var sampleTextureInput = sampleTextureNode.Slots!
+                    .First(s => s.DisplayName == "Texture");
+                var baseMapNode = structureBeforeReplace.Nodes
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseMap");
+                var baseMapOutput = baseMapNode.Slots!.Single();
+                var detailOutput = detailNodeResult.Node!.Slots!.Single();
+
+                var replaceResult = tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = detailNodeResult.Node.ObjectId,
+                        OutputSlotObjectId = detailOutput.ObjectId,
+                        InputNodeObjectId = sampleTextureNode.ObjectId,
+                        InputSlotObjectId = sampleTextureInput.ObjectId,
+                        ReplaceExistingInputConnection = true
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(replaceResult);
+                Assert.IsTrue(replaceResult.ChangedFields!.Contains("edge.disconnected"));
+                Assert.IsTrue(replaceResult.ChangedFields.Contains("edge.connected"));
+                Assert.IsTrue(replaceResult.ChangedFields.Contains("edge.replaced"));
+
+                Assert.IsNotNull(replaceResult.RemovedEdge);
+                Assert.AreEqual(baseMapNode.ObjectId, replaceResult.RemovedEdge!.OutputNodeId);
+                Assert.AreEqual(baseMapOutput.SlotId, replaceResult.RemovedEdge.OutputSlotId);
+                Assert.AreEqual(sampleTextureNode.ObjectId, replaceResult.RemovedEdge.InputNodeId);
+                Assert.AreEqual(sampleTextureInput.SlotId, replaceResult.RemovedEdge.InputSlotId);
+
+                Assert.IsNotNull(replaceResult.Edge);
+                Assert.AreEqual(detailNodeResult.Node.ObjectId, replaceResult.Edge!.OutputNodeId);
+                Assert.AreEqual(detailOutput.SlotId, replaceResult.Edge.OutputSlotId);
+                Assert.AreEqual(sampleTextureNode.ObjectId, replaceResult.Edge.InputNodeId);
+                Assert.AreEqual(sampleTextureInput.SlotId, replaceResult.Edge.InputSlotId);
+
+                Assert.IsNotNull(replaceResult.Structure);
+                Assert.IsTrue(replaceResult.Structure!.Edges!.Any(e =>
+                    e.OutputNodeId == detailNodeResult.Node.ObjectId
+                    && e.OutputSlotId == detailOutput.SlotId
+                    && e.InputNodeId == sampleTextureNode.ObjectId
+                    && e.InputSlotId == sampleTextureInput.SlotId));
+                Assert.IsFalse(replaceResult.Structure.Edges.Any(e =>
+                    e.OutputNodeId == baseMapNode.ObjectId
+                    && e.OutputSlotId == baseMapOutput.SlotId
+                    && e.InputNodeId == sampleTextureNode.ObjectId
+                    && e.InputSlotId == sampleTextureInput.SlotId),
+                    "The previous _BaseMap connection into Sample Texture 2D.Texture should be removed during replacement.");
+
+                Assert.IsNotNull(replaceResult.Graph);
+                Assert.IsTrue(replaceResult.Graph!.ShaderResolved, "Replacing a Texture2D edge should keep the Shader Graph import valid.");
+                Assert.IsFalse(replaceResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Replacing a Texture2D property into a Texture2D input should not introduce import errors.");
             }
             finally
             {

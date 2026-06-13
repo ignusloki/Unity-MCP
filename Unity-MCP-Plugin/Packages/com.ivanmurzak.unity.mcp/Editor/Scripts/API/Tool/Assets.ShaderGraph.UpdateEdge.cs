@@ -43,6 +43,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "UnityEditor.ShaderGraph.UVMaterialSlot"
         };
 
+        static readonly HashSet<string> Texture2DLikeSlotTypes = new(StringComparer.Ordinal)
+        {
+            "UnityEditor.ShaderGraph.Texture2DMaterialSlot",
+            "UnityEditor.ShaderGraph.Texture2DInputMaterialSlot"
+        };
+
         [AiTool
         (
             AssetsShaderGraphConnectEdgeToolId,
@@ -55,6 +61,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- requires the input slot to be currently unconnected unless `replaceExistingInputConnection` is true\n" +
             "- supports exact slot-type matches\n" +
             "- supports compatible UV/vector2 slot pairs\n" +
+            "- supports compatible Texture2D property outputs and Texture2D input slots\n" +
             "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n" +
             "- supports guarded input-edge replacement when `replaceExistingInputConnection` is true\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect node ids, slot ids, and slot types.")]
@@ -467,6 +474,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 return;
 
             if (Vector2LikeSlotTypes.Contains(outputType) && Vector2LikeSlotTypes.Contains(inputType))
+                return;
+
+            if (Texture2DLikeSlotTypes.Contains(outputType) && Texture2DLikeSlotTypes.Contains(inputType))
                 return;
 
             var outputIsDynamic = IsDynamicSlotType(outputType);
