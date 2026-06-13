@@ -667,6 +667,263 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_DeleteProperty_RemovesDependentPropertyNodesAndEdges()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_DeleteProperty.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "texture2D",
+                        DisplayName = "Delete Texture",
+                        OverrideReferenceName = "_DeleteTexture",
+                        TextureDefaultType = "black"
+                    });
+
+                var propertyNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_DeleteTexture",
+                        PositionX = -720f,
+                        PositionY = 120f
+                    });
+
+                var structureBeforeConnect = tool.GetStructure(new AssetObjectRef(shader));
+                var sampleTextureNode = structureBeforeConnect.Nodes!
+                    .First(n => n.Name == "Sample Texture 2D");
+                var textureInput = sampleTextureNode.Slots!
+                    .First(s => s.DisplayName == "Texture");
+                var deleteTextureOutput = propertyNodeResult.Node!.Slots!.Single();
+
+                tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = propertyNodeResult.Node.ObjectId,
+                        OutputSlotObjectId = deleteTextureOutput.ObjectId,
+                        InputNodeObjectId = sampleTextureNode.ObjectId,
+                        InputSlotObjectId = textureInput.ObjectId,
+                        ReplaceExistingInputConnection = true
+                    });
+
+                var deleteResult = tool.DeleteProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDeletePropertyInput
+                    {
+                        PropertyReferenceName = "_DeleteTexture"
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("delete", deleteResult.Operation);
+                Assert.AreEqual("_DeleteTexture", deleteResult.PropertyReferenceName);
+                Assert.AreEqual("texture2D", deleteResult.PropertyKind);
+                Assert.AreEqual(1, deleteResult.RemovedNodeCount);
+                Assert.AreEqual(1, deleteResult.RemovedEdgeCount);
+                Assert.IsTrue(deleteResult.ChangedFields!.Contains("property.deleted"));
+                Assert.IsTrue(deleteResult.ChangedFields.Contains("node.autoRemoved"));
+                Assert.IsTrue(deleteResult.ChangedFields.Contains("edge.autoRemoved"));
+
+                Assert.IsNotNull(deleteResult.Structure);
+                Assert.IsFalse(deleteResult.Structure!.Properties!
+                    .Any(p => p.EffectiveReferenceName == "_DeleteTexture"));
+                Assert.IsFalse(deleteResult.Structure.Nodes!
+                    .Any(n => n.PropertyReferenceName == "_DeleteTexture"));
+                Assert.IsFalse(deleteResult.Structure.Edges!
+                    .Any(e => e.OutputNodeId == propertyNodeResult.Node.ObjectId));
+
+                Assert.IsNotNull(deleteResult.Graph);
+                Assert.IsTrue(deleteResult.Graph!.ShaderResolved);
+                Assert.IsFalse(deleteResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ReorderProperty_ReordersWithinDefaultCategory()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ReorderProperty.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Reorder First",
+                        OverrideReferenceName = "_ReorderFirst",
+                        FloatValue = 0.1f
+                    });
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Reorder Second",
+                        OverrideReferenceName = "_ReorderSecond",
+                        ColorHex = "#3366FFFF"
+                    });
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "boolean",
+                        DisplayName = "Reorder Third",
+                        OverrideReferenceName = "_ReorderThird",
+                        BooleanValue = true
+                    });
+
+                var reorderResult = tool.ReorderProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphReorderPropertyInput
+                    {
+                        PropertyReferenceName = "_ReorderThird",
+                        CategoryIndex = 0
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("reorder", reorderResult.Operation);
+                Assert.AreEqual("_ReorderThird", reorderResult.PropertyReferenceName);
+                Assert.AreEqual(0, reorderResult.Property!.CategoryIndex);
+                Assert.IsTrue(reorderResult.ChangedFields!.Contains("property.reordered"));
+
+                var defaultCategory = reorderResult.Structure!.Categories!
+                    .First(c => string.IsNullOrEmpty(c.Name));
+                var firstPropertyId = defaultCategory.PropertyObjectIds!.First();
+                var firstProperty = reorderResult.Structure.Properties!
+                    .First(p => p.ObjectId == firstPropertyId);
+                Assert.AreEqual("_ReorderThird", firstProperty.EffectiveReferenceName);
+
+                Assert.IsNotNull(reorderResult.Graph);
+                Assert.IsTrue(reorderResult.Graph!.ShaderResolved);
+                Assert.IsFalse(reorderResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_CategoryTools_CreatePlaceAndMoveProperties()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_PropertyCategories.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var categoryResult = tool.CreateCategory(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphCreateCategoryInput
+                    {
+                        CategoryName = "Surface Controls"
+                    });
+
+                Assert.AreEqual("createCategory", categoryResult.Operation);
+                Assert.AreEqual("Surface Controls", categoryResult.CategoryName);
+                Assert.IsNotNull(categoryResult.CategoryObjectId);
+
+                var tintResult = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Category Tint",
+                        OverrideReferenceName = "_CategoryTint",
+                        ColorHex = "#FF8844FF",
+                        CategoryName = "Surface Controls",
+                        CategoryIndex = 0
+                    });
+                var strengthResult = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Category Strength",
+                        OverrideReferenceName = "_CategoryStrength",
+                        FloatValue = 0.42f,
+                        CategoryName = "Surface Controls",
+                        CategoryIndex = 1
+                    });
+                var detailResult = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector2",
+                        DisplayName = "Category Detail",
+                        OverrideReferenceName = "_CategoryDetail",
+                        VectorX = 2f,
+                        VectorY = 4f,
+                        CategoryName = "Auto Created",
+                        CreateCategoryIfMissing = true,
+                        CategoryIndex = 0
+                    });
+
+                Assert.AreEqual("Surface Controls", tintResult.Property!.CategoryName);
+                Assert.AreEqual(0, tintResult.Property.CategoryIndex);
+                Assert.AreEqual("Surface Controls", strengthResult.Property!.CategoryName);
+                Assert.AreEqual(1, strengthResult.Property.CategoryIndex);
+                Assert.AreEqual("Auto Created", detailResult.Property!.CategoryName);
+                Assert.AreEqual(0, detailResult.Property.CategoryIndex);
+
+                var moveResult = tool.SetPropertyCategory(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphSetPropertyCategoryInput
+                    {
+                        PropertyReferenceName = "_CategoryStrength",
+                        CategoryName = "Auto Created",
+                        CategoryIndex = 1
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("setCategory", moveResult.Operation);
+                Assert.AreEqual("_CategoryStrength", moveResult.PropertyReferenceName);
+                Assert.AreEqual("Auto Created", moveResult.Property!.CategoryName);
+                Assert.AreEqual(1, moveResult.Property.CategoryIndex);
+
+                var surfaceCategory = moveResult.Structure!.Categories!
+                    .First(c => c.Name == "Surface Controls");
+                var autoCategory = moveResult.Structure.Categories!
+                    .First(c => c.Name == "Auto Created");
+                var surfaceReferences = surfaceCategory.PropertyObjectIds!
+                    .Select(id => moveResult.Structure.Properties!.First(p => p.ObjectId == id).EffectiveReferenceName)
+                    .ToArray();
+                var autoReferences = autoCategory.PropertyObjectIds!
+                    .Select(id => moveResult.Structure.Properties!.First(p => p.ObjectId == id).EffectiveReferenceName)
+                    .ToArray();
+
+                CollectionAssert.AreEqual(new[] { "_CategoryTint" }, surfaceReferences);
+                CollectionAssert.AreEqual(new[] { "_CategoryDetail", "_CategoryStrength" }, autoReferences);
+
+                Assert.IsNotNull(moveResult.Graph);
+                Assert.IsTrue(moveResult.Graph!.ShaderResolved);
+                Assert.IsFalse(moveResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_AddPropertyNode_AddsSupportedPropertyNodes()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_AddPropertyNode.shadergraph");

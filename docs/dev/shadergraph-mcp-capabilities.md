@@ -28,7 +28,8 @@ This document is the single source of truth for what the local ShaderGraph MCP i
 - `assets-shadergraph-get-data`
   - Inspect compiled shader resolution, diagnostics, and optional shader messages and properties.
 - `assets-shadergraph-get-structure`
-  - Read serialized properties, nodes, slots, edges, and active targets from the graph source.
+  - Read serialized properties, blackboard categories, nodes, slots, edges, and active targets from the graph source.
+  - Property readback includes category object id, category name, and category index when available.
 - `assets-shadergraph-get-settings`
   - Read graph root settings and supported target settings from the graph source.
 
@@ -60,6 +61,18 @@ This document is the single source of truth for what the local ShaderGraph MCP i
 
 ### Blackboard Property Mutation
 
+Blackboard property mutation results include normalized summary fields:
+
+- `operation`
+- `propertyObjectId`
+- `propertyReferenceName`
+- `propertyKind`
+- `changedFields`
+- `property`
+- `structure`
+- `graph`
+- `removedNodeCount` and `removedEdgeCount` for delete operations
+
 - `assets-shadergraph-add-property`
   - Supported property types:
     - `color`
@@ -69,7 +82,10 @@ This document is the single source of truth for what the local ShaderGraph MCP i
     - `vector3`
     - `vector4`
     - `boolean`
-  - New properties are added to the default blackboard category.
+  - New properties can be added to the default blackboard category.
+  - New properties can be placed by `categoryObjectId` or `categoryName`.
+  - Missing categories can be created with `createCategoryIfMissing`.
+  - Properties can be inserted at a zero-based `categoryIndex`.
 - `assets-shadergraph-update-property`
   - Supported generic fields:
     - `displayName`
@@ -90,6 +106,21 @@ This document is the single source of truth for what the local ShaderGraph MCP i
     - `textureIsMainTexture`
     - `textureIsHdr`
     - `textureModifiable`
+- `assets-shadergraph-delete-property`
+  - Deletes a blackboard property selected by object id or effective reference name.
+  - Removes the property from root and category lists.
+  - Removes dependent `PropertyNode` instances.
+  - Removes edges connected to removed dependent `PropertyNode` instances.
+- `assets-shadergraph-reorder-property`
+  - Reorders a property inside its current category by zero-based `categoryIndex`.
+  - Can also move the property into a selected category while reordering.
+- `assets-shadergraph-create-category`
+  - Creates a Shader Graph blackboard category.
+  - Category names must be unique.
+- `assets-shadergraph-set-property-category`
+  - Moves a property into a target category selected by object id or name.
+  - Can create a missing category by name when `createCategoryIfMissing` is true.
+  - Supports zero-based insertion with `categoryIndex`.
 - `assets-shadergraph-add-property-node`
   - Creates a `PropertyNode` for an existing blackboard property.
   - Supported property-backed node types:
@@ -285,6 +316,10 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - `assets-shadergraph-set-settings`
 - `assets-shadergraph-update-property`
 - `assets-shadergraph-add-property`
+- `assets-shadergraph-delete-property`
+- `assets-shadergraph-reorder-property`
+- `assets-shadergraph-create-category`
+- `assets-shadergraph-set-property-category`
 - `assets-shadergraph-add-property-node`
 - `assets-shadergraph-add-node`
 - `assets-shadergraph-duplicate-node`
@@ -300,7 +335,6 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 
 - Robust editor-visible direct literal/default-slot mutation for the common dynamic-vector-driven node families without relying on the property-node workaround.
 - Multiply input-slot literal editing beyond the current `multiplyType` support.
-- Property deletion, reordering, and category placement.
 - Project texture assignment workflows across blackboard properties and texture-consuming nodes.
 - Additional higher-level guarded rewiring workflows beyond the current connect, disconnect, replace, reconnect, and output-slot reroute flows.
 - Groups, sticky notes, and other graph cleanup and organization tools.

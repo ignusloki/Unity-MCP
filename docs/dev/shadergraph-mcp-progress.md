@@ -13,10 +13,10 @@ Update this file during day-to-day implementation. Keep `docs/dev/shadergraph-mc
 - Current local package baseline: `com.ivanmurzak.unity.mcp` version `0.81.0`
 - Local Unity validation project: `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph`
 - Unity validation version: `6000.4.1f1`
-- Active epic: Epic 7, Node Lifecycle Foundation
-- Latest user-validated slice: Epic 7.3, node duplication
-- Current code state: Epic 7.4 is complete and ready to commit
-- Next planned slice after commit: Epic 9.1, property deletion
+- Active epic: Epic 11, URP Stack And Target Coverage
+- Latest user-validated slice: Epic 9.5, normalized blackboard workflow validation
+- Current code state: Epic 9.1 through Epic 9.5 are user-validated and ready to commit
+- Next planned slice after Epic 9 commit: Epic 11.1, URP target and stack/block field audit
 - Conditional future edge slice: Epic 10.5, additional compatibility cases only if concrete unsupported URP paths are found
 
 Current local environment note:
@@ -27,19 +27,29 @@ Current local environment note:
 
 ## Active Work
 
-Epic 7.4 changes ready to commit:
+Epic 9 changes ready to commit:
 
-- Node mutation results now expose normalized `operation`, `nodeObjectId`, and `nodeType` fields.
-- Normalized fields are populated for add-node, add-property-node, duplicate-node, delete-node, update-node-position, and update-node-settings results.
-- Existing payload fields remain unchanged.
-- Representative editor assertions cover add, duplicate, delete, and move payload normalization.
+- `assets-shadergraph-delete-property` deletes a blackboard property, dependent `PropertyNode` instances, and dependent edges.
+- `assets-shadergraph-reorder-property` reorders properties inside the default or selected blackboard category.
+- `assets-shadergraph-create-category` creates a serialized Shader Graph blackboard category.
+- `assets-shadergraph-set-property-category` moves a property into a selected category, optionally by name.
+- `assets-shadergraph-add-property` can now place properties by category id/name, create a missing category by name, and insert at a category index.
+- `assets-shadergraph-get-structure` now returns categories and per-property category metadata.
+- Blackboard mutation results expose normalized `operation`, `propertyObjectId`, `propertyReferenceName`, `propertyKind`, and cleanup counts where applicable.
+- The ShaderGraph Extensions entry now includes the new blackboard tools.
+- Editor assertions cover delete cleanup, default-category reorder, category creation, category placement, and category moves.
 
-Validation completed for Epic 7.4:
+Validation completed:
 
-- `dotnet build Assembly-CSharp.csproj -v minimal` passed in the local Unity validation project with `0` errors and existing unrelated warnings.
-- No Unity visual validation graph is required because the slice only normalizes returned payload metadata.
+- `dotnet build Assembly-CSharp.csproj -v minimal` passed in the local Unity validation project with `0` errors and existing warnings.
+- Live MCP mutation validation produced three Unity validation graphs:
+  - `Assets/ShaderGraphValidation/Codex_BlackboardDelete_Validation.shadergraph`
+  - `Assets/ShaderGraphValidation/Codex_BlackboardReorder_Validation.shadergraph`
+  - `Assets/ShaderGraphValidation/Codex_BlackboardCategories_Validation.shadergraph`
+- All three validation graphs reimported without shader errors.
+- User validated all three Epic 9 graphs in Unity.
 
-Commit Epic 7.4 before starting Epic 9.
+Commit Epic 9 before starting Epic 11 implementation.
 
 Epic 10.5 note:
 
@@ -156,26 +166,25 @@ Accepted limitation:
 
 ### Epic 9: Blackboard Expansion
 
-Status: partial
+Status: complete
 
 Completed:
 
 - Add/update support for `color`, `float`, `texture2D`, `vector2`, `vector3`, `vector4`, and `boolean`.
 - PropertyNode creation for the same property set.
 - Typed structure readback for the same property set.
-
-Remaining:
-
-- Slice 9.1: property deletion.
+- Slice 9.1: property deletion with dependent PropertyNode and edge cleanup.
 - Slice 9.2: property reordering in the default blackboard category.
-- Slice 9.3: category-aware placement.
-- Slice 9.4: safe category creation if serialized behavior is stable.
+- Slice 9.3: category-aware property placement.
+- Slice 9.4: safe category creation.
 - Slice 9.5: normalized blackboard workflow validation.
+- ShaderGraph Extensions entry includes the new blackboard tools.
+- Editor tests cover delete cleanup, reorder, category creation, category placement, and category moves.
 
 Note:
 
 - These tasks are not blocked by the Epic 8 direct-slot limitation.
-- They were deferred while Epic 10 edge control was prioritized.
+- The final Epic 9 implementation now supports the common URP blackboard workflows needed before Epic 11 and Epic 12.
 
 ### Epic 10: Edge System V2
 
@@ -244,6 +253,7 @@ Completed:
 
 - Current roadmap split into stable plan plus progress tracker.
 - Capability reference exists for exposed tools.
+- Editor assertions cover the current ShaderGraph blackboard, node lifecycle, node settings, and edge-control surfaces.
 
 Remaining:
 
@@ -359,6 +369,23 @@ Remaining:
 - Expanded add/update support validated for `texture2D`, `float`, `vector2`, `vector3`, `vector4`, and `boolean`.
 - PropertyNode validation graph: `Assets/ShaderGraphValidation/Codex_PropertyNode_Validation.shadergraph`.
 - PropertyNode slot generation validated for `_BaseColor`, `_BaseMap`, `_CodexGlowStrength`, `_CodexUVScale`, `_CodexFlowDirection`, `_CodexPackedControls`, and `_CodexUseDetail`.
+- Delete validation graph: `Assets/ShaderGraphValidation/Codex_BlackboardDelete_Validation.shadergraph`.
+- Delete validation result:
+  - temporary `_CodexDeleteTexture` property was wired into `Sample Texture 2D.Texture`
+  - deleting `_CodexDeleteTexture` removed `1` dependent `PropertyNode`
+  - deleting `_CodexDeleteTexture` removed `1` dependent edge
+  - final readback contains only `_BaseMap` and `_BaseColor` blackboard properties
+  - final graph has `EdgeCount = 3`
+- Reorder validation graph: `Assets/ShaderGraphValidation/Codex_BlackboardReorder_Validation.shadergraph`.
+- Reorder validation result:
+  - default category order is `_CodexReorderThird`, `_BaseColor`, `_BaseMap`, `_CodexReorderFirst`, `_CodexReorderSecond`
+  - final graph imported without shader errors
+- Category validation graph: `Assets/ShaderGraphValidation/Codex_BlackboardCategories_Validation.shadergraph`.
+- Category validation result:
+  - default category order remains `_BaseColor`, `_BaseMap`
+  - `Codex Surface Controls` contains `_CodexCategoryTint`
+  - `Codex Auto Created` contains `_CodexCategoryDetail`, `_CodexCategoryStrength`
+  - final graph imported without shader errors
 
 ### Epic 10 Validation
 
@@ -394,7 +421,7 @@ Remaining:
 
 ## Validation Gaps
 
-- `dotnet build Assembly-CSharp.csproj -v minimal` passes in the local Unity test project with existing unrelated warnings.
+- `dotnet build Assembly-CSharp.csproj -v minimal` passes in the local Unity test project with `0` errors and existing warnings.
 - Unity Test Runner command discovery still needs cleanup: earlier `tests-run` attempts did not discover the package editor tests from `TestShadergraph`.
 - Until the test runner setup is fixed, each slice should continue to use:
   - compile sanity check

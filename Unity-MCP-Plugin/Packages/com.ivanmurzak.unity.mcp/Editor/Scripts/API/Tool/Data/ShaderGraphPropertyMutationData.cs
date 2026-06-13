@@ -131,11 +131,93 @@ namespace AIGD
 
         [Description("Whether the Texture2D property should be modifiable. Default: true.")]
         public bool? TextureModifiable { get; set; }
+
+        [Description("Optional serialized category object id where the property should be placed. Defaults to the first/default category.")]
+        public string? CategoryObjectId { get; set; }
+
+        [Description("Optional category name where the property should be placed. Defaults to the first/default category.")]
+        public string? CategoryName { get; set; }
+
+        [Description("Whether categoryName should be created if no matching category exists. Default: false.")]
+        public bool? CreateCategoryIfMissing { get; set; }
+
+        [Description("Optional zero-based index inside the target category. Defaults to append.")]
+        public int? CategoryIndex { get; set; }
     }
 
-    [Description("Result of updating a Shader Graph blackboard property and re-importing the graph.")]
+    [Description("Structured input for deleting an existing Shader Graph blackboard property.")]
+    public class ShaderGraphDeletePropertyInput
+    {
+        [Description("Serialized object id of the property to delete. Optional if propertyReferenceName is provided.")]
+        public string? PropertyObjectId { get; set; }
+
+        [Description("Effective property reference name to delete, such as '_BaseColor'. Optional if propertyObjectId is provided.")]
+        public string? PropertyReferenceName { get; set; }
+    }
+
+    [Description("Structured input for reordering an existing Shader Graph blackboard property inside a category.")]
+    public class ShaderGraphReorderPropertyInput
+    {
+        [Description("Serialized object id of the property to reorder. Optional if propertyReferenceName is provided.")]
+        public string? PropertyObjectId { get; set; }
+
+        [Description("Effective property reference name to reorder, such as '_BaseColor'. Optional if propertyObjectId is provided.")]
+        public string? PropertyReferenceName { get; set; }
+
+        [Description("Optional serialized category object id. Defaults to the category currently containing the property.")]
+        public string? CategoryObjectId { get; set; }
+
+        [Description("Optional category name. Defaults to the category currently containing the property.")]
+        public string? CategoryName { get; set; }
+
+        [Description("Required zero-based index inside the target category.")]
+        public int? CategoryIndex { get; set; }
+    }
+
+    [Description("Structured input for creating a Shader Graph blackboard category.")]
+    public class ShaderGraphCreateCategoryInput
+    {
+        [Description("Category display name. Use an empty string only for default-category repair.")]
+        public string? CategoryName { get; set; }
+    }
+
+    [Description("Structured input for moving a Shader Graph blackboard property into a category.")]
+    public class ShaderGraphSetPropertyCategoryInput
+    {
+        [Description("Serialized object id of the property to move. Optional if propertyReferenceName is provided.")]
+        public string? PropertyObjectId { get; set; }
+
+        [Description("Effective property reference name to move, such as '_BaseColor'. Optional if propertyObjectId is provided.")]
+        public string? PropertyReferenceName { get; set; }
+
+        [Description("Optional serialized category object id. Required if categoryName is omitted.")]
+        public string? CategoryObjectId { get; set; }
+
+        [Description("Optional category display name. Required if categoryObjectId is omitted.")]
+        public string? CategoryName { get; set; }
+
+        [Description("Whether categoryName should be created if no matching category exists. Default: false.")]
+        public bool? CreateCategoryIfMissing { get; set; }
+
+        [Description("Optional zero-based index inside the target category. Defaults to append.")]
+        public int? CategoryIndex { get; set; }
+    }
+
+    [Description("Result of mutating a Shader Graph blackboard property and re-importing the graph.")]
     public class ShaderGraphPropertyMutationResultData
     {
+        [Description("Stable operation identifier such as add, update, delete, reorder, or setCategory.")]
+        public string? Operation { get; set; }
+
+        [Description("Serialized object id of the affected property. For delete operations this is the deleted property id.")]
+        public string? PropertyObjectId { get; set; }
+
+        [Description("Effective reference name of the affected property, when resolved.")]
+        public string? PropertyReferenceName { get; set; }
+
+        [Description("Normalized property kind, when resolved.")]
+        public string? PropertyKind { get; set; }
+
         [Description("Updated property snapshot after the mutation was applied.")]
         public ShaderGraphPropertyDefinitionData? Property { get; set; }
 
@@ -146,6 +228,37 @@ namespace AIGD
         public ShaderGraphData? Graph { get; set; }
 
         [Description("List of property fields that actually changed.")]
+        public List<string>? ChangedFields { get; set; }
+
+        [Description("Number of PropertyNode instances automatically removed while deleting the property, if applicable.")]
+        public int? RemovedNodeCount { get; set; }
+
+        [Description("Number of edges automatically removed while deleting dependent PropertyNode instances, if applicable.")]
+        public int? RemovedEdgeCount { get; set; }
+    }
+
+    [Description("Result of mutating a Shader Graph blackboard category and re-importing the graph.")]
+    public class ShaderGraphCategoryMutationResultData
+    {
+        [Description("Stable operation identifier such as createCategory.")]
+        public string? Operation { get; set; }
+
+        [Description("Serialized object id of the affected category.")]
+        public string? CategoryObjectId { get; set; }
+
+        [Description("Display name of the affected category.")]
+        public string? CategoryName { get; set; }
+
+        [Description("Affected category snapshot after the mutation was applied.")]
+        public ShaderGraphCategoryDefinitionData? Category { get; set; }
+
+        [Description("Updated read-only graph structure after the mutation.")]
+        public ShaderGraphStructureData? Structure { get; set; }
+
+        [Description("Post-import Shader Graph summary and diagnostics.")]
+        public ShaderGraphData? Graph { get; set; }
+
+        [Description("List of category fields that actually changed.")]
         public List<string>? ChangedFields { get; set; }
     }
 }

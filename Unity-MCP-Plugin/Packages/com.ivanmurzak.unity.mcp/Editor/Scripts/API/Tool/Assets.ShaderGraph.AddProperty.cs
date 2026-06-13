@@ -31,7 +31,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             AssetsShaderGraphAddPropertyToolId,
             Title = "Assets / Shader Graph / Add Property"
         )]
-        [AiSkillDescription("Add a new Shader Graph blackboard property to the default category, then re-import the graph and return the created property and diagnostics.")]
+        [AiSkillDescription("Add a new Shader Graph blackboard property, optionally place it in a category, then re-import the graph and return the created property and diagnostics.")]
         [AiSkillBody("Add a new Shader Graph blackboard property to a '.shadergraph' asset.\n\n" +
             "Current support is intentionally scoped to common URP Blackboard property types:\n" +
             "- `propertyType = color`\n" +
@@ -45,7 +45,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `includeMessages` — include shader compiler messages in returned graph data.\n" +
             "- `includeProperties` — include compiled shader properties in returned graph data.\n\n" +
             "## Behavior\n\n" +
-            "Creates a new blackboard property in the graph's default category, updates the serialized property lists, re-imports the graph, and returns the created property snapshot plus post-import diagnostics.")]
+            "Creates a new blackboard property, updates the serialized property lists and category placement, re-imports the graph, and returns the created property snapshot plus post-import diagnostics.")]
         [Description("Add a new Shader Graph blackboard property and re-import the graph.")]
         public ShaderGraphPropertyMutationResultData AddProperty(
             AssetObjectRef assetRef,
@@ -125,7 +125,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             document.ObjectsById[propertyObjectId] = propertyObject;
 
             AddPropertyReferenceToRoot(document.Root, propertyObjectId);
-            AddPropertyReferenceToCategory(document, propertyObjectId);
+            AddPropertyReferenceToCategory(
+                document,
+                propertyObjectId,
+                property.CategoryObjectId,
+                property.CategoryName,
+                property.CreateCategoryIfMissing ?? false,
+                property.CategoryIndex);
 
             WriteMutableDocument(document);
             FinalizeShaderGraphMutation(assetPath);
@@ -137,6 +143,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             return new ShaderGraphPropertyMutationResultData
             {
+                Operation = "add",
+                PropertyObjectId = createdProperty?.ObjectId ?? propertyObjectId,
+                PropertyReferenceName = createdProperty?.EffectiveReferenceName ?? effectiveReferenceName,
+                PropertyKind = createdProperty?.PropertyKind,
                 ChangedFields = new List<string> { "property.added" },
                 Property = createdProperty,
                 Structure = structure,
@@ -468,40 +478,31 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         }
 
         static void AddPropertyReferenceToCategory(ShaderGraphMutableDocument document, string propertyObjectId)
+            => AddPropertyReferenceToCategory(
+                document,
+                propertyObjectId,
+                categoryObjectIdValue: null,
+                categoryNameValue: null,
+                createCategoryIfMissing: false,
+                categoryIndex: null);
+
+        static void AddPropertyReferenceToCategory(
+            ShaderGraphMutableDocument document,
+            string propertyObjectId,
+            string? categoryObjectIdValue,
+            string? categoryNameValue,
+            bool createCategoryIfMissing,
+            int? categoryIndex)
         {
-            JsonObject categoryObject;
-            var categoryIds = GetIdArray(document.Root, "m_CategoryData");
-            if (categoryIds.Count > 0 && document.ObjectsById.TryGetValue(categoryIds[0], out var existingCategory))
-            {
-                categoryObject = existingCategory;
-            }
-            else
-            {
-                var categoryObjectId = Guid.NewGuid().ToString("N");
-                categoryObject = new JsonObject
-                {
-                    ["m_SGVersion"] = 0,
-                    ["m_Type"] = "UnityEditor.ShaderGraph.CategoryData",
-                    ["m_ObjectId"] = categoryObjectId,
-                    ["m_Name"] = string.Empty,
-                    ["m_ChildObjectList"] = new JsonArray()
-                };
-
-                document.Objects.Add(categoryObject);
-                document.ObjectsById[categoryObjectId] = categoryObject;
-
-                var categoryArray = EnsureReferenceArray(document.Root, "m_CategoryData");
-                categoryArray.Add(new JsonObject
-                {
-                    ["m_Id"] = categoryObjectId
-                });
-            }
+            var categoryObject = ResolveCategoryObject(
+                document,
+                categoryObjectIdValue,
+                categoryNameValue,
+                createCategoryIfMissing,
+                allowDefaultFallback: true);
 
             var childArray = EnsureReferenceArray(categoryObject, "m_ChildObjectList");
-            childArray.Add(new JsonObject
-            {
-                ["m_Id"] = propertyObjectId
-            });
+            InsertPropertyReference(childArray, propertyObjectId, categoryIndex);
         }
 
         static JsonArray EnsureReferenceArray(JsonObject root, string propertyName)

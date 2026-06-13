@@ -430,12 +430,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
                 var objectTypesById = new Dictionary<string, string>(StringComparer.Ordinal);
                 var propertyIds = new List<string>();
+                var categoryIds = new List<string>();
                 var nodeIds = new List<string>();
                 var activeTargetIds = new List<string>();
                 var propertyIdSet = new HashSet<string>(StringComparer.Ordinal);
+                var categoryIdSet = new HashSet<string>(StringComparer.Ordinal);
                 var nodeIdSet = new HashSet<string>(StringComparer.Ordinal);
                 var activeTargetIdSet = new HashSet<string>(StringComparer.Ordinal);
                 var propertiesById = new Dictionary<string, ShaderGraphPropertyDefinitionData>(StringComparer.Ordinal);
+                var categoriesById = new Dictionary<string, ShaderGraphCategoryDefinitionData>(StringComparer.Ordinal);
                 var nodesById = new Dictionary<string, ShaderGraphNodeDefinitionData>(StringComparer.Ordinal);
                 var slotsByObjectId = new Dictionary<string, ShaderGraphSlotDefinitionData>(StringComparer.Ordinal);
                 var targetsById = new Dictionary<string, ShaderGraphTargetDefinitionData>(StringComparer.Ordinal);
@@ -448,7 +451,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     var objectType = GetString(root, "m_Type");
 
                     if (!string.IsNullOrEmpty(objectId) && !string.IsNullOrEmpty(objectType))
-                        objectTypesById[objectId] = objectType;
+                        objectTypesById[objectId!] = objectType!;
 
                     if (i == 0)
                     {
@@ -456,9 +459,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                             data,
                             root,
                             propertyIds,
+                            categoryIds,
                             nodeIds,
                             activeTargetIds,
                             propertyIdSet,
+                            categoryIdSet,
                             nodeIdSet,
                             activeTargetIdSet);
                         continue;
@@ -467,26 +472,33 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     if (string.IsNullOrEmpty(objectId))
                         continue;
 
-                    if (propertyIdSet.Contains(objectId))
+                    var resolvedObjectId = objectId!;
+                    if (propertyIdSet.Contains(resolvedObjectId))
                     {
-                        propertiesById[objectId] = ParsePropertyDefinition(root, objectId);
+                        propertiesById[resolvedObjectId] = ParsePropertyDefinition(root, resolvedObjectId);
                         continue;
                     }
 
-                    if (nodeIdSet.Contains(objectId))
+                    if (categoryIdSet.Contains(resolvedObjectId))
                     {
-                        nodesById[objectId] = ParseNodeDefinition(root, objectId);
+                        categoriesById[resolvedObjectId] = ParseCategoryDefinition(root, resolvedObjectId);
                         continue;
                     }
 
-                    if (activeTargetIdSet.Contains(objectId))
+                    if (nodeIdSet.Contains(resolvedObjectId))
                     {
-                        targetsById[objectId] = ParseTargetDefinition(root, objectId);
+                        nodesById[resolvedObjectId] = ParseNodeDefinition(root, resolvedObjectId);
+                        continue;
+                    }
+
+                    if (activeTargetIdSet.Contains(resolvedObjectId))
+                    {
+                        targetsById[resolvedObjectId] = ParseTargetDefinition(root, resolvedObjectId);
                         continue;
                     }
 
                     if (IsSlotDefinition(root))
-                        slotsByObjectId[objectId] = ParseSlotDefinition(root, objectId);
+                        slotsByObjectId[resolvedObjectId] = ParseSlotDefinition(root, resolvedObjectId);
                 }
 
                 data.Properties = propertyIds
@@ -494,13 +506,39 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     .Select(propertyId => propertiesById[propertyId])
                     .ToList();
 
+                data.Categories = categoryIds
+                    .Where(categoriesById.ContainsKey)
+                    .Select(categoryId => categoriesById[categoryId])
+                    .ToList();
+
+                if (data.Categories != null && data.Properties != null)
+                {
+                    foreach (var category in data.Categories)
+                    {
+                        if (category.PropertyObjectIds == null)
+                            continue;
+
+                        for (var propertyIndex = 0; propertyIndex < category.PropertyObjectIds.Count; propertyIndex++)
+                        {
+                            var propertyId = category.PropertyObjectIds[propertyIndex];
+                            if (!propertiesById.TryGetValue(propertyId, out var property))
+                                continue;
+
+                            property.CategoryObjectId = category.ObjectId;
+                            property.CategoryName = category.Name;
+                            property.CategoryIndex = propertyIndex;
+                        }
+                    }
+                }
+
                 data.Nodes = nodeIds
                     .Where(nodesById.ContainsKey)
                     .Select(nodeId =>
                     {
                         var node = nodesById[nodeId];
-                        if (!string.IsNullOrEmpty(node.PropertyObjectId)
-                            && propertiesById.TryGetValue(node.PropertyObjectId, out var property))
+                        var nodePropertyObjectId = node.PropertyObjectId;
+                        if (!string.IsNullOrEmpty(nodePropertyObjectId)
+                            && propertiesById.TryGetValue(nodePropertyObjectId!, out var property))
                         {
                             node.PropertyReferenceName = !string.IsNullOrEmpty(property.OverrideReferenceName)
                                 ? property.OverrideReferenceName
@@ -550,9 +588,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ShaderGraphStructureData data,
             JsonElement root,
             List<string> propertyIds,
+            List<string> categoryIds,
             List<string> nodeIds,
             List<string> activeTargetIds,
             HashSet<string> propertyIdSet,
+            HashSet<string> categoryIdSet,
             HashSet<string> nodeIdSet,
             HashSet<string> activeTargetIdSet)
         {
@@ -570,6 +610,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 propertyIds.Add(propertyId);
                 propertyIdSet.Add(propertyId);
+            }
+
+            foreach (var categoryId in GetIdArray(root, "m_CategoryData"))
+            {
+                categoryIds.Add(categoryId);
+                categoryIdSet.Add(categoryId);
             }
 
             foreach (var nodeId in GetIdArray(root, "m_Nodes"))
@@ -639,6 +685,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 TextureModifiable = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal)
                     ? GetBool(root, "m_Modifiable")
                     : null
+            };
+        }
+
+        static ShaderGraphCategoryDefinitionData ParseCategoryDefinition(JsonElement root, string objectId)
+        {
+            return new ShaderGraphCategoryDefinitionData
+            {
+                ObjectId = objectId,
+                Type = GetString(root, "m_Type"),
+                Name = GetString(root, "m_Name"),
+                PropertyObjectIds = GetIdArray(root, "m_ChildObjectList")
             };
         }
 

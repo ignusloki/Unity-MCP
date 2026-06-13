@@ -50,6 +50,9 @@ namespace AIGD
         [Description("Blackboard properties declared by the graph.")]
         public List<ShaderGraphPropertyDefinitionData>? Properties { get; set; }
 
+        [Description("Blackboard categories declared by the graph.")]
+        public List<ShaderGraphCategoryDefinitionData>? Categories { get; set; }
+
         [Description("Nodes declared by the graph.")]
         public List<ShaderGraphNodeDefinitionData>? Nodes { get; set; }
 
@@ -142,6 +145,30 @@ namespace AIGD
 
         [Description("Whether this Texture2D property is modifiable.")]
         public bool? TextureModifiable { get; set; }
+
+        [Description("Serialized object id of the blackboard category containing this property, if any.")]
+        public string? CategoryObjectId { get; set; }
+
+        [Description("Display name of the blackboard category containing this property, if any.")]
+        public string? CategoryName { get; set; }
+
+        [Description("Zero-based index of this property inside its blackboard category, if any.")]
+        public int? CategoryIndex { get; set; }
+    }
+
+    public class ShaderGraphCategoryDefinitionData
+    {
+        [Description("Serialized object id of the category object.")]
+        public string? ObjectId { get; set; }
+
+        [Description("Serialized category object type.")]
+        public string? Type { get; set; }
+
+        [Description("Category display name. The default category usually has an empty name.")]
+        public string? Name { get; set; }
+
+        [Description("Referenced blackboard property object ids in category order.")]
+        public List<string>? PropertyObjectIds { get; set; }
     }
 
     public class ShaderGraphNodeDefinitionData

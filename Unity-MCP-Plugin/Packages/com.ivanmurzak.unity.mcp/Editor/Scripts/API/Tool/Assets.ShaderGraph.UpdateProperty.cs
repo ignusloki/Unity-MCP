@@ -110,6 +110,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             return new ShaderGraphPropertyMutationResultData
             {
+                Operation = "update",
+                PropertyObjectId = updatedProperty?.ObjectId ?? updatedPropertyId,
+                PropertyReferenceName = updatedProperty?.EffectiveReferenceName,
+                PropertyKind = updatedProperty?.PropertyKind,
                 ChangedFields = changedFields,
                 Property = updatedProperty,
                 Structure = structure,
@@ -119,41 +123,6 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     includeProperties: includeProperties,
                     includeDiagnostics: true)
             };
-        }
-
-        static JsonObject ResolvePropertyObject(
-            ShaderGraphPropertyUpdateInput property,
-            List<JsonObject> propertyObjects)
-        {
-            var objectId = property.PropertyObjectId?.Trim();
-            var referenceName = property.PropertyReferenceName?.Trim();
-
-            if (string.IsNullOrEmpty(objectId) && string.IsNullOrEmpty(referenceName))
-            {
-                throw new ArgumentException(
-                    "Either propertyObjectId or propertyReferenceName must be provided.");
-            }
-
-            JsonObject? resolved = null;
-
-            if (!string.IsNullOrEmpty(objectId))
-            {
-                resolved = propertyObjects.FirstOrDefault(obj =>
-                    string.Equals(GetString(obj, "m_ObjectId"), objectId, StringComparison.Ordinal));
-            }
-            else
-            {
-                resolved = propertyObjects.FirstOrDefault(obj =>
-                    string.Equals(GetEffectivePropertyReferenceName(obj), referenceName, StringComparison.Ordinal));
-            }
-
-            if (resolved == null)
-            {
-                throw new InvalidOperationException(
-                    $"Shader Graph property was not found. objectId='{objectId ?? string.Empty}', referenceName='{referenceName ?? string.Empty}'.");
-            }
-
-            return resolved;
         }
 
         static bool HasAnyPropertyUpdates(ShaderGraphPropertyUpdateInput property)
@@ -438,7 +407,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         }
 
         static void ValidateUniqueDisplayName(
-            JsonObject propertyObject,
+            JsonObject? propertyObject,
             List<JsonObject> allPropertyObjects,
             string displayName)
         {
@@ -451,7 +420,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         }
 
         static void ValidateUniqueReferenceName(
-            JsonObject propertyObject,
+            JsonObject? propertyObject,
             List<JsonObject> allPropertyObjects,
             string referenceName)
         {
