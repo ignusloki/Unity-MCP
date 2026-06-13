@@ -162,9 +162,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.AreEqual("opaque", result.UniversalTarget!.SurfaceType);
                 Assert.AreEqual("alpha", result.UniversalTarget.AlphaMode);
                 Assert.AreEqual("front", result.UniversalTarget.RenderFace);
+                Assert.AreEqual("auto", result.UniversalTarget.DepthWrite);
+                Assert.AreEqual("lessEqual", result.UniversalTarget.DepthTest);
                 Assert.IsFalse(result.UniversalTarget.AlphaClip ?? true);
                 Assert.IsTrue(result.UniversalTarget.CastShadows ?? false);
                 Assert.IsTrue(result.UniversalTarget.ReceiveShadows ?? false);
+                Assert.IsFalse(result.UniversalTarget.DisableTint ?? true);
+                Assert.AreEqual("none", result.UniversalTarget.AdditionalMotionVectors);
+                Assert.IsFalse(result.UniversalTarget.AlembicMotionVectors ?? true);
+                Assert.IsFalse(result.UniversalTarget.SupportVfx ?? true);
 
                 Assert.IsNotEmpty(result.ActiveTargetTypes, "Active target types should be surfaced.");
                 Assert.IsTrue(result.ActiveTargetTypes!.Any(type => type.Contains("UniversalTarget")),
@@ -201,9 +207,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             SurfaceType = "transparent",
                             AlphaMode = "premultiply",
                             RenderFace = "both",
+                            DepthWrite = "forceDisabled",
+                            DepthTest = "greaterEqual",
                             AlphaClip = true,
                             CastShadows = false,
-                            ReceiveShadows = false
+                            ReceiveShadows = false,
+                            DisableTint = true,
+                            AdditionalMotionVectors = "timeBased",
+                            AlembicMotionVectors = true,
+                            SupportsLodCrossFade = true,
+                            CustomEditorGui = "Codex.Validation.CustomShaderGUI",
+                            SupportVfx = true
                         }
                     },
                     includeMessages: true,
@@ -217,7 +231,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsTrue(result.ChangedFields.Contains("universalTarget.surfaceType"));
                 Assert.IsTrue(result.ChangedFields.Contains("universalTarget.alphaMode"));
                 Assert.IsTrue(result.ChangedFields.Contains("universalTarget.renderFace"));
+                Assert.IsTrue(result.ChangedFields.Contains("universalTarget.depthWrite"));
+                Assert.IsTrue(result.ChangedFields.Contains("universalTarget.depthTest"));
                 Assert.IsTrue(result.ChangedFields.Contains("universalTarget.alphaClip"));
+                Assert.IsTrue(result.ChangedFields.Contains("universalTarget.additionalMotionVectors"));
+                Assert.IsTrue(result.ChangedFields.Contains("universalTarget.customEditorGui"));
 
                 Assert.IsNotNull(result.Settings);
                 Assert.IsNotNull(result.Settings!.Graph);
@@ -230,9 +248,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.AreEqual("transparent", result.Settings.UniversalTarget.SurfaceType);
                 Assert.AreEqual("premultiply", result.Settings.UniversalTarget.AlphaMode);
                 Assert.AreEqual("both", result.Settings.UniversalTarget.RenderFace);
+                Assert.AreEqual("forceDisabled", result.Settings.UniversalTarget.DepthWrite);
+                Assert.AreEqual("greaterEqual", result.Settings.UniversalTarget.DepthTest);
                 Assert.IsTrue(result.Settings.UniversalTarget.AlphaClip ?? false);
                 Assert.IsFalse(result.Settings.UniversalTarget.CastShadows ?? true);
                 Assert.IsFalse(result.Settings.UniversalTarget.ReceiveShadows ?? true);
+                Assert.IsTrue(result.Settings.UniversalTarget.DisableTint ?? false);
+                Assert.AreEqual("timeBased", result.Settings.UniversalTarget.AdditionalMotionVectors);
+                Assert.IsTrue(result.Settings.UniversalTarget.AlembicMotionVectors ?? false);
+                Assert.IsTrue(result.Settings.UniversalTarget.SupportsLodCrossFade ?? false);
+                Assert.AreEqual("Codex.Validation.CustomShaderGUI", result.Settings.UniversalTarget.CustomEditorGui);
+                Assert.IsTrue(result.Settings.UniversalTarget.SupportVfx ?? false);
 
                 Assert.IsNotNull(result.Graph);
                 Assert.IsTrue(result.Graph!.SourceParsed, "Updated Shader Graph source should parse successfully.");

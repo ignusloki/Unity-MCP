@@ -14,9 +14,9 @@ Update this file during day-to-day implementation. Keep `docs/dev/shadergraph-mc
 - Local Unity validation project: `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph`
 - Unity validation version: `6000.4.1f1`
 - Active epic: Epic 11, URP Stack And Target Coverage
-- Latest user-validated slice: Epic 9.5, normalized blackboard workflow validation
-- Current code state: Epic 9.1 through Epic 9.5 are user-validated and ready to commit
-- Next planned slice after Epic 9 commit: Epic 11.1, URP target and stack/block field audit
+- Latest user-validated slice: Epic 11.2, expanded safe URP target settings
+- Current code state: Epic 11.2 is user-validated and ready to commit
+- Next planned slice: Epic 11.3, add stack/block control where serialized structure is stable
 - Conditional future edge slice: Epic 10.5, additional compatibility cases only if concrete unsupported URP paths are found
 
 Current local environment note:
@@ -27,29 +27,26 @@ Current local environment note:
 
 ## Active Work
 
-Epic 9 changes ready to commit:
+Epic 11.1 audit result:
 
-- `assets-shadergraph-delete-property` deletes a blackboard property, dependent `PropertyNode` instances, and dependent edges.
-- `assets-shadergraph-reorder-property` reorders properties inside the default or selected blackboard category.
-- `assets-shadergraph-create-category` creates a serialized Shader Graph blackboard category.
-- `assets-shadergraph-set-property-category` moves a property into a selected category, optionally by name.
-- `assets-shadergraph-add-property` can now place properties by category id/name, create a missing category by name, and insert at a category index.
-- `assets-shadergraph-get-structure` now returns categories and per-property category metadata.
-- Blackboard mutation results expose normalized `operation`, `propertyObjectId`, `propertyReferenceName`, `propertyKind`, and cleanup counts where applicable.
-- The ShaderGraph Extensions entry now includes the new blackboard tools.
-- Editor assertions cover delete cleanup, default-category reorder, category creation, category placement, and category moves.
+- Universal target scalar fields are stable in the local URP package cache.
+- Safe Epic 11.2 target fields: `depthWrite`, `depthTest`, `disableTint`, `additionalMotionVectors`, `alembicMotionVectors`, `customEditorGui`, and `supportVfx`.
+- Existing fields remain supported: `allowMaterialOverride`, `surfaceType`, `alphaMode`, `renderFace`, `alphaClip`, `castShadows`, `receiveShadows`, and `supportsLodCrossFade`.
+- Active subtarget fields such as Default Decal Blending and Default SSAO are not on the Universal target object; handle them in a later subtarget/stack slice after the `m_Datas` serialized path is validated.
+- Stack/block mutation remains separate work for Epic 11.3.
 
-Validation completed:
+Epic 11.2 validation completed:
 
-- `dotnet build Assembly-CSharp.csproj -v minimal` passed in the local Unity validation project with `0` errors and existing warnings.
-- Live MCP mutation validation produced three Unity validation graphs:
-  - `Assets/ShaderGraphValidation/Codex_BlackboardDelete_Validation.shadergraph`
-  - `Assets/ShaderGraphValidation/Codex_BlackboardReorder_Validation.shadergraph`
-  - `Assets/ShaderGraphValidation/Codex_BlackboardCategories_Validation.shadergraph`
-- All three validation graphs reimported without shader errors.
-- User validated all three Epic 9 graphs in Unity.
+- Expand `assets-shadergraph-get-settings` readback for the safe Universal target scalar fields.
+- Expand `assets-shadergraph-set-settings` mutation for the same fields.
+- Add editor assertions for readback, mutation, changed-field reporting, and post-import diagnostics.
+- Unity validation graph prepared at `Assets/ShaderGraphValidation/Codex_URPTargetSettings_Validation.shadergraph`.
+- User validated the graph in Unity.
 
-Commit Epic 9 before starting Epic 11 implementation.
+Next slice:
+
+- Epic 11.3: add stack/block control where serialized structure is stable.
+- Subtarget-only fields such as Default Decal Blending and Default SSAO still require separate serialized-path validation before mutation support.
 
 Epic 10.5 note:
 
@@ -203,12 +200,15 @@ Deferred conditional work:
 
 ### Epic 11: URP Stack And Target Coverage
 
-Status: not started
+Status: in progress
+
+Completed:
+
+- Slice 11.1: audited common URP target and stack/block fields in the local Unity package cache.
+- Slice 11.2: expand safe URP target settings.
 
 Remaining:
 
-- Audit common URP target and stack/block fields.
-- Expand safe URP target settings.
 - Add stack/block control where serialized structure is stable.
 - Validate common URP authoring targets.
 

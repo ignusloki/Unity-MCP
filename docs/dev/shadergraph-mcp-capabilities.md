@@ -53,11 +53,18 @@ This document is the single source of truth for what the local ShaderGraph MCP i
     - `universalTarget.surfaceType`
     - `universalTarget.alphaMode`
     - `universalTarget.renderFace`
+    - `universalTarget.depthWrite`
+    - `universalTarget.depthTest`
+    - `universalTarget.additionalMotionVectors`
     - `universalTarget.allowMaterialOverride`
     - `universalTarget.alphaClip`
     - `universalTarget.castShadows`
     - `universalTarget.receiveShadows`
+    - `universalTarget.disableTint`
+    - `universalTarget.alembicMotionVectors`
     - `universalTarget.supportsLodCrossFade`
+    - `universalTarget.customEditorGui`
+    - `universalTarget.supportVfx`
 
 ### Blackboard Property Mutation
 
@@ -339,4 +346,4 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - Additional higher-level guarded rewiring workflows beyond the current connect, disconnect, replace, reconnect, and output-slot reroute flows.
 - Groups, sticky notes, and other graph cleanup and organization tools.
 - Subgraphs, custom function nodes, keywords, enums, and other long-tail Shader Graph authoring flows.
-- Broader URP stack and block mutation parity beyond the current root and target settings allowlist.
+- Broader URP subtarget, stack, and block mutation parity beyond the current root and Universal target scalar settings allowlist.

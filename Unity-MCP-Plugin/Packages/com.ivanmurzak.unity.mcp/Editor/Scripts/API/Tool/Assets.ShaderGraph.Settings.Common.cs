@@ -173,6 +173,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             var surfaceTypeValue = GetInt(targetObject, "m_SurfaceType");
             var alphaModeValue = GetInt(targetObject, "m_AlphaMode");
             var renderFaceValue = GetInt(targetObject, "m_RenderFace");
+            var depthWriteValue = GetInt(targetObject, "m_ZWriteControl");
+            var depthTestValue = GetInt(targetObject, "m_ZTestMode");
+            var additionalMotionVectorsValue = GetInt(targetObject, "m_AdditionalMotionVectorMode");
 
             return new ShaderGraphUniversalTargetSettingsData
             {
@@ -185,10 +188,20 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 AlphaMode = FormatAlphaMode(alphaModeValue),
                 RenderFaceValue = renderFaceValue,
                 RenderFace = FormatRenderFace(renderFaceValue),
+                DepthWriteValue = depthWriteValue,
+                DepthWrite = FormatDepthWrite(depthWriteValue),
+                DepthTestValue = depthTestValue,
+                DepthTest = FormatDepthTest(depthTestValue),
                 AlphaClip = GetBool(targetObject, "m_AlphaClip"),
                 CastShadows = GetBool(targetObject, "m_CastShadows"),
                 ReceiveShadows = GetBool(targetObject, "m_ReceiveShadows"),
-                SupportsLodCrossFade = GetBool(targetObject, "m_SupportsLODCrossFade")
+                DisableTint = GetBool(targetObject, "m_DisableTint"),
+                AdditionalMotionVectorsValue = additionalMotionVectorsValue,
+                AdditionalMotionVectors = FormatAdditionalMotionVectors(additionalMotionVectorsValue),
+                AlembicMotionVectors = GetBool(targetObject, "m_AlembicMotionVectors"),
+                SupportsLodCrossFade = GetBool(targetObject, "m_SupportsLODCrossFade"),
+                CustomEditorGui = GetString(targetObject, "m_CustomEditorGUI"),
+                SupportVfx = GetBool(targetObject, "m_SupportVFX")
             };
         }
 
@@ -207,10 +220,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                    || !string.IsNullOrWhiteSpace(universalTarget.SurfaceType)
                    || !string.IsNullOrWhiteSpace(universalTarget.AlphaMode)
                    || !string.IsNullOrWhiteSpace(universalTarget.RenderFace)
+                   || !string.IsNullOrWhiteSpace(universalTarget.DepthWrite)
+                   || !string.IsNullOrWhiteSpace(universalTarget.DepthTest)
                    || universalTarget.AlphaClip.HasValue
                    || universalTarget.CastShadows.HasValue
                    || universalTarget.ReceiveShadows.HasValue
-                   || universalTarget.SupportsLodCrossFade.HasValue);
+                   || universalTarget.DisableTint.HasValue
+                   || !string.IsNullOrWhiteSpace(universalTarget.AdditionalMotionVectors)
+                   || universalTarget.AlembicMotionVectors.HasValue
+                   || universalTarget.SupportsLodCrossFade.HasValue
+                   || universalTarget.CustomEditorGui != null
+                   || universalTarget.SupportVfx.HasValue);
 
         static void ApplyRootSettings(
             JsonObject root,
@@ -272,6 +292,18 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 SetInt(targetObject, "m_RenderFace", renderFace, "universalTarget.renderFace", changedFields);
             }
 
+            if (!string.IsNullOrWhiteSpace(universalTarget.DepthWrite))
+            {
+                var depthWrite = ParseDepthWrite(universalTarget.DepthWrite!);
+                SetInt(targetObject, "m_ZWriteControl", depthWrite, "universalTarget.depthWrite", changedFields);
+            }
+
+            if (!string.IsNullOrWhiteSpace(universalTarget.DepthTest))
+            {
+                var depthTest = ParseDepthTest(universalTarget.DepthTest!);
+                SetInt(targetObject, "m_ZTestMode", depthTest, "universalTarget.depthTest", changedFields);
+            }
+
             if (universalTarget.AlphaClip.HasValue)
             {
                 SetBool(
@@ -302,6 +334,37 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     changedFields);
             }
 
+            if (universalTarget.DisableTint.HasValue)
+            {
+                SetBool(
+                    targetObject,
+                    "m_DisableTint",
+                    universalTarget.DisableTint.Value,
+                    "universalTarget.disableTint",
+                    changedFields);
+            }
+
+            if (!string.IsNullOrWhiteSpace(universalTarget.AdditionalMotionVectors))
+            {
+                var additionalMotionVectors = ParseAdditionalMotionVectors(universalTarget.AdditionalMotionVectors!);
+                SetInt(
+                    targetObject,
+                    "m_AdditionalMotionVectorMode",
+                    additionalMotionVectors,
+                    "universalTarget.additionalMotionVectors",
+                    changedFields);
+            }
+
+            if (universalTarget.AlembicMotionVectors.HasValue)
+            {
+                SetBool(
+                    targetObject,
+                    "m_AlembicMotionVectors",
+                    universalTarget.AlembicMotionVectors.Value,
+                    "universalTarget.alembicMotionVectors",
+                    changedFields);
+            }
+
             if (universalTarget.SupportsLodCrossFade.HasValue)
             {
                 SetBool(
@@ -309,6 +372,26 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     "m_SupportsLODCrossFade",
                     universalTarget.SupportsLodCrossFade.Value,
                     "universalTarget.supportsLodCrossFade",
+                    changedFields);
+            }
+
+            if (universalTarget.CustomEditorGui != null)
+            {
+                SetString(
+                    targetObject,
+                    "m_CustomEditorGUI",
+                    universalTarget.CustomEditorGui.Trim(),
+                    "universalTarget.customEditorGui",
+                    changedFields);
+            }
+
+            if (universalTarget.SupportVfx.HasValue)
+            {
+                SetBool(
+                    targetObject,
+                    "m_SupportVFX",
+                    universalTarget.SupportVfx.Value,
+                    "universalTarget.supportVfx",
                     changedFields);
             }
         }
@@ -514,6 +597,47 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             };
         }
 
+        static int ParseDepthWrite(string value)
+        {
+            return NormalizeEnumValue(value) switch
+            {
+                "auto" => 0,
+                "forceenabled" or "enabled" or "enable" or "on" => 1,
+                "forcedisabled" or "disabled" or "disable" or "off" => 2,
+                _ => throw new ArgumentException(
+                    $"Unsupported depth write '{value}'. Supported values: auto, forceEnabled, forceDisabled.")
+            };
+        }
+
+        static int ParseDepthTest(string value)
+        {
+            return NormalizeEnumValue(value) switch
+            {
+                "never" => 1,
+                "less" => 2,
+                "equal" => 3,
+                "lessequal" or "lequal" => 4,
+                "greater" => 5,
+                "notequal" => 6,
+                "greaterequal" or "gequal" => 7,
+                "always" => 8,
+                _ => throw new ArgumentException(
+                    $"Unsupported depth test '{value}'. Supported values: never, less, equal, lessEqual, greater, notEqual, greaterEqual, always.")
+            };
+        }
+
+        static int ParseAdditionalMotionVectors(string value)
+        {
+            return NormalizeEnumValue(value) switch
+            {
+                "none" => 0,
+                "timebased" or "time" => 1,
+                "custom" => 2,
+                _ => throw new ArgumentException(
+                    $"Unsupported additional motion vectors '{value}'. Supported values: none, timeBased, custom.")
+            };
+        }
+
         static string? FormatGraphPrecision(int? value)
         {
             return value switch
@@ -569,6 +693,47 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 0 => "both",
                 1 => "back",
                 2 => "front",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatDepthWrite(int? value)
+        {
+            return value switch
+            {
+                0 => "auto",
+                1 => "forceEnabled",
+                2 => "forceDisabled",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatDepthTest(int? value)
+        {
+            return value switch
+            {
+                1 => "never",
+                2 => "less",
+                3 => "equal",
+                4 => "lessEqual",
+                5 => "greater",
+                6 => "notEqual",
+                7 => "greaterEqual",
+                8 => "always",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatAdditionalMotionVectors(int? value)
+        {
+            return value switch
+            {
+                0 => "none",
+                1 => "timeBased",
+                2 => "custom",
                 null => null,
                 _ => $"unknown({value})"
             };

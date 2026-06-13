@@ -30,10 +30,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Read graph-level Shader Graph settings and the currently supported target settings without mutating the graph.")]
         [AiSkillBody("Read safe, high-level Shader Graph settings from a '.shadergraph' asset.\n\n" +
-            "Returns graph settings such as shader menu path, graph precision, preview mode, and currently supported target settings.\n\n" +
+            "Returns graph settings such as shader menu path, graph precision, preview mode, and currently supported Universal Render Pipeline target settings.\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n\n" +
-            "Current setting support is intentionally narrow: root graph settings plus Universal Render Pipeline target settings.")]
+            "Current setting support includes root graph settings plus scalar Universal target settings. Active subtarget and stack/block controls are separate ShaderGraph capability slices.")]
         [Description("Get graph-level Shader Graph settings from a '.shadergraph' asset.")]
         public ShaderGraphSettingsData GetSettings(AssetObjectRef assetRef)
         {

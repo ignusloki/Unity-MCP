@@ -37,7 +37,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "  - `universalTarget.surfaceType` = `opaque` | `transparent`\n" +
             "  - `universalTarget.alphaMode` = `alpha` | `premultiply` | `additive` | `multiply`\n" +
             "  - `universalTarget.renderFace` = `front` | `back` | `both`\n" +
-            "  - `universalTarget.allowMaterialOverride`, `alphaClip`, `castShadows`, `receiveShadows`, `supportsLodCrossFade`\n" +
+            "  - `universalTarget.depthWrite` = `auto` | `forceEnabled` | `forceDisabled`\n" +
+            "  - `universalTarget.depthTest` = `never` | `less` | `equal` | `lessEqual` | `greater` | `notEqual` | `greaterEqual` | `always`\n" +
+            "  - `universalTarget.additionalMotionVectors` = `none` | `timeBased` | `custom`\n" +
+            "  - `universalTarget.allowMaterialOverride`, `alphaClip`, `castShadows`, `receiveShadows`, `disableTint`, `alembicMotionVectors`, `supportsLodCrossFade`, `supportVfx`\n" +
+            "  - `universalTarget.customEditorGui` string value, or an empty string to clear it\n" +
             "- `includeMessages` — include shader compiler messages in the returned graph data.\n" +
             "- `includeProperties` — include compiled shader properties in the returned graph data.\n\n" +
             "## Behavior\n\n" +

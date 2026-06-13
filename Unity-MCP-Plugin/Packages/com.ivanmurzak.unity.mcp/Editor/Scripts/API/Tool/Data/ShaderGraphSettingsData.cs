@@ -95,6 +95,18 @@ namespace AIGD
         [Description("Raw serialized render face enum value.")]
         public int? RenderFaceValue { get; set; }
 
+        [Description("Depth write control name. Values: auto, forceEnabled, forceDisabled.")]
+        public string? DepthWrite { get; set; }
+
+        [Description("Raw serialized depth write enum value.")]
+        public int? DepthWriteValue { get; set; }
+
+        [Description("Depth test comparison name. Values: never, less, equal, lessEqual, greater, notEqual, greaterEqual, always.")]
+        public string? DepthTest { get; set; }
+
+        [Description("Raw serialized depth test enum value.")]
+        public int? DepthTestValue { get; set; }
+
         [Description("Whether alpha clipping is enabled.")]
         public bool? AlphaClip { get; set; }
 
@@ -104,8 +116,26 @@ namespace AIGD
         [Description("Whether the target receives shadows.")]
         public bool? ReceiveShadows { get; set; }
 
+        [Description("Whether target tint is disabled when supported by the selected subtarget.")]
+        public bool? DisableTint { get; set; }
+
+        [Description("Additional motion vector mode name. Values: none, timeBased, custom.")]
+        public string? AdditionalMotionVectors { get; set; }
+
+        [Description("Raw serialized additional motion vector enum value.")]
+        public int? AdditionalMotionVectorsValue { get; set; }
+
+        [Description("Whether Alembic motion vectors are enabled.")]
+        public bool? AlembicMotionVectors { get; set; }
+
         [Description("Whether LOD cross-fade support is enabled.")]
         public bool? SupportsLodCrossFade { get; set; }
+
+        [Description("Optional custom editor GUI type name stored on the target.")]
+        public string? CustomEditorGui { get; set; }
+
+        [Description("Whether VFX Graph support is enabled when the target/subtarget supports it.")]
+        public bool? SupportVfx { get; set; }
     }
 
     [Description("Structured input for mutating a narrow allowlist of Shader Graph settings.")]
@@ -144,6 +174,12 @@ namespace AIGD
         [Description("New render face mode. Supported values: front, back, both.")]
         public string? RenderFace { get; set; }
 
+        [Description("New depth write control. Supported values: auto, forceEnabled, forceDisabled.")]
+        public string? DepthWrite { get; set; }
+
+        [Description("New depth test comparison. Supported values: never, less, equal, lessEqual, greater, notEqual, greaterEqual, always.")]
+        public string? DepthTest { get; set; }
+
         [Description("Whether alpha clipping should be enabled.")]
         public bool? AlphaClip { get; set; }
 
@@ -153,8 +189,23 @@ namespace AIGD
         [Description("Whether the target should receive shadows.")]
         public bool? ReceiveShadows { get; set; }
 
+        [Description("Whether target tint should be disabled when supported by the selected subtarget.")]
+        public bool? DisableTint { get; set; }
+
+        [Description("New additional motion vector mode. Supported values: none, timeBased, custom.")]
+        public string? AdditionalMotionVectors { get; set; }
+
+        [Description("Whether Alembic motion vectors should be enabled.")]
+        public bool? AlembicMotionVectors { get; set; }
+
         [Description("Whether LOD cross-fade support should be enabled.")]
         public bool? SupportsLodCrossFade { get; set; }
+
+        [Description("Optional custom editor GUI type name. Use an empty string to clear it.")]
+        public string? CustomEditorGui { get; set; }
+
+        [Description("Whether VFX Graph support should be enabled when the target/subtarget supports it.")]
+        public bool? SupportVfx { get; set; }
     }
 
     [Description("Result of mutating Shader Graph settings and re-importing the graph.")]
