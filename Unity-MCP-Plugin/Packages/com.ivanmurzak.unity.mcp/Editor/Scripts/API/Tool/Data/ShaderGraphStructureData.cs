@@ -131,6 +131,12 @@ namespace AIGD
         [Description("Texture2D default texture type when recognized.")]
         public string? TextureDefaultType { get; set; }
 
+        [Description("Serialized GUID of the default Texture2D asset assigned to this property, when present.")]
+        public string? TextureAssetGuid { get; set; }
+
+        [Description("Project asset path of the default Texture2D asset assigned to this property, when present.")]
+        public string? TextureAssetPath { get; set; }
+
         [Description("Whether Texture2D properties generate tiling and offset data.")]
         public bool? TextureUseTilingAndOffset { get; set; }
 

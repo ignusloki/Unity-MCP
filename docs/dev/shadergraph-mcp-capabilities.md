@@ -124,6 +124,7 @@ Blackboard property mutation results include normalized summary fields:
   - New properties can be placed by `categoryObjectId` or `categoryName`.
   - Missing categories can be created with `createCategoryIfMissing`.
   - Properties can be inserted at a zero-based `categoryIndex`.
+  - `texture2D` properties can assign a project default texture through `textureAssetPath`.
 - `assets-shadergraph-update-property`
   - Supported generic fields:
     - `displayName`
@@ -138,12 +139,15 @@ Blackboard property mutation results include normalized summary fields:
     - `vectorZ`
     - `vectorW`
     - `booleanValue`
+    - `textureAssetPath`
     - `textureDefaultType`
     - `textureUseTilingAndOffset`
     - `textureUseTexelSize`
     - `textureIsMainTexture`
     - `textureIsHdr`
     - `textureModifiable`
+  - For `texture2D` properties, omitted `textureAssetPath` means no change; an empty string clears the assigned default texture asset.
+  - Texture property readback includes `textureAssetGuid` and `textureAssetPath` when a project texture asset is assigned.
 - `assets-shadergraph-delete-property`
   - Deletes a blackboard property selected by object id or effective reference name.
   - Removes the property from root and category lists.

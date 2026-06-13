@@ -14,9 +14,9 @@ Update this file during day-to-day implementation. Keep `docs/dev/shadergraph-mc
 - Local Unity validation project: `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph`
 - Unity validation version: `6000.4.1f1`
 - Active epic: Epic 12, Texture And Asset-Reference Workflows
-- Latest user-validated slice: Epic 11.4, common URP authoring target coverage
-- Current code state: Epic 11 is complete; Epic 12.1 has not started yet
-- Next planned slice: Epic 12.1, assign project texture assets to supported blackboard texture properties
+- Latest user-validated slice: Epic 12.1, blackboard Texture2D asset references
+- Current code state: Epic 12.1 is complete; Epic 12.2 has not started yet
+- Next planned slice: Epic 12.2, support texture assignment for texture-consuming node workflows where the graph model permits it
 - Conditional future edge slice: Epic 10.5, additional compatibility cases only if concrete unsupported URP paths are found
 
 Current local environment note:
@@ -27,13 +27,21 @@ Current local environment note:
 
 ## Active Work
 
-Epic 12.1 starting point:
+Epic 12.2 starting point:
 
-- Existing blackboard texture property tools can create and update texture metadata such as default type, tiling/offset flags, texel size, HDR, and modifiable state.
-- Missing capability: assigning a concrete project `Texture2D` asset reference to a Shader Graph blackboard texture property.
-- First validation target: create or update a graph texture property so its default/reference texture points at a project texture asset, then verify graph import and material behavior where Unity exposes that reference.
+- Blackboard Texture2D properties can now point at project texture assets.
+- Remaining node-level texture workflow: assign a project texture asset directly to texture-consuming node slots when those slots are unconnected and the Shader Graph model stores a `SerializableTexture`.
+- First validation target: create a graph where a `Sample Texture 2D` node uses a direct texture slot asset reference without a blackboard property edge, then verify graph import and editor-visible slot state.
 
 ## Recently Completed
+
+Epic 12.1 validation completed:
+
+- `assets-shadergraph-add-property` and `assets-shadergraph-update-property` now accept `textureAssetPath` for `texture2D` blackboard properties.
+- `assets-shadergraph-update-property` treats an empty `textureAssetPath` as a request to clear the current default texture asset reference.
+- Structure/readback now reports `textureAssetGuid` and `textureAssetPath` for Texture2D properties when Unity can resolve the reference.
+- User validated `Assets/ShaderGraphValidation/Codex_TextureAsset_Validation.shadergraph` with `Assets/ShaderGraphValidation/Codex_Epic12_Texture.png`.
+- Validation covered an existing `_BaseMap` texture property and a new `_CodexReferenceTexture` property with no console/import errors.
 
 Epic 11.1 audit result:
 
@@ -262,9 +270,12 @@ Completed:
 
 Status: in progress
 
-Remaining:
+Completed:
 
 - Slice 12.1: assign project texture assets to supported blackboard texture properties.
+
+Remaining:
+
 - Slice 12.2: support project texture assignment for texture-consuming node workflows where the graph model permits it.
 - Slice 12.3: validate material and graph behavior after texture assignment.
 - Slice 12.4: revisit reference-image interpretation only after project asset texture flows are stable.

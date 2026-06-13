@@ -637,6 +637,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             var defaultReferenceName = GetString(root, "m_DefaultReferenceName");
             var overrideReferenceName = GetString(root, "m_OverrideReferenceName");
             var textureDefaultTypeValue = GetInt(root, "m_DefaultType");
+            var textureAssetGuid = ParseTexture2DAssetGuid(root, propertyType);
 
             return new ShaderGraphPropertyDefinitionData
             {
@@ -670,6 +671,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 TextureDefaultType = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal)
                     ? FormatTexture2DDefaultType(textureDefaultTypeValue)
                     : null,
+                TextureAssetGuid = textureAssetGuid,
+                TextureAssetPath = string.IsNullOrWhiteSpace(textureAssetGuid)
+                    ? null
+                    : AssetDatabase.GUIDToAssetPath(textureAssetGuid),
                 TextureUseTilingAndOffset = string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal)
                     ? GetBool(root, "useTilingAndOffset")
                     : null,
@@ -686,6 +691,31 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     ? GetBool(root, "m_Modifiable")
                     : null
             };
+        }
+
+        static string? ParseTexture2DAssetGuid(JsonElement root, string? propertyType)
+        {
+            if (!string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal))
+                return null;
+
+            var directGuid = GetStringAt(root, "m_Value", "m_Guid");
+            if (!string.IsNullOrWhiteSpace(directGuid))
+                return directGuid;
+
+            var serializedTexture = GetStringAt(root, "m_Value", "m_SerializedTexture");
+            if (string.IsNullOrWhiteSpace(serializedTexture))
+                return null;
+
+            try
+            {
+                using var textureDocument = JsonDocument.Parse(serializedTexture!);
+                var serializedGuid = GetStringAt(textureDocument.RootElement, "texture", "guid");
+                return string.IsNullOrWhiteSpace(serializedGuid) ? null : serializedGuid;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
 
         static ShaderGraphCategoryDefinitionData ParseCategoryDefinition(JsonElement root, string objectId)

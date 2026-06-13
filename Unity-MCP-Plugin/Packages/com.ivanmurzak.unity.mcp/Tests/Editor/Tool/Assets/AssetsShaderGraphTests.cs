@@ -403,6 +403,110 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_AddProperty_AssignsTexture2DAssetReference()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddTextureAsset.shadergraph");
+            var textureAssetPath = CreateTextureAsset("Validation_Add_Texture.png", new Color(0.15f, 0.7f, 0.35f, 1f));
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var textureGuid = AssetDatabase.AssetPathToGUID(textureAssetPath);
+                var result = new Tool_Assets_ShaderGraph().AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "texture2D",
+                        DisplayName = "Reference Texture",
+                        OverrideReferenceName = "_CodexReferenceTexture",
+                        TextureAssetPath = textureAssetPath,
+                        TextureDefaultType = "black",
+                        TextureUseTilingAndOffset = true
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("add", result.Operation);
+                Assert.IsNotNull(result.Property);
+                Assert.AreEqual("texture2D", result.Property!.PropertyKind);
+                Assert.AreEqual(textureGuid, result.Property.TextureAssetGuid);
+                Assert.AreEqual(textureAssetPath, result.Property.TextureAssetPath);
+                Assert.AreEqual("black", result.Property.TextureDefaultType);
+                Assert.IsTrue(result.Property.TextureUseTilingAndOffset ?? false);
+
+                var structureProperty = result.Structure!.Properties!
+                    .Single(property => property.EffectiveReferenceName == "_CodexReferenceTexture");
+                Assert.AreEqual(textureGuid, structureProperty.TextureAssetGuid);
+                Assert.AreEqual(textureAssetPath, structureProperty.TextureAssetPath);
+
+                Assert.IsNotNull(result.Graph);
+                Assert.IsTrue(result.Graph!.SourceParsed, "Updated Shader Graph source should parse successfully.");
+                Assert.IsTrue(result.Graph.ShaderResolved, "Updated Shader Graph should still resolve a compiled shader.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Assigning a Texture2D asset reference should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+                CleanupTestAsset(textureAssetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_UpdateProperty_AssignsAndClearsTexture2DAssetReference()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateTextureAsset.shadergraph");
+            var textureAssetPath = CreateTextureAsset("Validation_Update_Texture.png", new Color(0.9f, 0.2f, 0.1f, 1f));
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var textureGuid = AssetDatabase.AssetPathToGUID(textureAssetPath);
+                var updateResult = new Tool_Assets_ShaderGraph().UpdateProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphPropertyUpdateInput
+                    {
+                        PropertyReferenceName = "_BaseMap",
+                        TextureAssetPath = textureAssetPath
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("update", updateResult.Operation);
+                Assert.IsTrue(updateResult.ChangedFields!.Contains("property.texture.assetGuid"));
+                Assert.AreEqual(textureGuid, updateResult.Property!.TextureAssetGuid);
+                Assert.AreEqual(textureAssetPath, updateResult.Property.TextureAssetPath);
+                Assert.IsTrue(updateResult.Graph!.ShaderResolved, "Assigned texture reference should keep Shader Graph import valid.");
+                Assert.IsFalse(updateResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Assigning a Texture2D asset reference should not introduce import errors.");
+
+                var clearResult = new Tool_Assets_ShaderGraph().UpdateProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphPropertyUpdateInput
+                    {
+                        PropertyReferenceName = "_BaseMap",
+                        TextureAssetPath = string.Empty
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsTrue(clearResult.ChangedFields!.Contains("property.texture.assetGuid"));
+                Assert.IsNull(clearResult.Property!.TextureAssetGuid);
+                Assert.IsNull(clearResult.Property.TextureAssetPath);
+                Assert.IsTrue(clearResult.Graph!.ShaderResolved, "Clearing texture reference should keep Shader Graph import valid.");
+                Assert.IsFalse(clearResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Clearing a Texture2D asset reference should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+                CleanupTestAsset(textureAssetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_UpdateProperty_UpdatesColorAndTextureProperties()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateProperty.shadergraph");

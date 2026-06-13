@@ -17,6 +17,7 @@ using System.Text.Json.Nodes;
 using AIGD;
 using com.IvanMurzak.McpPlugin;
 using com.IvanMurzak.ReflectorNet.Utils;
+using UnityEditor;
 using UnityEngine;
 
 namespace com.IvanMurzak.Unity.MCP.Editor.API
@@ -38,7 +39,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- float property default value via `floatValue`\n" +
             "- vector2/vector3/vector4 default components via `vectorX`, `vectorY`, `vectorZ`, `vectorW`\n" +
             "- boolean default value via `booleanValue`\n" +
-            "- Texture2D default type and toggles via `textureDefaultType`, `textureUseTilingAndOffset`, `textureUseTexelSize`, `textureIsMainTexture`, `textureIsHdr`, `textureModifiable`\n\n" +
+            "- Texture2D asset reference via `textureAssetPath`, default type, and toggles via `textureDefaultType`, `textureUseTilingAndOffset`, `textureUseTexelSize`, `textureIsMainTexture`, `textureIsHdr`, `textureModifiable`\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n" +
             "- `property` — selector plus requested updates.\n" +
@@ -300,6 +301,26 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     changedFields);
             }
 
+            if (property.TextureAssetPath != null)
+            {
+                var textureValue = EnsureTextureValueObject(propertyObject);
+                var textureAssetGuid = ResolveTexture2DAssetGuid(property.TextureAssetPath, "property.textureAssetPath");
+
+                SetString(
+                    textureValue,
+                    "m_Guid",
+                    textureAssetGuid ?? string.Empty,
+                    "property.texture.assetGuid",
+                    changedFields);
+
+                SetString(
+                    textureValue,
+                    "m_SerializedTexture",
+                    string.Empty,
+                    "property.texture.serializedTexture",
+                    changedFields);
+            }
+
             if (property.TextureUseTilingAndOffset.HasValue)
             {
                 SetBool(
@@ -351,6 +372,48 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             }
         }
 
+        static JsonObject EnsureTextureValueObject(JsonObject propertyObject)
+        {
+            if (propertyObject["m_Value"] is JsonObject textureValue)
+                return textureValue;
+
+            textureValue = new JsonObject
+            {
+                ["m_SerializedTexture"] = string.Empty,
+                ["m_Guid"] = string.Empty
+            };
+            propertyObject["m_Value"] = textureValue;
+            return textureValue;
+        }
+
+        static string? ResolveTexture2DAssetGuid(string? textureAssetPath, string fieldPath)
+        {
+            if (textureAssetPath == null)
+                return null;
+
+            var trimmedPath = textureAssetPath.Trim();
+            if (trimmedPath.Length == 0)
+                return null;
+
+            ValidateProjectAssetPath(trimmedPath, fieldPath);
+
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(trimmedPath);
+            if (texture == null)
+            {
+                throw new ArgumentException(
+                    $"{fieldPath} points to '{trimmedPath}', but no Texture2D asset could be loaded from that path.");
+            }
+
+            var guid = AssetDatabase.AssetPathToGUID(trimmedPath);
+            if (string.IsNullOrEmpty(guid))
+            {
+                throw new ArgumentException(
+                    $"{fieldPath} points to '{trimmedPath}', but Unity did not return an asset GUID for it.");
+            }
+
+            return guid;
+        }
+
         static bool HasAnyVectorUpdates(ShaderGraphPropertyUpdateInput property)
             => property.VectorX.HasValue
                || property.VectorY.HasValue
@@ -359,6 +422,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
         static bool HasAnyTextureUpdates(ShaderGraphPropertyUpdateInput property)
             => !string.IsNullOrWhiteSpace(property.TextureDefaultType)
+               || property.TextureAssetPath != null
                || property.TextureUseTilingAndOffset.HasValue
                || property.TextureUseTexelSize.HasValue
                || property.TextureIsMainTexture.HasValue

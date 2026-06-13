@@ -325,6 +325,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             string overrideReferenceName,
             ShaderGraphAddPropertyInput property)
         {
+            var textureAssetGuid = ResolveTexture2DAssetGuid(property.TextureAssetPath, "property.textureAssetPath");
+
             return new JsonObject
             {
                 ["m_SGVersion"] = 0,
@@ -352,7 +354,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 ["m_Value"] = new JsonObject
                 {
                     ["m_SerializedTexture"] = string.Empty,
-                    ["m_Guid"] = string.Empty
+                    ["m_Guid"] = textureAssetGuid ?? string.Empty
                 },
                 ["isMainTexture"] = property.TextureIsMainTexture ?? false,
                 ["useTilingAndOffset"] = property.TextureUseTilingAndOffset ?? false,

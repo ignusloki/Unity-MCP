@@ -59,6 +59,9 @@ namespace AIGD
         [Description("New Texture2D default texture type. Supported values: white, black, grey, normalMap, bump, linearGrey, red. Only supported for texture2D properties.")]
         public string? TextureDefaultType { get; set; }
 
+        [Description("Project Texture2D asset path to use as the Texture2D property's default texture, such as 'Assets/Textures/BaseMap.png'. Use an empty string to clear the reference. Only supported for texture2D properties.")]
+        public string? TextureAssetPath { get; set; }
+
         [Description("Whether Texture2D properties should generate tiling and offset data.")]
         public bool? TextureUseTilingAndOffset { get; set; }
 
@@ -116,6 +119,9 @@ namespace AIGD
 
         [Description("Texture2D default texture type. Supported values: white, black, grey, normalMap, bump, linearGrey, red. Used only when propertyType is texture2D.")]
         public string? TextureDefaultType { get; set; }
+
+        [Description("Project Texture2D asset path to use as the Texture2D property's default texture, such as 'Assets/Textures/BaseMap.png'. Used only when propertyType is texture2D.")]
+        public string? TextureAssetPath { get; set; }
 
         [Description("Whether Texture2D properties should generate tiling and offset data. Default: false.")]
         public bool? TextureUseTilingAndOffset { get; set; }
