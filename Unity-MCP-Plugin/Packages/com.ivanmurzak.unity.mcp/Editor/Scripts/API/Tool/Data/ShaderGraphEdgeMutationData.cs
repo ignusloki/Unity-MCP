@@ -80,11 +80,30 @@ namespace AIGD
         public bool? ReplaceExistingInputConnection { get; set; }
     }
 
+    [Description("Structured input for rerouting every outgoing edge from one Shader Graph output slot to another output slot.")]
+    public class ShaderGraphRerouteOutputSlotInput
+    {
+        [Description("Serialized object id of the existing output node whose outgoing edges should be moved.")]
+        public string? ExistingOutputNodeObjectId { get; set; }
+
+        [Description("Serialized object id of the existing output slot attached to existingOutputNodeObjectId.")]
+        public string? ExistingOutputSlotObjectId { get; set; }
+
+        [Description("Serialized object id of the new output node that should feed the existing downstream inputs.")]
+        public string? NewOutputNodeObjectId { get; set; }
+
+        [Description("Serialized object id of the new output slot attached to newOutputNodeObjectId.")]
+        public string? NewOutputSlotObjectId { get; set; }
+    }
+
     [Description("Result of mutating Shader Graph edges and re-importing the graph.")]
     public class ShaderGraphEdgeMutationResultData
     {
         [Description("Snapshot of the edge that was connected or disconnected.")]
         public ShaderGraphEdgeDefinitionData? Edge { get; set; }
+
+        [Description("Snapshots of every edge that was connected by the mutation.")]
+        public List<ShaderGraphEdgeDefinitionData>? Edges { get; set; }
 
         [Description("Snapshot of the previously connected incoming edge that was removed during a replace operation, if any.")]
         public ShaderGraphEdgeDefinitionData? RemovedEdge { get; set; }

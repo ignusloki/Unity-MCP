@@ -225,6 +225,12 @@ This document is the single source of truth for what the local ShaderGraph MCP i
   - Rejects no-op reconnects.
   - Can explicitly replace another incoming edge on the new target input when `replaceExistingInputConnection` is set to `true`.
   - Returns the removed original edge and the newly connected edge in the mutation result.
+- `assets-shadergraph-reroute-output-slot`
+  - Moves every outgoing edge from one output slot to another compatible output slot.
+  - Requires the original output slot to have at least one outgoing edge.
+  - Preflights every downstream input for slot compatibility before any write is persisted.
+  - Refuses to overwrite unrelated incoming edges or create duplicate edges.
+  - Returns all removed edges as `removedEdges` and all newly connected edges as `edges`.
 - `assets-shadergraph-disconnect-edge`
   - Removes an existing edge selected by output node and slot plus input node and slot.
 
@@ -268,6 +274,7 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - `assets-shadergraph-update-node-position`
 - `assets-shadergraph-connect-edge`
 - `assets-shadergraph-reconnect-edge`
+- `assets-shadergraph-reroute-output-slot`
 - `assets-shadergraph-disconnect-edge`
 
 ## Not Yet Exposed
@@ -277,7 +284,7 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - Multiply input-slot literal editing beyond the current `multiplyType` support.
 - Property deletion, reordering, and category placement.
 - Project texture assignment workflows across blackboard properties and texture-consuming nodes.
-- Higher-level guarded rewiring workflows beyond the current connect, disconnect, replace, and reconnect flows.
+- Additional higher-level guarded rewiring workflows beyond the current connect, disconnect, replace, reconnect, and output-slot reroute flows.
 - Groups, sticky notes, and other graph cleanup and organization tools.
 - Subgraphs, custom function nodes, keywords, enums, and other long-tail Shader Graph authoring flows.
 - Broader URP stack and block mutation parity beyond the current root and target settings allowlist.

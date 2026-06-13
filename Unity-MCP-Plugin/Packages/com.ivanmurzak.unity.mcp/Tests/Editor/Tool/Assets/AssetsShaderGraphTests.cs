@@ -2035,6 +2035,197 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_RerouteOutputSlot_MovesAllConsumersToNewOutput()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_RerouteOutputSlot.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Accent",
+                        OverrideReferenceName = "_AccentColor",
+                        ColorHex = "#44CC88FF"
+                    });
+
+                var accentNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_AccentColor",
+                        PositionX = -760f,
+                        PositionY = 120f
+                    });
+
+                var addNodeResult = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "add",
+                        PositionX = -120f,
+                        PositionY = 420f
+                    });
+
+                var structureBeforeExtraEdges = tool.GetStructure(new AssetObjectRef(shader));
+                var baseColorNode = structureBeforeExtraEdges.Nodes!
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseColor");
+                var baseColorOutput = baseColorNode.Slots!.Single();
+                var addNode = structureBeforeExtraEdges.Nodes
+                    .First(n => n.ObjectId == addNodeResult.Node!.ObjectId);
+                var addInputA = addNode.Slots!.First(s => s.DisplayName == "A");
+                var addInputB = addNode.Slots!.First(s => s.DisplayName == "B");
+
+                tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = baseColorNode.ObjectId,
+                        OutputSlotObjectId = baseColorOutput.ObjectId,
+                        InputNodeObjectId = addNode.ObjectId,
+                        InputSlotObjectId = addInputA.ObjectId
+                    });
+
+                tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = baseColorNode.ObjectId,
+                        OutputSlotObjectId = baseColorOutput.ObjectId,
+                        InputNodeObjectId = addNode.ObjectId,
+                        InputSlotObjectId = addInputB.ObjectId
+                    });
+
+                var structureBeforeReroute = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structureBeforeReroute.Nodes!
+                    .First(n => n.Name == "Multiply");
+                var multiplyInputB = multiplyNode.Slots!
+                    .First(s => s.DisplayName == "B");
+                var accentOutput = accentNodeResult.Node!.Slots!.Single();
+                var existingBaseColorConsumers = structureBeforeReroute.Edges!
+                    .Where(e => e.OutputNodeId == baseColorNode.ObjectId
+                        && e.OutputSlotId == baseColorOutput.SlotId)
+                    .ToList();
+
+                Assert.AreEqual(3, existingBaseColorConsumers.Count,
+                    "Expected _BaseColor to feed Multiply.B plus the two added Add inputs before reroute.");
+
+                var rerouteResult = tool.RerouteOutputSlot(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphRerouteOutputSlotInput
+                    {
+                        ExistingOutputNodeObjectId = baseColorNode.ObjectId,
+                        ExistingOutputSlotObjectId = baseColorOutput.ObjectId,
+                        NewOutputNodeObjectId = accentNodeResult.Node.ObjectId,
+                        NewOutputSlotObjectId = accentOutput.ObjectId
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(rerouteResult);
+                Assert.IsTrue(rerouteResult.ChangedFields!.Contains("edge.disconnected"));
+                Assert.IsTrue(rerouteResult.ChangedFields.Contains("edge.rerouted"));
+                Assert.IsTrue(rerouteResult.ChangedFields.Contains("edge.connected"));
+
+                Assert.IsNotNull(rerouteResult.RemovedEdges);
+                Assert.AreEqual(3, rerouteResult.RemovedEdges!.Count);
+                Assert.IsNotNull(rerouteResult.Edges);
+                Assert.AreEqual(3, rerouteResult.Edges!.Count);
+
+                Assert.IsNotNull(rerouteResult.Structure);
+                Assert.IsFalse(rerouteResult.Structure!.Edges!.Any(e =>
+                        e.OutputNodeId == baseColorNode.ObjectId
+                        && e.OutputSlotId == baseColorOutput.SlotId),
+                    "The old _BaseColor output should not feed any consumers after reroute.");
+
+                Assert.IsTrue(rerouteResult.Structure.Edges.Any(e =>
+                    e.OutputNodeId == accentNodeResult.Node.ObjectId
+                    && e.OutputSlotId == accentOutput.SlotId
+                    && e.InputNodeId == multiplyNode.ObjectId
+                    && e.InputSlotId == multiplyInputB.SlotId));
+                Assert.IsTrue(rerouteResult.Structure.Edges.Any(e =>
+                    e.OutputNodeId == accentNodeResult.Node.ObjectId
+                    && e.OutputSlotId == accentOutput.SlotId
+                    && e.InputNodeId == addNode.ObjectId
+                    && e.InputSlotId == addInputA.SlotId));
+                Assert.IsTrue(rerouteResult.Structure.Edges.Any(e =>
+                    e.OutputNodeId == accentNodeResult.Node.ObjectId
+                    && e.OutputSlotId == accentOutput.SlotId
+                    && e.InputNodeId == addNode.ObjectId
+                    && e.InputSlotId == addInputB.SlotId));
+                Assert.AreEqual(structureBeforeReroute.Edges.Count, rerouteResult.Structure.Edges.Count,
+                    "Rerouting should preserve total edge count.");
+
+                Assert.IsNotNull(rerouteResult.Graph);
+                Assert.IsTrue(rerouteResult.Graph!.ShaderResolved, "Rerouting all consumers to a compatible output should keep the shader import valid.");
+                Assert.IsFalse(rerouteResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Rerouting all consumers to a compatible output should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_RerouteOutputSlot_NoOutgoingEdges_Throws()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_RerouteOutputSlot_Empty.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Accent",
+                        OverrideReferenceName = "_AccentColor",
+                        ColorHex = "#44CC88FF"
+                    });
+
+                var accentNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_AccentColor",
+                        PositionX = -760f,
+                        PositionY = 120f
+                    });
+
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var baseColorNode = structure.Nodes!
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseColor");
+                var baseColorOutput = baseColorNode.Slots!.Single();
+                var accentOutput = accentNodeResult.Node!.Slots!.Single();
+
+                Assert.Throws<InvalidOperationException>(() => tool.RerouteOutputSlot(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphRerouteOutputSlotInput
+                    {
+                        ExistingOutputNodeObjectId = accentNodeResult.Node.ObjectId,
+                        ExistingOutputSlotObjectId = accentOutput.ObjectId,
+                        NewOutputNodeObjectId = baseColorNode.ObjectId,
+                        NewOutputSlotObjectId = baseColorOutput.ObjectId
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_ConnectEdge_ReplaceExistingInputConnection_ReroutesMultiplyColorInput()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateEdge_Replace.shadergraph");

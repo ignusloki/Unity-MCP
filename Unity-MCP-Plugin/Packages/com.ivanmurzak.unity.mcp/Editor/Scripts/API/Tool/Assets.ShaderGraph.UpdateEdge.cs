@@ -26,6 +26,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         public const string AssetsShaderGraphConnectEdgeToolId = "assets-shadergraph-connect-edge";
         public const string AssetsShaderGraphDisconnectEdgeToolId = "assets-shadergraph-disconnect-edge";
         public const string AssetsShaderGraphReconnectEdgeToolId = "assets-shadergraph-reconnect-edge";
+        public const string AssetsShaderGraphRerouteOutputSlotToolId = "assets-shadergraph-reroute-output-slot";
 
         static readonly HashSet<string> DynamicCompatibleSlotTypes = new(StringComparer.Ordinal)
         {
@@ -159,6 +160,45 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 throw new ArgumentNullException(nameof(edge));
 
             return MainThread.Instance.Run(() => ReconnectShaderGraphEdge(
+                assetRef,
+                edge,
+                includeMessages: includeMessages ?? false,
+                includeProperties: includeProperties ?? false));
+        }
+
+        [AiTool
+        (
+            AssetsShaderGraphRerouteOutputSlotToolId,
+            Title = "Assets / Shader Graph / Reroute Output Slot"
+        )]
+        [AiSkillDescription("Move every outgoing Shader Graph edge from one output slot to another compatible output slot, then re-import the graph and return the mutation details and diagnostics.")]
+        [AiSkillBody("Reroute every outgoing edge from one output slot to another output slot inside a '.shadergraph' asset.\n\n" +
+            "This is a guarded graph-repair workflow for replacing a source node or property everywhere it is currently used:\n" +
+            "- selection starts from an exact existing output node and slot\n" +
+            "- all outgoing edges from that output slot are moved to the new output slot\n" +
+            "- at least one outgoing edge must exist\n" +
+            "- every downstream input is compatibility-checked before any write is persisted\n" +
+            "- unrelated incoming edges on downstream inputs are never overwritten\n\n" +
+            "Use `assets-shadergraph-get-structure` first to inspect node ids, slot ids, and current edges.")]
+        [Description("Reroute every outgoing Shader Graph edge from one output slot to another compatible output slot and re-import the graph.")]
+        public ShaderGraphEdgeMutationResultData RerouteOutputSlot(
+            AssetObjectRef assetRef,
+            ShaderGraphRerouteOutputSlotInput edge,
+            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            bool? includeMessages = false,
+            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            bool? includeProperties = false)
+        {
+            if (assetRef == null)
+                throw new ArgumentNullException(nameof(assetRef));
+
+            if (!assetRef.IsValid(out var error))
+                throw new ArgumentException(error, nameof(assetRef));
+
+            if (edge == null)
+                throw new ArgumentNullException(nameof(edge));
+
+            return MainThread.Instance.Run(() => RerouteShaderGraphOutputSlot(
                 assetRef,
                 edge,
                 includeMessages: includeMessages ?? false,
@@ -393,6 +433,135 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             };
         }
 
+        static ShaderGraphEdgeMutationResultData RerouteShaderGraphOutputSlot(
+            AssetObjectRef assetRef,
+            ShaderGraphRerouteOutputSlotInput edge,
+            bool includeMessages,
+            bool includeProperties)
+        {
+            var assetPath = ResolveAssetPath(assetRef);
+            if (!IsShaderGraphAssetPath(assetPath))
+                throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
+
+            var document = LoadMutableDocument(assetPath);
+            var existingOutputSlot = ResolveNodeSlot(document, edge.ExistingOutputNodeObjectId, edge.ExistingOutputSlotObjectId, expectedSlotType: 1);
+            var newOutputSlot = ResolveNodeSlot(document, edge.NewOutputNodeObjectId, edge.NewOutputSlotObjectId, expectedSlotType: 1);
+
+            if (existingOutputSlot.NodeObjectId == newOutputSlot.NodeObjectId
+                && existingOutputSlot.SlotId == newOutputSlot.SlotId)
+            {
+                throw new InvalidOperationException("Reroute requested no effective output slot change.");
+            }
+
+            var edgesArray = EnsureEdgeArray(document.Root);
+            var outgoingEdgeIndexes = FindOutgoingEdgeIndexes(edgesArray, existingOutputSlot.NodeObjectId, existingOutputSlot.SlotId);
+            if (outgoingEdgeIndexes.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Output slot '{existingOutputSlot.SlotObjectId}' on node '{existingOutputSlot.NodeObjectId}' has no outgoing edges to reroute.");
+            }
+
+            var removedEdges = new List<ShaderGraphEdgeDefinitionData>();
+            var connectedEdges = new List<ShaderGraphEdgeDefinitionData>();
+            var targetInputSlots = new List<NodeSlotContext>();
+            foreach (var edgeIndex in outgoingEdgeIndexes)
+            {
+                if (edgesArray[edgeIndex] is not JsonObject existingEdgeObject)
+                    throw new InvalidOperationException("An existing outgoing Shader Graph edge could not be resolved.");
+
+                var removedEdge = ReadEdgeDefinition(existingEdgeObject);
+                if (string.IsNullOrEmpty(removedEdge.InputNodeId) || !removedEdge.InputSlotId.HasValue)
+                    throw new InvalidOperationException("The existing outgoing Shader Graph edge is missing input identifiers.");
+
+                var targetInputSlot = ResolveNodeSlotBySlotId(
+                    document,
+                    removedEdge.InputNodeId!,
+                    removedEdge.InputSlotId.Value,
+                    expectedSlotType: 0);
+
+                ValidateEdgeCompatibility(newOutputSlot, targetInputSlot);
+
+                removedEdges.Add(removedEdge);
+                targetInputSlots.Add(targetInputSlot);
+                connectedEdges.Add(CreateEdgeDefinition(
+                    newOutputSlot.NodeObjectId,
+                    newOutputSlot.SlotId,
+                    targetInputSlot.NodeObjectId,
+                    targetInputSlot.SlotId));
+            }
+
+            var reroutedInputKeys = targetInputSlots
+                .Select(slot => CreateEdgeEndpointKey(slot.NodeObjectId, slot.SlotId))
+                .ToHashSet(StringComparer.Ordinal);
+
+            for (var i = 0; i < edgesArray.Count; i++)
+            {
+                if (outgoingEdgeIndexes.Contains(i))
+                    continue;
+
+                if (edgesArray[i] is not JsonObject existingEdgeObject)
+                    continue;
+
+                var inputNodeId = GetStringAt(existingEdgeObject, "m_InputSlot", "m_Node", "m_Id");
+                var inputSlotId = GetIntAt(existingEdgeObject, "m_InputSlot", "m_SlotId");
+                if (!string.IsNullOrEmpty(inputNodeId)
+                    && inputSlotId.HasValue
+                    && reroutedInputKeys.Contains(CreateEdgeEndpointKey(inputNodeId!, inputSlotId.Value)))
+                {
+                    throw new InvalidOperationException(
+                        $"Input slot '{inputNodeId}:{inputSlotId.Value}' already has an unrelated incoming edge and cannot be safely rerouted.");
+                }
+
+                if (connectedEdges.Any(connectedEdge =>
+                        string.Equals(GetStringAt(existingEdgeObject, "m_OutputSlot", "m_Node", "m_Id"), connectedEdge.OutputNodeId, StringComparison.Ordinal)
+                        && GetIntAt(existingEdgeObject, "m_OutputSlot", "m_SlotId") == connectedEdge.OutputSlotId
+                        && string.Equals(inputNodeId, connectedEdge.InputNodeId, StringComparison.Ordinal)
+                        && inputSlotId == connectedEdge.InputSlotId))
+                {
+                    throw new InvalidOperationException("Reroute would create a duplicate Shader Graph edge.");
+                }
+            }
+
+            foreach (var edgeIndex in outgoingEdgeIndexes.OrderByDescending(index => index))
+                edgesArray.RemoveAt(edgeIndex);
+
+            foreach (var connectedEdge in connectedEdges)
+            {
+                edgesArray.Add(CreateEdgeObject(
+                    connectedEdge.OutputNodeId!,
+                    connectedEdge.OutputSlotId!.Value,
+                    connectedEdge.InputNodeId!,
+                    connectedEdge.InputSlotId!.Value));
+            }
+
+            WriteMutableDocument(document);
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+
+            var graphRef = new AssetObjectRef(assetPath);
+            return new ShaderGraphEdgeMutationResultData
+            {
+                ChangedFields = new List<string>
+                {
+                    "edge.disconnected",
+                    "edge.rerouted",
+                    "edge.connected"
+                },
+                Edge = connectedEdges[0],
+                Edges = connectedEdges,
+                RemovedEdge = removedEdges[0],
+                RemovedEdges = removedEdges,
+                Structure = BuildShaderGraphStructureData(graphRef),
+                Graph = BuildShaderGraphData(
+                    graphRef,
+                    includeMessages: includeMessages,
+                    includeProperties: includeProperties,
+                    includeDiagnostics: true)
+            };
+        }
+
         sealed class NodeSlotContext
         {
             public string NodeObjectId { get; set; } = string.Empty;
@@ -460,6 +629,28 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 SlotType = slotType.Value,
                 SlotTypeName = GetString(slotObject, "m_Type") ?? string.Empty
             };
+        }
+
+        static NodeSlotContext ResolveNodeSlotBySlotId(
+            ShaderGraphMutableDocument document,
+            string nodeObjectIdValue,
+            int slotId,
+            int expectedSlotType)
+        {
+            if (!document.ObjectsById.TryGetValue(nodeObjectIdValue, out var nodeObject))
+                throw new InvalidOperationException($"Shader Graph node object '{nodeObjectIdValue}' was not found.");
+
+            foreach (var slotObjectId in GetIdArray(nodeObject, "m_Slots"))
+            {
+                if (!document.ObjectsById.TryGetValue(slotObjectId, out var slotObject))
+                    continue;
+
+                if (GetInt(slotObject, "m_Id") == slotId)
+                    return ResolveNodeSlot(document, nodeObjectIdValue, slotObjectId, expectedSlotType);
+            }
+
+            throw new InvalidOperationException(
+                $"Shader Graph slot id '{slotId}' was not found on node '{nodeObjectIdValue}'.");
         }
 
         static void ValidateEdgeCompatibility(NodeSlotContext outputSlot, NodeSlotContext inputSlot)
@@ -604,6 +795,27 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             return -1;
         }
+
+        static List<int> FindOutgoingEdgeIndexes(JsonArray edgesArray, string outputNodeObjectId, int outputSlotId)
+        {
+            var indexes = new List<int>();
+            for (var i = 0; i < edgesArray.Count; i++)
+            {
+                if (edgesArray[i] is not JsonObject edgeObject)
+                    continue;
+
+                if (string.Equals(GetStringAt(edgeObject, "m_OutputSlot", "m_Node", "m_Id"), outputNodeObjectId, StringComparison.Ordinal)
+                    && GetIntAt(edgeObject, "m_OutputSlot", "m_SlotId") == outputSlotId)
+                {
+                    indexes.Add(i);
+                }
+            }
+
+            return indexes;
+        }
+
+        static string CreateEdgeEndpointKey(string nodeObjectId, int slotId)
+            => $"{nodeObjectId}:{slotId}";
 
         static int FindEdgeIndex(JsonArray edgesArray, string outputNodeObjectId, int outputSlotId, string inputNodeObjectId, int inputSlotId)
         {

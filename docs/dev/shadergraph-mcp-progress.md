@@ -13,11 +13,11 @@ Update this file during day-to-day implementation. Keep `docs/dev/shadergraph-mc
 - Current local package baseline: `com.ivanmurzak.unity.mcp` version `0.81.0`
 - Local Unity validation project: `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph`
 - Unity validation version: `6000.4.1f1`
-- Active epic: Epic 10, Edge System V2
-- Latest user-validated slice: Epic 10.3, Texture2D edge compatibility
-- Current code state: Epic 10.3 is validated by the user but not committed yet
-- Next planned slice after commit: Epic 10.4, higher-level guarded rewiring workflows
-- Planned return after Epic 10: Epic 9.1, property deletion
+- Active epic: Epic 7, Node Lifecycle Foundation
+- Latest user-validated slice: Epic 10.4, higher-level guarded output-slot reroute workflow
+- Current code state: Epic 10.4 is user-validated and ready to commit
+- Next planned slice after commit: Epic 7.3, node duplication
+- Conditional future edge slice: Epic 10.5, additional compatibility cases only if concrete unsupported URP paths are found
 
 Current local environment note:
 
@@ -27,22 +27,16 @@ Current local environment note:
 
 ## Active Work
 
-Epic 10.3 validated changes waiting to be committed:
+Next implementation target:
 
-- Added Texture2D edge compatibility in `Assets.ShaderGraph.UpdateEdge.cs`.
-- Added editor tests in `AssetsShaderGraphTests.cs`.
-- Updated `shadergraph-mcp-capabilities.md` to include reconnect and Texture2D edge compatibility.
-- Split the roadmap state into:
-  - `shadergraph-mcp-plan.md`
-  - `shadergraph-mcp-progress.md`
+- Epic 7.3: node duplication.
+- Goal: duplicate a supported Shader Graph node with safe serialized identifiers, no copied edges, deterministic placement offset, graph reimport, diagnostics, and normalized result payload.
+- Stop for Unity validation after a duplicate node can be created and visually inspected.
 
-Validation already completed for Epic 10.3:
+Epic 10.5 note:
 
-- `dotnet build Assembly-CSharp.csproj -v minimal` passed in the local Unity validation project.
-- Live MCP validation graph: `Assets/ShaderGraphValidation/Codex_EdgeTexture_Validation.shadergraph`.
-- User verified the graph in Unity.
-
-Do not commit until the user explicitly asks.
+- No concrete unsupported URP slot compatibility case is currently known.
+- Treat Slice 10.5 as deferred until a real graph path fails the current compatibility matrix.
 
 ## Progress By Epic
 
@@ -180,21 +174,17 @@ Note:
 
 ### Epic 10: Edge System V2
 
-Status: partial, active
+Status: complete for the current known URP-first edge-control matrix
 
 Completed:
 
 - Slice 10.1: explicit single-input edge replacement through `replaceExistingInputConnection`.
 - Slice 10.2: explicit reconnect tool for moving an existing edge to a new output endpoint, input endpoint, or both.
 - Slice 10.3: Texture2D slot compatibility for texture property outputs into Texture2D input slots.
+- Slice 10.4: higher-level guarded output-slot reroute workflow.
 
-Waiting to commit:
+Deferred conditional work:
 
-- Slice 10.3 code/tests and docs cleanup.
-
-Remaining:
-
-- Slice 10.4: higher-level guarded rewiring workflows for common graph-repair operations.
 - Slice 10.5: additional slot compatibility cases when concrete unsupported URP paths are found.
 
 ### Epic 11: URP Stack And Target Coverage
@@ -374,10 +364,19 @@ Remaining:
   - returned expected reconnect and replacement mutation summaries
   - kept `EdgeCount = 4`
   - produced no Unity console errors
+- Slice 10.4 graph: `Assets/ShaderGraphValidation/Codex_EdgeReroute_Validation.shadergraph`.
+- Slice 10.4 result:
+  - rerouted all outgoing `_BaseColor` edges to `_RerouteAccent`
+  - moved three downstream consumers in one guarded operation
+  - returned `edge.disconnected`, `edge.rerouted`, and `edge.connected`
+  - returned `removedEdges.Count = 3` and `edges.Count = 3`
+  - kept `EdgeCount = 6`
+  - produced no Unity console errors
+  - user verified the graph in Unity
 
 ## Validation Gaps
 
-- `dotnet build Assembly-CSharp.csproj -v minimal` passes in the local Unity test project, with existing warnings.
+- `dotnet build Assembly-CSharp.csproj -v minimal` passes in the local Unity test project with no warnings.
 - Unity Test Runner command discovery still needs cleanup: earlier `tests-run` attempts did not discover the package editor tests from `TestShadergraph`.
 - Until the test runner setup is fixed, each slice should continue to use:
   - compile sanity check
