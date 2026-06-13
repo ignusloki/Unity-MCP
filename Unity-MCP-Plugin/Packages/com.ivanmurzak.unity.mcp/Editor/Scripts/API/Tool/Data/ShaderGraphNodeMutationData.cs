@@ -56,6 +56,25 @@ namespace AIGD
         public float? PositionY { get; set; }
     }
 
+    [Description("Structured input for duplicating a supported Shader Graph node by serialized node id.")]
+    public class ShaderGraphDuplicateNodeInput
+    {
+        [Description("Serialized object id of the node to duplicate.")]
+        public string? NodeObjectId { get; set; }
+
+        [Description("Absolute serialized X position for the duplicate. If omitted, source position plus positionOffsetX is used.")]
+        public float? PositionX { get; set; }
+
+        [Description("Absolute serialized Y position for the duplicate. If omitted, source position plus positionOffsetY is used.")]
+        public float? PositionY { get; set; }
+
+        [Description("X offset added to the source node position when positionX is omitted. Default: 40.")]
+        public float? PositionOffsetX { get; set; }
+
+        [Description("Y offset added to the source node position when positionY is omitted. Default: 40.")]
+        public float? PositionOffsetY { get; set; }
+    }
+
     [Description("Structured input for deleting an existing Shader Graph node by serialized node id.")]
     public class ShaderGraphDeleteNodeInput
     {
@@ -231,7 +250,7 @@ namespace AIGD
     [Description("Result of adding an allowlisted Shader Graph node and re-importing the graph.")]
     public class ShaderGraphNodeMutationResultData
     {
-        [Description("Snapshot of the affected node. For add operations this is the created node after import; for delete operations this is the deleted node before removal.")]
+        [Description("Snapshot of the affected node. For add and duplicate operations this is the created node after import; for delete operations this is the deleted node before removal.")]
         public ShaderGraphNodeDefinitionData? Node { get; set; }
 
         [Description("Updated read-only graph structure after the mutation.")]

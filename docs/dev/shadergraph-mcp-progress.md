@@ -14,9 +14,9 @@ Update this file during day-to-day implementation. Keep `docs/dev/shadergraph-mc
 - Local Unity validation project: `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph`
 - Unity validation version: `6000.4.1f1`
 - Active epic: Epic 7, Node Lifecycle Foundation
-- Latest user-validated slice: Epic 10.4, higher-level guarded output-slot reroute workflow
-- Current code state: Epic 10.4 is user-validated and ready to commit
-- Next planned slice after commit: Epic 7.3, node duplication
+- Latest user-validated slice: Epic 7.3, node duplication
+- Current code state: Epic 7.3 is user-validated and ready to commit
+- Next planned slice after commit: Epic 7.4, lifecycle result payload normalization
 - Conditional future edge slice: Epic 10.5, additional compatibility cases only if concrete unsupported URP paths are found
 
 Current local environment note:
@@ -27,11 +27,32 @@ Current local environment note:
 
 ## Active Work
 
-Next implementation target:
+Epic 7.3 validated changes waiting to be committed:
 
-- Epic 7.3: node duplication.
-- Goal: duplicate a supported Shader Graph node with safe serialized identifiers, no copied edges, deterministic placement offset, graph reimport, diagnostics, and normalized result payload.
-- Stop for Unity validation after a duplicate node can be created and visually inspected.
+- Added `assets-shadergraph-duplicate-node`.
+- The tool duplicates `PropertyNode` plus the same allowlisted node families as `assets-shadergraph-add-node`.
+- It copies node settings and slot definitions with fresh serialized object ids.
+- It preserves blackboard property references for duplicated `PropertyNode` nodes.
+- It intentionally does not copy edges; duplicated nodes start disconnected and must be wired explicitly.
+- It supports explicit duplicate positions or a deterministic source-position offset.
+- Added editor coverage for successful connected-node duplication without copied edges and unsupported block-node rejection.
+
+Validation completed for Epic 7.3:
+
+- `dotnet build Assembly-CSharp.csproj -v minimal` passed in the local Unity validation project with `0` errors and existing unrelated warnings.
+- Live MCP validation graph: `Assets/ShaderGraphValidation/Codex_NodeDuplicate_Validation.shadergraph`.
+- Live MCP validation result:
+  - duplicated the connected template `Multiply` node
+  - created duplicate node `cac81a5a8d3a4c5a848a721af86f1d99`
+  - placed the duplicate at `(34, 338)`
+  - returned `node.duplicated`, `node.slot.duplicated`, `node.positionX`, and `node.positionY`
+  - increased `NodeCount` from `10` to `11`
+  - kept `EdgeCount = 4`
+  - left the duplicate with no connected edges
+  - produced no graph diagnostics errors
+  - user verified the graph in Unity
+
+Commit Epic 7.3 before starting Epic 7.4.
 
 Epic 10.5 note:
 
@@ -113,17 +134,17 @@ Completed:
 
 ### Epic 7: Node Lifecycle Foundation
 
-Status: partial
+Status: partial, active
 
 Completed:
 
 - Slice 7.1: allowlisted node creation.
 - Slice 7.2: node deletion with edge cleanup and Unity `canDeleteNode` guardrails.
+- Slice 7.3: node duplication.
 - Node position updates exist from the earlier mutation foundation.
 
 Remaining:
 
-- Slice 7.3: node duplication.
 - Slice 7.4: lifecycle result payload normalization.
 
 ### Epic 8: Node Parameter Editing
@@ -322,6 +343,16 @@ Remaining:
 - Node movement graph: `Assets/ShaderGraphValidation/Codex_NodeMove_Validation.shadergraph`.
 - Allowlisted node creation validated for math, vector, texture, control-flow, and PropertyNode families.
 - Node deletion validated with automatic edge cleanup.
+- Node duplication graph: `Assets/ShaderGraphValidation/Codex_NodeDuplicate_Validation.shadergraph`.
+- Node duplication validated:
+  - duplicated the connected template `Multiply` node
+  - created duplicate node `cac81a5a8d3a4c5a848a721af86f1d99`
+  - placed the duplicate at `(34, 338)`
+  - increased `NodeCount` from `10` to `11`
+  - kept `EdgeCount = 4`
+  - left the duplicate with no connected edges
+  - produced no Unity console errors
+  - user verified the graph in Unity
 
 ### Epic 8 Validation
 
@@ -376,7 +407,7 @@ Remaining:
 
 ## Validation Gaps
 
-- `dotnet build Assembly-CSharp.csproj -v minimal` passes in the local Unity test project with no warnings.
+- `dotnet build Assembly-CSharp.csproj -v minimal` passes in the local Unity test project with existing unrelated warnings.
 - Unity Test Runner command discovery still needs cleanup: earlier `tests-run` attempts did not discover the package editor tests from `TestShadergraph`.
 - Until the test runner setup is fixed, each slice should continue to use:
   - compile sanity check

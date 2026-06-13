@@ -990,6 +990,99 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_DuplicateNode_CopiesSupportedNodeWithoutEdges()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_DuplicateNode.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var structureBeforeDuplicate = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structureBeforeDuplicate.Nodes!
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.MultiplyNode");
+                var edgeCountBeforeDuplicate = structureBeforeDuplicate.Edges!.Count;
+                var nodeCountBeforeDuplicate = structureBeforeDuplicate.Nodes!.Count;
+
+                Assert.IsTrue(structureBeforeDuplicate.Edges.Any(e =>
+                        e.OutputNodeId == multiplyNode.ObjectId
+                        || e.InputNodeId == multiplyNode.ObjectId),
+                    "The validation graph should start with a connected Multiply node.");
+
+                var duplicateResult = tool.DuplicateNode(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphDuplicateNodeInput
+                    {
+                        NodeObjectId = multiplyNode.ObjectId,
+                        PositionOffsetX = 64f,
+                        PositionOffsetY = 48f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(duplicateResult);
+                Assert.IsTrue(duplicateResult.ChangedFields!.Contains("node.duplicated"));
+                Assert.IsTrue(duplicateResult.ChangedFields.Contains("node.slot.duplicated"));
+                Assert.IsTrue(duplicateResult.ChangedFields.Contains("node.positionX"));
+                Assert.IsTrue(duplicateResult.ChangedFields.Contains("node.positionY"));
+                Assert.IsNotNull(duplicateResult.Node);
+                Assert.AreEqual(multiplyNode.Type, duplicateResult.Node!.Type);
+                Assert.AreEqual(multiplyNode.Name, duplicateResult.Node.Name);
+                Assert.AreNotEqual(multiplyNode.ObjectId, duplicateResult.Node.ObjectId);
+                Assert.AreEqual(multiplyNode.PositionX + 64f, duplicateResult.Node.PositionX, 0.001f);
+                Assert.AreEqual(multiplyNode.PositionY + 48f, duplicateResult.Node.PositionY, 0.001f);
+                Assert.AreEqual(multiplyNode.Slots!.Count, duplicateResult.Node.Slots!.Count);
+                CollectionAssert.IsEmpty(multiplyNode.SlotObjectIds!.Intersect(duplicateResult.Node.SlotObjectIds!));
+
+                Assert.IsNotNull(duplicateResult.Structure);
+                Assert.AreEqual(nodeCountBeforeDuplicate + 1, duplicateResult.Structure!.Nodes!.Count);
+                Assert.AreEqual(edgeCountBeforeDuplicate, duplicateResult.Structure.Edges!.Count,
+                    "Duplicating a node should not copy or remove edges.");
+                Assert.IsFalse(duplicateResult.Structure.Edges.Any(e =>
+                        e.OutputNodeId == duplicateResult.Node.ObjectId
+                        || e.InputNodeId == duplicateResult.Node.ObjectId),
+                    "Duplicated nodes should start disconnected so agents must wire them explicitly.");
+
+                Assert.IsNotNull(duplicateResult.Graph);
+                Assert.IsTrue(duplicateResult.Graph!.ShaderResolved, "Duplicating a supported node should keep the Shader Graph import valid.");
+                Assert.IsFalse(duplicateResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Duplicating a supported node should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_DuplicateNode_UnsupportedBlockNode_Throws()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_DuplicateNode_Unsupported.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var blockNode = structure.Nodes!
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.BlockNode");
+
+                Assert.Throws<InvalidOperationException>(() => tool.DuplicateNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDuplicateNodeInput
+                    {
+                        NodeObjectId = blockNode.ObjectId
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_DeleteNode_RemovesNodeAndConnectedEdges()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_DeleteNode.shadergraph");

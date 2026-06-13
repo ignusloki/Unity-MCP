@@ -118,6 +118,14 @@ This document is the single source of truth for what the local ShaderGraph MCP i
     - `tilingAndOffset`
     - `branch`
   - Nodes are created without automatic edge wiring.
+- `assets-shadergraph-duplicate-node`
+  - Duplicates a supported existing node by serialized `nodeObjectId`.
+  - Supported node families:
+    - `PropertyNode`
+    - the same allowlisted node families as `assets-shadergraph-add-node`
+  - Copies node settings, slots, and property references with fresh serialized object ids.
+  - Does not copy edges; duplicates start disconnected and must be wired explicitly.
+  - Uses a default placement offset unless explicit duplicate position values are provided.
 - `assets-shadergraph-delete-node`
   - Deletes an existing node by serialized `nodeObjectId`.
   - Uses Unity's own node-removal flow and removes connected edges as part of the mutation.
@@ -269,6 +277,7 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - `assets-shadergraph-add-property`
 - `assets-shadergraph-add-property-node`
 - `assets-shadergraph-add-node`
+- `assets-shadergraph-duplicate-node`
 - `assets-shadergraph-delete-node`
 - `assets-shadergraph-update-node-settings`
 - `assets-shadergraph-update-node-position`
@@ -279,7 +288,6 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 
 ## Not Yet Exposed
 
-- Node duplication.
 - Robust editor-visible direct literal/default-slot mutation for the common dynamic-vector-driven node families without relying on the property-node workaround.
 - Multiply input-slot literal editing beyond the current `multiplyType` support.
 - Property deletion, reordering, and category placement.
