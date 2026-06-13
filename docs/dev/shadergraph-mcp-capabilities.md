@@ -104,6 +104,16 @@ This document is the single source of truth for what the local ShaderGraph MCP i
 
 ### Node Lifecycle Mutation
 
+Node lifecycle mutation results include normalized summary fields:
+
+- `operation`
+- `nodeObjectId`
+- `nodeType`
+- `changedFields`
+- `node`
+- `structure`
+- `graph`
+
 - `assets-shadergraph-add-node`
   - Current allowlisted node families:
     - `add`

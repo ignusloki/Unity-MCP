@@ -119,8 +119,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             var addedNode = structure.Nodes?
                 .FirstOrDefault(n => string.Equals(n.ObjectId, nodeObjectId, StringComparison.Ordinal));
 
+            if (addedNode == null)
+            {
+                throw new InvalidOperationException(
+                    $"Added Shader Graph property node '{nodeObjectId}' could not be resolved after re-import.");
+            }
+
             return new ShaderGraphNodeMutationResultData
             {
+                Operation = "addPropertyNode",
+                NodeObjectId = addedNode.ObjectId,
+                NodeType = addedNode.Type,
                 ChangedFields = new List<string>
                 {
                     "node.added",

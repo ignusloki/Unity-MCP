@@ -928,9 +928,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     includeProperties: true);
 
                 Assert.IsNotNull(sampleTextureNodeResult);
+                Assert.AreEqual("add", sampleTextureNodeResult.Operation);
                 Assert.IsTrue(sampleTextureNodeResult.ChangedFields!.Contains("node.added"));
                 Assert.IsNotNull(sampleTextureNodeResult.Node);
-                Assert.AreEqual("UnityEditor.ShaderGraph.SampleTexture2DNode", sampleTextureNodeResult.Node!.Type);
+                Assert.AreEqual(sampleTextureNodeResult.Node!.ObjectId, sampleTextureNodeResult.NodeObjectId);
+                Assert.AreEqual(sampleTextureNodeResult.Node.Type, sampleTextureNodeResult.NodeType);
+                Assert.AreEqual("UnityEditor.ShaderGraph.SampleTexture2DNode", sampleTextureNodeResult.Node.Type);
                 Assert.AreEqual("Sample Texture 2D", sampleTextureNodeResult.Node.Name);
                 Assert.AreEqual(-960f, sampleTextureNodeResult.Node.PositionX);
                 Assert.AreEqual(40f, sampleTextureNodeResult.Node.PositionY);
@@ -1022,12 +1025,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     includeProperties: true);
 
                 Assert.IsNotNull(duplicateResult);
+                Assert.AreEqual("duplicate", duplicateResult.Operation);
                 Assert.IsTrue(duplicateResult.ChangedFields!.Contains("node.duplicated"));
                 Assert.IsTrue(duplicateResult.ChangedFields.Contains("node.slot.duplicated"));
                 Assert.IsTrue(duplicateResult.ChangedFields.Contains("node.positionX"));
                 Assert.IsTrue(duplicateResult.ChangedFields.Contains("node.positionY"));
                 Assert.IsNotNull(duplicateResult.Node);
-                Assert.AreEqual(multiplyNode.Type, duplicateResult.Node!.Type);
+                Assert.AreEqual(duplicateResult.Node!.ObjectId, duplicateResult.NodeObjectId);
+                Assert.AreEqual(duplicateResult.Node.Type, duplicateResult.NodeType);
+                Assert.AreEqual(multiplyNode.Type, duplicateResult.Node.Type);
                 Assert.AreEqual(multiplyNode.Name, duplicateResult.Node.Name);
                 Assert.AreNotEqual(multiplyNode.ObjectId, duplicateResult.Node.ObjectId);
                 Assert.AreEqual(multiplyNode.PositionX + 64f, duplicateResult.Node.PositionX, 0.001f);
@@ -1110,10 +1116,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     includeProperties: true);
 
                 Assert.IsNotNull(deleteResult);
+                Assert.AreEqual("delete", deleteResult.Operation);
                 Assert.IsTrue(deleteResult.ChangedFields!.Contains("node.deleted"));
                 Assert.IsTrue(deleteResult.ChangedFields.Contains("edge.autoRemoved"),
                     "Deleting a connected node should report that edges were cleaned up automatically.");
                 Assert.IsNotNull(deleteResult.Node);
+                Assert.AreEqual(baseColorNode.ObjectId, deleteResult.NodeObjectId);
+                Assert.AreEqual("UnityEditor.ShaderGraph.PropertyNode", deleteResult.NodeType);
                 Assert.AreEqual(baseColorNode.ObjectId, deleteResult.Node!.ObjectId);
                 Assert.AreEqual("UnityEditor.ShaderGraph.PropertyNode", deleteResult.Node.Type);
                 Assert.AreEqual(1, deleteResult.RemovedEdgeCount,
@@ -1691,7 +1700,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     includeProperties: true);
 
                 Assert.IsNotNull(movedColorNode);
+                Assert.AreEqual("updatePosition", movedColorNode.Operation);
                 Assert.IsNotNull(movedColorNode.Node);
+                Assert.AreEqual(baseColorNode.ObjectId, movedColorNode.NodeObjectId);
+                Assert.AreEqual("UnityEditor.ShaderGraph.PropertyNode", movedColorNode.NodeType);
                 Assert.IsTrue(movedColorNode.ChangedFields!.Contains("node.positionX"));
                 Assert.IsTrue(movedColorNode.ChangedFields.Contains("node.positionY"));
                 Assert.AreEqual(-240f, movedColorNode.Node!.PositionX);

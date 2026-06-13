@@ -119,6 +119,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             return new ShaderGraphNodeMutationResultData
             {
+                Operation = "delete",
+                NodeObjectId = deletedNode.ObjectId,
+                NodeType = deletedNode.Type,
                 ChangedFields = changedFields,
                 Node = deletedNode,
                 RemovedEdgeCount = removedEdgeCount,

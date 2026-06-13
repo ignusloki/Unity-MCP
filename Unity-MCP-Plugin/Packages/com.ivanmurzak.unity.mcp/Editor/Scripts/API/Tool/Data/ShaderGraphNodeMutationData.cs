@@ -247,9 +247,18 @@ namespace AIGD
         public string? MultiplyType { get; set; }
     }
 
-    [Description("Result of adding an allowlisted Shader Graph node and re-importing the graph.")]
+    [Description("Result of mutating a Shader Graph node and re-importing the graph.")]
     public class ShaderGraphNodeMutationResultData
     {
+        [Description("Stable operation identifier such as add, addPropertyNode, duplicate, delete, updatePosition, or updateSettings.")]
+        public string? Operation { get; set; }
+
+        [Description("Serialized object id of the affected node. For delete operations this is the deleted node id.")]
+        public string? NodeObjectId { get; set; }
+
+        [Description("Serialized type of the affected node, when resolved.")]
+        public string? NodeType { get; set; }
+
         [Description("Snapshot of the affected node. For add and duplicate operations this is the created node after import; for delete operations this is the deleted node before removal.")]
         public ShaderGraphNodeDefinitionData? Node { get; set; }
 

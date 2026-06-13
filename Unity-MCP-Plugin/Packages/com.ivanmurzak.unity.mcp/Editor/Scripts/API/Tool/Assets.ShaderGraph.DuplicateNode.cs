@@ -156,6 +156,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             return new ShaderGraphNodeMutationResultData
             {
+                Operation = "duplicate",
+                NodeObjectId = duplicatedNode.ObjectId,
+                NodeType = duplicatedNode.Type,
                 ChangedFields = changedFields,
                 Node = duplicatedNode,
                 Structure = structure,

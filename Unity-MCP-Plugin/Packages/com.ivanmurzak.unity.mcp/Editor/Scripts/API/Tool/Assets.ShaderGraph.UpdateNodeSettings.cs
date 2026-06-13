@@ -219,6 +219,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             return new ShaderGraphNodeMutationResultData
             {
+                Operation = "updateSettings",
+                NodeObjectId = updatedNode?.ObjectId,
+                NodeType = updatedNode?.Type,
                 ChangedFields = changedFields,
                 Node = updatedNode,
                 Structure = structure,
