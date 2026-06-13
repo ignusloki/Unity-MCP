@@ -13,8 +13,8 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 ## Scope Now
 
 - Current ShaderGraph integration branch: `custom/shadergraph-mcp`
-- Latest validated slice on that branch: Epic 10 Slice 10.1 single-input edge replacement
-- Current package baseline in the local validation project: `com.ivanmurzak.unity.mcp` version `0.80.1`
+- Latest validated slice on that branch: Epic 10 Slice 10.2 reconnect edge flow
+- Current package baseline in the local validation project: `com.ivanmurzak.unity.mcp` version `0.81.0`
 - Base branch: `custom/main`
 - Date opened: `2026-06-05`
 
@@ -220,7 +220,8 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
    - Current state:
      - connect/disconnect baseline exists
      - Slice 10.1 is implemented: explicit single-input replacement now exists through `replaceExistingInputConnection`
-     - broader reconnect semantics and higher-level rewiring workflows are still missing
+     - Slice 10.2 is implemented: explicit reconnect now moves an existing edge to a new output endpoint, input endpoint, or both
+     - expanded compatibility handling and higher-level rewiring workflows are still missing
 
 5. **Epic 11: URP Stack And Target Coverage**
    - Expand URP settings coverage beyond the current allowlist
@@ -360,6 +361,12 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - Returned mutation summary included `edge.disconnected`, `edge.replaced`, and `edge.connected`
   - Post-mutation structure kept `EdgeCount = 4`
   - No Unity console errors were produced during the replacement
+- Epic 10 reconnect slice validated live in Unity through `script_execute` and user verification:
+  - Created validation graph: `Assets/ShaderGraphValidation/Codex_EdgeReconnect_Validation.shadergraph`
+  - Reconnected `_BaseColor -> Multiply.B` to `_AccentColor -> Multiply.B`
+  - Reconnected `Multiply.Out -> SurfaceDescription.BaseColor` to `Multiply.Out -> SurfaceDescription.Emission`
+  - Returned mutation summaries included `edge.disconnected`, `edge.reconnected`, and `edge.connected`
+  - Post-mutation structure kept `EdgeCount = 4`
 - Shader Graph live result after creation:
   - `SourceParsed = true`
   - `ShaderResolved = true`
@@ -397,7 +404,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
   - remaining gap: typed add/update and PropertyNode support are done for the key property types, but delete/reorder/category work is still missing
   - note: the remaining Epic 9 work is not blocked by the Epic 8 limitation
 - [ ] Epic 10: Edge system V2
-  - current state: Slice 10.1 is validated; broader reconnect and rewiring flows are still missing
+  - current state: Slices 10.1 and 10.2 are validated; expanded compatibility and higher-level rewiring flows are still missing
 - [ ] Epic 11: URP stack and target coverage
 - [ ] Epic 12: Texture and asset-reference workflows
 - [ ] Epic 13: Graph organization and cleanup
@@ -408,7 +415,7 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 
 - The roadmap is now reprioritized around closing the control gaps required for practical URP authoring parity
 - The current integrated branch already carries the validated Epic 7, Epic 8 slices, and Epic 9 work
-- The latest validated slice belongs to **Epic 10: Edge System V2, Slice 10.1**
+- The latest validated slice belongs to **Epic 10: Edge System V2, Slice 10.2**
 - Epic 8 is considered done for the current URP-first track, with the workaround and limitation explicitly accepted and tracked as future follow-up
 - Epic 9 is only partially complete; its remaining work is independent of Epic 8 and was deferred because edge rewiring had higher immediate value for practical MCP control
 - Texture asset-reference workflows remain deferred behind the higher-value graph-control gaps
@@ -417,9 +424,9 @@ Add safe, incremental Unity MCP support for Shader Graph discovery, diagnostics,
 - The current Epic 8 workaround is accepted for now, but it is not the long-term final answer for direct literal/default-slot editing
 - The next epic to focus is:
   - **Epic 10: Edge system V2**
-- First slice recommendation inside Epic 10:
-  - Slice 10.2: add broader reconnect semantics for already-connected inputs without requiring a separate manual disconnect step
-  - normalize result payloads and changed-field reporting across connect, disconnect, and replace
+- Next slice recommendation inside Epic 10:
+  - Slice 10.3: expand safe compatibility handling for the high-value URP slot families still missing from the current matrix
+  - validate replacement and reconnect flows against common PropertyNode, math, vector, and texture node paths
   - keep all rewiring behavior explicit and opt-in
 - After Epic 10 is completed for the current priority track:
   - return to Epic 9 starting with Slice 9.1 property deletion

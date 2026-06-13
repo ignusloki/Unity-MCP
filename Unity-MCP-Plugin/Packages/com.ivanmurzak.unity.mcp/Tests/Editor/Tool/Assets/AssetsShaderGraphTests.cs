@@ -1768,6 +1768,178 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_ReconnectEdge_RetargetsMultiplyColorInputToAccentPropertyNode()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ReconnectEdge_Output.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Accent",
+                        OverrideReferenceName = "_AccentColor",
+                        ColorHex = "#44CC88FF"
+                    });
+
+                var accentNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_AccentColor",
+                        PositionX = -720f,
+                        PositionY = 120f
+                    });
+
+                var structureBeforeReconnect = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structureBeforeReconnect.Nodes!
+                    .First(n => n.Name == "Multiply");
+                var multiplyInputB = multiplyNode.Slots!
+                    .First(s => s.DisplayName == "B");
+                var baseColorNode = structureBeforeReconnect.Nodes
+                    .First(n => n.Type == "UnityEditor.ShaderGraph.PropertyNode"
+                        && n.PropertyReferenceName == "_BaseColor");
+                var baseColorOutput = baseColorNode.Slots!.Single();
+                var accentOutput = accentNodeResult.Node!.Slots!.Single();
+
+                var reconnectResult = tool.ReconnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphReconnectEdgeInput
+                    {
+                        ExistingOutputNodeObjectId = baseColorNode.ObjectId,
+                        ExistingOutputSlotObjectId = baseColorOutput.ObjectId,
+                        ExistingInputNodeObjectId = multiplyNode.ObjectId,
+                        ExistingInputSlotObjectId = multiplyInputB.ObjectId,
+                        NewOutputNodeObjectId = accentNodeResult.Node.ObjectId,
+                        NewOutputSlotObjectId = accentOutput.ObjectId
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(reconnectResult);
+                Assert.IsTrue(reconnectResult.ChangedFields!.Contains("edge.disconnected"));
+                Assert.IsTrue(reconnectResult.ChangedFields.Contains("edge.reconnected"));
+                Assert.IsTrue(reconnectResult.ChangedFields.Contains("edge.connected"));
+                Assert.IsNotNull(reconnectResult.RemovedEdge);
+                Assert.AreEqual(baseColorNode.ObjectId, reconnectResult.RemovedEdge!.OutputNodeId);
+                Assert.AreEqual(baseColorOutput.SlotId, reconnectResult.RemovedEdge.OutputSlotId);
+                Assert.AreEqual(multiplyNode.ObjectId, reconnectResult.RemovedEdge.InputNodeId);
+                Assert.AreEqual(multiplyInputB.SlotId, reconnectResult.RemovedEdge.InputSlotId);
+
+                Assert.IsNotNull(reconnectResult.RemovedEdges);
+                Assert.AreEqual(1, reconnectResult.RemovedEdges!.Count);
+                Assert.IsNotNull(reconnectResult.Edge);
+                Assert.AreEqual(accentNodeResult.Node.ObjectId, reconnectResult.Edge!.OutputNodeId);
+                Assert.AreEqual(accentOutput.SlotId, reconnectResult.Edge.OutputSlotId);
+                Assert.AreEqual(multiplyNode.ObjectId, reconnectResult.Edge.InputNodeId);
+                Assert.AreEqual(multiplyInputB.SlotId, reconnectResult.Edge.InputSlotId);
+
+                Assert.IsNotNull(reconnectResult.Structure);
+                Assert.IsTrue(reconnectResult.Structure!.Edges!.Any(e =>
+                    e.OutputNodeId == accentNodeResult.Node.ObjectId
+                    && e.OutputSlotId == accentOutput.SlotId
+                    && e.InputNodeId == multiplyNode.ObjectId
+                    && e.InputSlotId == multiplyInputB.SlotId));
+                Assert.IsFalse(reconnectResult.Structure.Edges.Any(e =>
+                    e.OutputNodeId == baseColorNode.ObjectId
+                    && e.OutputSlotId == baseColorOutput.SlotId
+                    && e.InputNodeId == multiplyNode.ObjectId
+                    && e.InputSlotId == multiplyInputB.SlotId),
+                    "The previous _BaseColor connection into Multiply.B should be removed during reconnect.");
+
+                Assert.IsNotNull(reconnectResult.Graph);
+                Assert.IsTrue(reconnectResult.Graph!.ShaderResolved, "Reconnecting an existing edge to a new output should keep the shader import valid.");
+                Assert.IsFalse(reconnectResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Reconnecting an existing edge to a new output should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ReconnectEdge_RetargetsMultiplyOutputToEmissionBlock()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ReconnectEdge_Input.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var structureBeforeReconnect = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structureBeforeReconnect.Nodes!
+                    .First(n => n.Name == "Multiply");
+                var multiplyOutput = multiplyNode.Slots!
+                    .First(s => s.DisplayName == "Out");
+                var baseColorBlock = structureBeforeReconnect.Nodes
+                    .First(n => n.Name == "SurfaceDescription.BaseColor");
+                var baseColorInput = baseColorBlock.Slots!.Single();
+                var emissionBlock = structureBeforeReconnect.Nodes
+                    .First(n => n.Name == "SurfaceDescription.Emission");
+                var emissionInput = emissionBlock.Slots!.Single();
+
+                var reconnectResult = tool.ReconnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphReconnectEdgeInput
+                    {
+                        ExistingOutputNodeObjectId = multiplyNode.ObjectId,
+                        ExistingOutputSlotObjectId = multiplyOutput.ObjectId,
+                        ExistingInputNodeObjectId = baseColorBlock.ObjectId,
+                        ExistingInputSlotObjectId = baseColorInput.ObjectId,
+                        NewInputNodeObjectId = emissionBlock.ObjectId,
+                        NewInputSlotObjectId = emissionInput.ObjectId
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(reconnectResult);
+                Assert.IsTrue(reconnectResult.ChangedFields!.Contains("edge.disconnected"));
+                Assert.IsTrue(reconnectResult.ChangedFields.Contains("edge.reconnected"));
+                Assert.IsTrue(reconnectResult.ChangedFields.Contains("edge.connected"));
+
+                Assert.IsNotNull(reconnectResult.Edge);
+                Assert.AreEqual(multiplyNode.ObjectId, reconnectResult.Edge!.OutputNodeId);
+                Assert.AreEqual(multiplyOutput.SlotId, reconnectResult.Edge.OutputSlotId);
+                Assert.AreEqual(emissionBlock.ObjectId, reconnectResult.Edge.InputNodeId);
+                Assert.AreEqual(emissionInput.SlotId, reconnectResult.Edge.InputSlotId);
+
+                Assert.IsNotNull(reconnectResult.RemovedEdges);
+                Assert.AreEqual(1, reconnectResult.RemovedEdges!.Count);
+                Assert.AreEqual(baseColorBlock.ObjectId, reconnectResult.RemovedEdges[0].InputNodeId);
+                Assert.AreEqual(baseColorInput.SlotId, reconnectResult.RemovedEdges[0].InputSlotId);
+
+                Assert.IsNotNull(reconnectResult.Structure);
+                Assert.IsTrue(reconnectResult.Structure!.Edges!.Any(e =>
+                    e.OutputNodeId == multiplyNode.ObjectId
+                    && e.OutputSlotId == multiplyOutput.SlotId
+                    && e.InputNodeId == emissionBlock.ObjectId
+                    && e.InputSlotId == emissionInput.SlotId));
+                Assert.IsFalse(reconnectResult.Structure.Edges.Any(e =>
+                    e.OutputNodeId == multiplyNode.ObjectId
+                    && e.OutputSlotId == multiplyOutput.SlotId
+                    && e.InputNodeId == baseColorBlock.ObjectId
+                    && e.InputSlotId == baseColorInput.SlotId),
+                    "The previous Multiply.Out -> Base Color edge should be removed during reconnect.");
+
+                Assert.IsNotNull(reconnectResult.Graph);
+                Assert.IsTrue(reconnectResult.Graph!.ShaderResolved, "Reconnecting an existing edge to a new input should keep the shader import valid.");
+                Assert.IsFalse(reconnectResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Reconnecting an existing edge to a new input should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_ConnectEdge_ReplaceExistingInputConnection_ReroutesMultiplyColorInput()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateEdge_Replace.shadergraph");

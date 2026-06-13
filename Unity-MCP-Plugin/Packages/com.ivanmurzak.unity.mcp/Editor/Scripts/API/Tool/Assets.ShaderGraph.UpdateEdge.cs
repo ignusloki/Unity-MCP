@@ -25,6 +25,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
     {
         public const string AssetsShaderGraphConnectEdgeToolId = "assets-shadergraph-connect-edge";
         public const string AssetsShaderGraphDisconnectEdgeToolId = "assets-shadergraph-disconnect-edge";
+        public const string AssetsShaderGraphReconnectEdgeToolId = "assets-shadergraph-reconnect-edge";
 
         static readonly HashSet<string> DynamicCompatibleSlotTypes = new(StringComparer.Ordinal)
         {
@@ -118,6 +119,45 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeProperties: includeProperties ?? false));
         }
 
+        [AiTool
+        (
+            AssetsShaderGraphReconnectEdgeToolId,
+            Title = "Assets / Shader Graph / Reconnect Edge"
+        )]
+        [AiSkillDescription("Reconnect an existing Shader Graph edge to a new output or input endpoint, then re-import the graph and return the mutation details and diagnostics.")]
+        [AiSkillBody("Reconnect an existing edge inside a '.shadergraph' asset.\n\n" +
+            "Current support is intentionally explicit and safe:\n" +
+            "- selection starts from an exact existing edge\n" +
+            "- you may move the output side, the input side, or both\n" +
+            "- at least one side must change\n" +
+            "- compatibility is validated before the new edge is written\n" +
+            "- if the new target input is already occupied, set `replaceExistingInputConnection` to true to replace it explicitly\n\n" +
+            "Use `assets-shadergraph-get-structure` first to inspect node ids, slot ids, and current edges.")]
+        [Description("Reconnect an existing Shader Graph edge to a new endpoint and re-import the graph.")]
+        public ShaderGraphEdgeMutationResultData ReconnectEdge(
+            AssetObjectRef assetRef,
+            ShaderGraphReconnectEdgeInput edge,
+            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            bool? includeMessages = false,
+            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            bool? includeProperties = false)
+        {
+            if (assetRef == null)
+                throw new ArgumentNullException(nameof(assetRef));
+
+            if (!assetRef.IsValid(out var error))
+                throw new ArgumentException(error, nameof(assetRef));
+
+            if (edge == null)
+                throw new ArgumentNullException(nameof(edge));
+
+            return MainThread.Instance.Run(() => ReconnectShaderGraphEdge(
+                assetRef,
+                edge,
+                includeMessages: includeMessages ?? false,
+                includeProperties: includeProperties ?? false));
+        }
+
         static ShaderGraphEdgeMutationResultData ConnectShaderGraphEdge(
             AssetObjectRef assetRef,
             ShaderGraphConnectEdgeInput edge,
@@ -168,10 +208,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             var graphRef = new AssetObjectRef(assetPath);
             var changedFields = new List<string>();
+            var removedEdges = new List<ShaderGraphEdgeDefinitionData>();
             if (removedEdge != null)
             {
                 changedFields.Add("edge.disconnected");
                 changedFields.Add("edge.replaced");
+                removedEdges.Add(removedEdge);
             }
 
             changedFields.Add("edge.connected");
@@ -181,6 +223,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 ChangedFields = changedFields,
                 Edge = CreateEdgeDefinition(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId),
                 RemovedEdge = removedEdge,
+                RemovedEdges = removedEdges.Count == 0 ? null : removedEdges,
                 Structure = BuildShaderGraphStructureData(graphRef),
                 Graph = BuildShaderGraphData(
                     graphRef,
@@ -221,10 +264,119 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
 
             var graphRef = new AssetObjectRef(assetPath);
+            var removedEdge = CreateEdgeDefinition(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId);
             return new ShaderGraphEdgeMutationResultData
             {
                 ChangedFields = new List<string> { "edge.disconnected" },
-                Edge = CreateEdgeDefinition(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId),
+                Edge = removedEdge,
+                RemovedEdge = removedEdge,
+                RemovedEdges = new List<ShaderGraphEdgeDefinitionData> { removedEdge },
+                Structure = BuildShaderGraphStructureData(graphRef),
+                Graph = BuildShaderGraphData(
+                    graphRef,
+                    includeMessages: includeMessages,
+                    includeProperties: includeProperties,
+                    includeDiagnostics: true)
+            };
+        }
+
+        static ShaderGraphEdgeMutationResultData ReconnectShaderGraphEdge(
+            AssetObjectRef assetRef,
+            ShaderGraphReconnectEdgeInput edge,
+            bool includeMessages,
+            bool includeProperties)
+        {
+            var assetPath = ResolveAssetPath(assetRef);
+            if (!IsShaderGraphAssetPath(assetPath))
+                throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
+
+            var document = LoadMutableDocument(assetPath);
+            var existingOutputSlot = ResolveNodeSlot(document, edge.ExistingOutputNodeObjectId, edge.ExistingOutputSlotObjectId, expectedSlotType: 1);
+            var existingInputSlot = ResolveNodeSlot(document, edge.ExistingInputNodeObjectId, edge.ExistingInputSlotObjectId, expectedSlotType: 0);
+            var newOutputSlot = ResolveReconnectOutputSlot(document, edge, existingOutputSlot);
+            var newInputSlot = ResolveReconnectInputSlot(document, edge, existingInputSlot);
+
+            if (existingOutputSlot.NodeObjectId == newOutputSlot.NodeObjectId
+                && existingOutputSlot.SlotId == newOutputSlot.SlotId
+                && existingInputSlot.NodeObjectId == newInputSlot.NodeObjectId
+                && existingInputSlot.SlotId == newInputSlot.SlotId)
+            {
+                throw new InvalidOperationException("Reconnect requested no effective edge change.");
+            }
+
+            ValidateEdgeCompatibility(newOutputSlot, newInputSlot);
+
+            var edgesArray = EnsureEdgeArray(document.Root);
+            var existingEdgeIndex = FindEdgeIndex(
+                edgesArray,
+                existingOutputSlot.NodeObjectId,
+                existingOutputSlot.SlotId,
+                existingInputSlot.NodeObjectId,
+                existingInputSlot.SlotId);
+
+            if (existingEdgeIndex < 0)
+            {
+                throw new InvalidOperationException(
+                    $"The requested edge was not found: {existingOutputSlot.NodeObjectId}:{existingOutputSlot.SlotId} -> {existingInputSlot.NodeObjectId}:{existingInputSlot.SlotId}.");
+            }
+
+            var removedEdges = new List<ShaderGraphEdgeDefinitionData>();
+            var removedEdge = CreateEdgeDefinition(
+                existingOutputSlot.NodeObjectId,
+                existingOutputSlot.SlotId,
+                existingInputSlot.NodeObjectId,
+                existingInputSlot.SlotId);
+            removedEdges.Add(removedEdge);
+            edgesArray.RemoveAt(existingEdgeIndex);
+
+            if (FindEdgeIndex(edgesArray, newOutputSlot.NodeObjectId, newOutputSlot.SlotId, newInputSlot.NodeObjectId, newInputSlot.SlotId) >= 0)
+            {
+                throw new InvalidOperationException(
+                    $"The requested reconnected edge already exists: {newOutputSlot.NodeObjectId}:{newOutputSlot.SlotId} -> {newInputSlot.NodeObjectId}:{newInputSlot.SlotId}.");
+            }
+
+            var incomingEdgeIndex = FindIncomingEdgeIndex(edgesArray, newInputSlot.NodeObjectId, newInputSlot.SlotId);
+            if (incomingEdgeIndex >= 0)
+            {
+                if (edge.ReplaceExistingInputConnection != true)
+                {
+                    throw new InvalidOperationException(
+                        $"Input slot '{newInputSlot.SlotObjectId}' on node '{newInputSlot.NodeObjectId}' is already connected. Disconnect it first or set `replaceExistingInputConnection` to true.");
+                }
+
+                if (edgesArray[incomingEdgeIndex] is not JsonObject existingIncomingEdgeObject)
+                    throw new InvalidOperationException("The existing incoming Shader Graph edge could not be resolved.");
+
+                removedEdges.Add(ReadEdgeDefinition(existingIncomingEdgeObject));
+                edgesArray.RemoveAt(incomingEdgeIndex);
+            }
+
+            edgesArray.Add(CreateEdgeObject(newOutputSlot.NodeObjectId, newOutputSlot.SlotId, newInputSlot.NodeObjectId, newInputSlot.SlotId));
+
+            WriteMutableDocument(document);
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+
+            var graphRef = new AssetObjectRef(assetPath);
+            var changedFields = new List<string>
+            {
+                "edge.disconnected",
+                "edge.reconnected"
+            };
+
+            if (removedEdges.Count > 1)
+                changedFields.Add("edge.replaced");
+
+            changedFields.Add("edge.connected");
+
+            return new ShaderGraphEdgeMutationResultData
+            {
+                ChangedFields = changedFields,
+                Edge = CreateEdgeDefinition(newOutputSlot.NodeObjectId, newOutputSlot.SlotId, newInputSlot.NodeObjectId, newInputSlot.SlotId),
+                RemovedEdge = removedEdge,
+                RemovedEdges = removedEdges,
                 Structure = BuildShaderGraphStructureData(graphRef),
                 Graph = BuildShaderGraphData(
                     graphRef,
@@ -394,6 +546,36 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             }
 
             return CreateEdgeDefinition(outputNodeId!, outputSlotId.Value, inputNodeId!, inputSlotId.Value);
+        }
+
+        static NodeSlotContext ResolveReconnectOutputSlot(
+            ShaderGraphMutableDocument document,
+            ShaderGraphReconnectEdgeInput edge,
+            NodeSlotContext existingOutputSlot)
+        {
+            var hasNewOutputNode = !string.IsNullOrWhiteSpace(edge.NewOutputNodeObjectId);
+            var hasNewOutputSlot = !string.IsNullOrWhiteSpace(edge.NewOutputSlotObjectId);
+            if (hasNewOutputNode != hasNewOutputSlot)
+                throw new ArgumentException("Reconnect output updates require both new output node and slot ids.");
+
+            return hasNewOutputNode
+                ? ResolveNodeSlot(document, edge.NewOutputNodeObjectId, edge.NewOutputSlotObjectId, expectedSlotType: 1)
+                : existingOutputSlot;
+        }
+
+        static NodeSlotContext ResolveReconnectInputSlot(
+            ShaderGraphMutableDocument document,
+            ShaderGraphReconnectEdgeInput edge,
+            NodeSlotContext existingInputSlot)
+        {
+            var hasNewInputNode = !string.IsNullOrWhiteSpace(edge.NewInputNodeObjectId);
+            var hasNewInputSlot = !string.IsNullOrWhiteSpace(edge.NewInputSlotObjectId);
+            if (hasNewInputNode != hasNewInputSlot)
+                throw new ArgumentException("Reconnect input updates require both new input node and slot ids.");
+
+            return hasNewInputNode
+                ? ResolveNodeSlot(document, edge.NewInputNodeObjectId, edge.NewInputSlotObjectId, expectedSlotType: 0)
+                : existingInputSlot;
         }
 
         static int FindIncomingEdgeIndex(JsonArray edgesArray, string inputNodeObjectId, int inputSlotId)

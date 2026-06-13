@@ -49,6 +49,37 @@ namespace AIGD
         public string? InputSlotObjectId { get; set; }
     }
 
+    [Description("Structured input for reconnecting an existing Shader Graph edge to a new endpoint.")]
+    public class ShaderGraphReconnectEdgeInput
+    {
+        [Description("Serialized object id of the existing output node.")]
+        public string? ExistingOutputNodeObjectId { get; set; }
+
+        [Description("Serialized object id of the existing output slot attached to existingOutputNodeObjectId.")]
+        public string? ExistingOutputSlotObjectId { get; set; }
+
+        [Description("Serialized object id of the existing input node.")]
+        public string? ExistingInputNodeObjectId { get; set; }
+
+        [Description("Serialized object id of the existing input slot attached to existingInputNodeObjectId.")]
+        public string? ExistingInputSlotObjectId { get; set; }
+
+        [Description("Serialized object id of the new output node. Optional if the output side should stay unchanged.")]
+        public string? NewOutputNodeObjectId { get; set; }
+
+        [Description("Serialized object id of the new output slot attached to newOutputNodeObjectId. Optional if the output side should stay unchanged.")]
+        public string? NewOutputSlotObjectId { get; set; }
+
+        [Description("Serialized object id of the new input node. Optional if the input side should stay unchanged.")]
+        public string? NewInputNodeObjectId { get; set; }
+
+        [Description("Serialized object id of the new input slot attached to newInputNodeObjectId. Optional if the input side should stay unchanged.")]
+        public string? NewInputSlotObjectId { get; set; }
+
+        [Description("When true, automatically disconnect any other incoming edge already attached to the new target input before creating the reconnected edge. Default: false")]
+        public bool? ReplaceExistingInputConnection { get; set; }
+    }
+
     [Description("Result of mutating Shader Graph edges and re-importing the graph.")]
     public class ShaderGraphEdgeMutationResultData
     {
@@ -57,6 +88,9 @@ namespace AIGD
 
         [Description("Snapshot of the previously connected incoming edge that was removed during a replace operation, if any.")]
         public ShaderGraphEdgeDefinitionData? RemovedEdge { get; set; }
+
+        [Description("Snapshots of every edge removed during the mutation, including the primary disconnected edge and any replaced incoming edge.")]
+        public List<ShaderGraphEdgeDefinitionData>? RemovedEdges { get; set; }
 
         [Description("Updated read-only graph structure after the mutation.")]
         public ShaderGraphStructureData? Structure { get; set; }

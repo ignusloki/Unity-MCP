@@ -152,6 +152,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
                     ("assets-shadergraph-update-node-settings", "Update supported serialized settings on existing graph nodes"),
                     ("assets-shadergraph-update-node-position", "Move existing graph nodes by serialized id"),
                     ("assets-shadergraph-connect-edge",         "Connect compatible existing graph slots"),
+                    ("assets-shadergraph-reconnect-edge",       "Reconnect an existing graph edge to a new endpoint"),
                     ("assets-shadergraph-disconnect-edge",      "Disconnect existing graph edges"),
                 },
                 mode: ExtensionPanel.ExtensionMode.BuiltInToolGroup
