@@ -144,6 +144,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
                     ("assets-shadergraph-create-material",      "Create a Material from a Shader Graph's compiled shader"),
                     ("assets-shadergraph-create-from-style-recipe", "Create graph and material assets from a style recipe"),
                     ("assets-shadergraph-set-settings",         "Update safe graph and URP target settings"),
+                    ("assets-shadergraph-set-blocks",           "Set ordered built-in vertex or fragment block stacks"),
                     ("assets-shadergraph-update-property",      "Update existing blackboard properties"),
                     ("assets-shadergraph-add-property",         "Add new blackboard properties"),
                     ("assets-shadergraph-delete-property",      "Delete blackboard properties with dependent node cleanup"),

@@ -66,6 +66,34 @@ This document is the single source of truth for what the local ShaderGraph MCP i
     - `universalTarget.customEditorGui`
     - `universalTarget.supportVfx`
 
+### Stack And Block Mutation
+
+- `assets-shadergraph-set-blocks`
+  - Sets the ordered built-in block stack for one selected context: `vertex` or `fragment`.
+  - This is a full replacement list for the selected context's supported built-in blocks.
+  - Missing requested blocks are created with Unity-compatible slots.
+  - Existing supported blocks omitted from the requested list are removed only when unconnected unless `allowRemovingConnectedBlocks` is true.
+  - Supported vertex blocks:
+    - `position`
+    - `normal`
+    - `tangent`
+    - `motionVector`
+  - Supported fragment blocks:
+    - `baseColor`
+    - `normalTS`
+    - `normalOS`
+    - `normalWS`
+    - `metallic`
+    - `specular`
+    - `smoothness`
+    - `occlusion`
+    - `emission`
+    - `alpha`
+    - `alphaClipThreshold`
+    - `normalAlpha`
+    - `maosAlpha`
+  - After block creation, use `assets-shadergraph-get-structure` to inspect block node ids and slots, then use the edge tools to connect values into those block slots.
+
 ### Blackboard Property Mutation
 
 Blackboard property mutation results include normalized summary fields:
@@ -321,6 +349,7 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - `assets-shadergraph-create-material`
 - `assets-shadergraph-create-from-style-recipe`
 - `assets-shadergraph-set-settings`
+- `assets-shadergraph-set-blocks`
 - `assets-shadergraph-update-property`
 - `assets-shadergraph-add-property`
 - `assets-shadergraph-delete-property`
@@ -346,4 +375,4 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - Additional higher-level guarded rewiring workflows beyond the current connect, disconnect, replace, reconnect, and output-slot reroute flows.
 - Groups, sticky notes, and other graph cleanup and organization tools.
 - Subgraphs, custom function nodes, keywords, enums, and other long-tail Shader Graph authoring flows.
-- Broader URP subtarget, stack, and block mutation parity beyond the current root and Universal target scalar settings allowlist.
+- Broader URP subtarget and unsupported/custom block mutation parity beyond the current Universal target and built-in stack allowlists.

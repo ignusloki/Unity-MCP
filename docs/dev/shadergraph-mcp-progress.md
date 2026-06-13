@@ -14,9 +14,9 @@ Update this file during day-to-day implementation. Keep `docs/dev/shadergraph-mc
 - Local Unity validation project: `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph`
 - Unity validation version: `6000.4.1f1`
 - Active epic: Epic 11, URP Stack And Target Coverage
-- Latest user-validated slice: Epic 11.2, expanded safe URP target settings
-- Current code state: Epic 11.2 is user-validated and ready to commit
-- Next planned slice: Epic 11.3, add stack/block control where serialized structure is stable
+- Latest user-validated slice: Epic 11.3, stable built-in stack/block control
+- Current code state: Epic 11.3 is user-validated and ready to commit
+- Next planned slice: Epic 11.4, validate remaining common URP authoring target coverage
 - Conditional future edge slice: Epic 10.5, additional compatibility cases only if concrete unsupported URP paths are found
 
 Current local environment note:
@@ -43,10 +43,31 @@ Epic 11.2 validation completed:
 - Unity validation graph prepared at `Assets/ShaderGraphValidation/Codex_URPTargetSettings_Validation.shadergraph`.
 - User validated the graph in Unity.
 
-Next slice:
+Epic 11.3 implementation target:
 
-- Epic 11.3: add stack/block control where serialized structure is stable.
+- Add `assets-shadergraph-set-blocks`.
+- Support full replacement of one ordered built-in block stack at a time: `vertex` or `fragment`.
+- Create missing built-in blocks with Unity-compatible default slots.
+- Refuse to remove connected blocks unless `allowRemovingConnectedBlocks` is true.
+- Register the tool under Ivan's built-in `ShaderGraph` Extensions group.
+- Prepare Unity validation graph at `Assets/ShaderGraphValidation/Codex_BlockStack_Validation.shadergraph`.
 - Subtarget-only fields such as Default Decal Blending and Default SSAO still require separate serialized-path validation before mutation support.
+
+Epic 11.3 validation completed:
+
+- Validation graph: `Assets/ShaderGraphValidation/Codex_BlockStack_Validation.shadergraph`.
+- MCP result reported `SourceParsed=true`, `ShaderResolved=true`, and no error diagnostics.
+- Fragment stack order reported by MCP:
+  - `SurfaceDescription.BaseColor`
+  - `SurfaceDescription.Emission`
+  - `SurfaceDescription.Alpha`
+  - `SurfaceDescription.AlphaClipThreshold`
+- User validated that the fragment/master stack includes `Alpha Clip Threshold` after `Alpha`, with no console/import errors.
+
+Next Epic 11 decision point:
+
+- Slice 11.4 still exists in the plan as common URP authoring-target validation.
+- If Slice 11.4 does not reveal missing stable stack/block controls, Epic 11 can close and Epic 12 starts next.
 
 Epic 10.5 note:
 
@@ -206,11 +227,11 @@ Completed:
 
 - Slice 11.1: audited common URP target and stack/block fields in the local Unity package cache.
 - Slice 11.2: expand safe URP target settings.
+- Slice 11.3: added stable built-in stack/block control and user-validated `Alpha Clip Threshold` creation.
 
 Remaining:
 
-- Add stack/block control where serialized structure is stable.
-- Validate common URP authoring targets.
+- Slice 11.4: validate common URP authoring targets and decide whether Epic 11 can close.
 
 ### Epic 12: Texture And Asset-Reference Workflows
 

@@ -275,6 +275,72 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_SetBlocks_AddsAndOrdersFragmentBlocks()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_SetBlocks.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var result = new Tool_Assets_ShaderGraph().SetBlocks(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphSetBlocksInput
+                    {
+                        Context = "fragment",
+                        Blocks = new()
+                        {
+                            "baseColor",
+                            "emission",
+                            "alpha",
+                            "alphaClipThreshold"
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("setBlocks", result.Operation);
+                Assert.AreEqual("fragment", result.Context);
+                Assert.IsTrue(result.ChangedFields!.Contains("fragmentContext.blocks"));
+                Assert.IsTrue(result.ChangedFields.Contains("block.created"));
+                Assert.IsNotEmpty(result.CreatedBlockNodeIds);
+                Assert.IsEmpty(result.RemovedBlockNodeIds);
+                CollectionAssert.AreEqual(
+                    new[]
+                    {
+                        "SurfaceDescription.BaseColor",
+                        "SurfaceDescription.Emission",
+                        "SurfaceDescription.Alpha",
+                        "SurfaceDescription.AlphaClipThreshold"
+                    },
+                    result.BlockDescriptors);
+
+                Assert.IsNotNull(result.Structure);
+                var nodesById = result.Structure!.Nodes!.ToDictionary(node => node.ObjectId);
+                var fragmentDescriptors = result.Structure.FragmentContext!.BlockNodeIds!
+                    .Select(id => nodesById[id].SerializedDescriptor)
+                    .ToArray();
+                CollectionAssert.AreEqual(result.BlockDescriptors, fragmentDescriptors);
+
+                var alphaClipBlock = result.Structure.Nodes!.First(node =>
+                    node.SerializedDescriptor == "SurfaceDescription.AlphaClipThreshold");
+                Assert.AreEqual("UnityEditor.ShaderGraph.BlockNode", alphaClipBlock.Type);
+                Assert.IsNotEmpty(alphaClipBlock.Slots);
+                Assert.AreEqual("Alpha Clip Threshold", alphaClipBlock.Slots!.Single().DisplayName);
+
+                Assert.IsNotNull(result.Graph);
+                Assert.IsTrue(result.Graph!.SourceParsed, "Updated Shader Graph source should parse successfully.");
+                Assert.IsTrue(result.Graph.ShaderResolved, "Updated Shader Graph should still resolve a compiled shader.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Adding a stable built-in stack block should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_UpdateProperty_UpdatesColorAndTextureProperties()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateProperty.shadergraph");
