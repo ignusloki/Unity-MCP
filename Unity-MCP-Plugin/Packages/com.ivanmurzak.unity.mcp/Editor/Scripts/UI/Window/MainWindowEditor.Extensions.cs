@@ -142,6 +142,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.UI
                     ("assets-shadergraph-get-settings",         "Read root and target settings from graph source"),
                     ("assets-shadergraph-create",               "Create a Shader Graph from a known template"),
                     ("assets-shadergraph-create-material",      "Create a Material from a Shader Graph's compiled shader"),
+                    ("assets-shadergraph-validate-texture-workflow", "Validate graph texture references and material texture readback"),
                     ("assets-shadergraph-create-from-style-recipe", "Create graph and material assets from a style recipe"),
                     ("assets-shadergraph-set-settings",         "Update safe graph and URP target settings"),
                     ("assets-shadergraph-set-blocks",           "Set ordered built-in vertex or fragment block stacks"),

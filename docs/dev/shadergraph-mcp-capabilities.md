@@ -39,6 +39,10 @@ This document is the single source of truth for what the local ShaderGraph MCP i
   - Create a new `.shadergraph` asset by cloning a known-good template.
 - `assets-shadergraph-create-material`
   - Create a `.mat` asset from the compiled shader resolved from a Shader Graph asset.
+- `assets-shadergraph-validate-texture-workflow`
+  - Create or overwrite a `.mat` asset from a Shader Graph, then return graph texture references, material texture-property readback, graph diagnostics, and optional expectation checks.
+  - Can copy Shader Graph blackboard `texture2D` asset defaults into matching material texture properties such as `_BaseMap`.
+  - Reports direct unconnected `Sample Texture 2D.Texture` slot assets as graph-embedded references rather than material properties.
 - `assets-shadergraph-create-from-style-recipe`
   - Validate a declarative style-recipe JSON payload, create a graph and material, apply the currently supported material fields, and return warnings for deferred recipe fields.
 

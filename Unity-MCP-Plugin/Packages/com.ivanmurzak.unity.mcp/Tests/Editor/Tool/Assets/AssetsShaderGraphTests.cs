@@ -3368,6 +3368,117 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_ValidateTextureWorkflow_ReportsGraphAndMaterialTextureAssignments()
+        {
+            var graphAssetPath = CreateShaderGraphAssetCopy("Validation_TextureWorkflow.shadergraph");
+            var materialAssetPath = $"{TestFolder}/Validation_TextureWorkflow.mat";
+            var blackboardTexturePath = CreateTextureAsset("Validation_TextureWorkflow_Blackboard.png", new Color(0.85f, 0.2f, 0.1f, 1f));
+            var nodeTexturePath = CreateTextureAsset("Validation_TextureWorkflow_Node.png", new Color(0.1f, 0.45f, 0.9f, 1f));
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(graphAssetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{graphAssetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.UpdateProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphPropertyUpdateInput
+                    {
+                        PropertyReferenceName = "_BaseMap",
+                        TextureAssetPath = blackboardTexturePath
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var sampleNodeResult = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "sampleTexture2D",
+                        PositionX = -720f,
+                        PositionY = -80f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = sampleNodeResult.NodeObjectId,
+                        SampleTexture2D = new ShaderGraphSampleTexture2DNodeSettingsUpdateInput
+                        {
+                            TextureSlotAssetPath = nodeTexturePath,
+                            TextureSlotDefaultType = "red"
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var result = tool.ValidateTextureWorkflow(
+                    assetRef: new AssetObjectRef(shader),
+                    materialAssetPath: materialAssetPath,
+                    overwrite: true,
+                    applyGraphTextureDefaultsToMaterial: true,
+                    expectedGraphTextureAssetPaths: new[] { blackboardTexturePath, nodeTexturePath },
+                    expectedMaterialTextures: new[]
+                    {
+                        new ShaderGraphExpectedMaterialTextureInput
+                        {
+                            PropertyName = "_BaseMap",
+                            TextureAssetPath = blackboardTexturePath
+                        }
+                    },
+                    includeStructure: false);
+
+                Assert.IsNotNull(result);
+                Assert.AreEqual(graphAssetPath, result.GraphAssetPath);
+                Assert.AreEqual(materialAssetPath, result.MaterialAssetPath);
+                Assert.IsTrue(result.ShaderMatchesGraph, "Validation material should use the Shader Graph's compiled shader.");
+                Assert.IsTrue(result.AllExpectationsMatched, "All requested graph and material texture expectations should match.");
+                Assert.IsTrue(result.AppliedMaterialTexturePropertyNames!.Contains("_BaseMap"),
+                    "Blackboard texture defaults should be copied into matching material texture properties.");
+
+                Assert.IsTrue(result.GraphTextureReferences!.Any(reference =>
+                        reference.SourceKind == "blackboardProperty"
+                        && reference.PropertyReferenceName == "_BaseMap"
+                        && reference.TextureAssetPath == blackboardTexturePath),
+                    "Expected graph texture references to include the assigned blackboard texture.");
+                Assert.IsTrue(result.GraphTextureReferences!.Any(reference =>
+                        reference.SourceKind == "nodeSlot"
+                        && reference.OwnerObjectId == sampleNodeResult.NodeObjectId
+                        && reference.TextureAssetPath == nodeTexturePath
+                        && reference.TextureDefaultType == "red"),
+                    "Expected graph texture references to include the direct Sample Texture 2D slot texture.");
+
+                var baseMapTextureProperty = result.MaterialTextureProperties!
+                    .Single(property => property.PropertyName == "_BaseMap");
+                Assert.IsTrue(baseMapTextureProperty.HasTexture, "Validation material should have _BaseMap assigned.");
+                Assert.AreEqual(blackboardTexturePath, baseMapTextureProperty.TextureAssetPath);
+                Assert.IsTrue(baseMapTextureProperty.WasAppliedFromGraph,
+                    "The _BaseMap material texture should report that it came from the graph blackboard default.");
+
+                var material = AssetDatabase.LoadAssetAtPath<Material>(materialAssetPath);
+                var blackboardTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(blackboardTexturePath);
+                Assert.IsNotNull(material, $"Expected Material asset to resolve at '{materialAssetPath}'.");
+                Assert.AreEqual(blackboardTexture, material!.GetTexture("_BaseMap"),
+                    "Created material should reference the graph-assigned blackboard texture asset.");
+
+                Assert.IsNotNull(result.Graph);
+                Assert.IsTrue(result.Graph!.ShaderResolved, "Texture workflow validation should keep the Shader Graph import valid.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Texture workflow validation should not introduce graph import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(materialAssetPath);
+                CleanupTestAsset(graphAssetPath);
+                CleanupTestAsset(blackboardTexturePath);
+                CleanupTestAsset(nodeTexturePath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_CreateFromStyleRecipe_CreatesAssetsAndAppliesBaseColor()
         {
             const string recipeJson = @"{

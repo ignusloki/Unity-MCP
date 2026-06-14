@@ -14,9 +14,9 @@ Update this file during day-to-day implementation. Keep `docs/dev/shadergraph-mc
 - Local Unity validation project: `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph`
 - Unity validation version: `6000.4.1f1`
 - Active epic: Epic 12, Texture And Asset-Reference Workflows
-- Latest user-validated slice: Epic 12.2, unconnected Sample Texture 2D slot texture assignment
-- Current code state: Epic 12.2 is complete; Epic 12.3 is next
-- Next planned slice: Epic 12.3, validate material and graph behavior after texture assignment
+- Latest user-validated slice: Epic 12.3, texture workflow graph/material validation
+- Current code state: Epic 12.3 is complete; Epic 12.4 is next pending scope confirmation
+- Next planned slice: Epic 12.4, revisit reference-image interpretation only after project asset texture flows are stable
 - Conditional future edge slice: Epic 10.5, additional compatibility cases only if concrete unsupported URP paths are found
 
 Current local environment note:
@@ -27,13 +27,25 @@ Current local environment note:
 
 ## Active Work
 
-Epic 12.3 starting point:
+Epic 12.4 is not started yet.
 
-- Validate material and graph behavior after texture assignment.
-- Confirm MCP can prove assigned textures survive graph import, shader resolution, and material creation/update workflows.
-- Prefer a small validation graph and material that demonstrate both blackboard Texture2D assignment and direct unconnected `Sample Texture 2D.Texture` slot assignment.
+Epic 12.4 scope to confirm before implementation:
+
+- Determine whether MCP should include any explicit helper for turning a reference image or visual concept into ShaderGraph authoring steps.
+- Keep this as an optional workflow layer over the existing graph-control tools, not a required low-level ShaderGraph capability.
+- Avoid implementing image interpretation inside Unity unless there is a concrete gap after real shader recreation trials.
 
 ## Recently Completed
+
+Epic 12.3 validation completed:
+
+- `assets-shadergraph-validate-texture-workflow` creates or overwrites a material from a Shader Graph and reports texture state across graph source references and material texture properties.
+- Blackboard `texture2D` asset defaults can be copied into matching material texture properties during validation, covering workflows such as `_BaseMap`.
+- Direct unconnected `Sample Texture 2D.Texture` slot assets are reported as graph-embedded texture references, not material properties.
+- Unity validation graph: `Assets/ShaderGraphValidation/Codex_TextureWorkflow_Validation.shadergraph`.
+- Unity validation material: `Assets/ShaderGraphValidation/Codex_TextureWorkflow_Validation.mat`.
+- Unity validation textures: `Assets/ShaderGraphValidation/Codex_Epic12_Workflow_BaseMap.png` and `Assets/ShaderGraphValidation/Codex_Epic12_Workflow_NodeSlot.png`.
+- User validated that the graph imports cleanly, the unconnected `Sample Texture 2D` node has the node-slot texture assigned, and the generated material has the expected `_BaseMap` texture assigned.
 
 Epic 12.1 validation completed:
 
@@ -282,10 +294,10 @@ Completed:
 
 - Slice 12.1: assign project texture assets to supported blackboard texture properties.
 - Slice 12.2: support project texture assignment for texture-consuming node workflows where the graph model permits it.
+- Slice 12.3: validate material and graph behavior after texture assignment.
 
 Remaining:
 
-- Slice 12.3: validate material and graph behavior after texture assignment.
 - Slice 12.4: revisit reference-image interpretation only after project asset texture flows are stable.
 
 ### Epic 13: Graph Organization And Cleanup
