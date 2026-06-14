@@ -222,9 +222,9 @@ Implementation plan:
 - Slice 7A.3: add unary math node creation for `sine`, `cosine`, and `negate`, and include them in duplicate/delete/move flows. Implemented.
 - Slice 7A.4: add `gradientNoise` node creation with safe default scale handling and typed settings for scale where serialized behavior is stable. Implemented.
 - Slice 7A.5: extend `assets-shadergraph-update-node-settings`, node readback, tool descriptions, and docs for the new node families. Implemented.
-- Slice 7A.6: expand slot compatibility only where these nodes expose concrete unsupported output/input pairs during validation. Implemented for Vector3/Position slot pairs and cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
+- Slice 7A.6: expand slot compatibility only where these nodes expose concrete unsupported output/input pairs during validation. Implemented for Vector3/Position slot pairs and cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs. Direct `Vector3 -> UV` remains intentionally rejected; the supported workflow is explicit narrowing through `Split` and `Combine.RG`.
 - Slice 7A.7: add editor tests that create, inspect, duplicate, move, wire, and reimport each new node family. Implemented in editor tests; live MCP validation passed; automated Unity test-run execution remains deferred to Epic 15.
-- Slice 7A.8: add an end-to-end validation case that recreates the reflection-outline graph path from the reference trial: view/vector source nodes, reflection-normal trig chain, gradient-noise displacement modulation, transform, vertex position output, base texture/color output. Implemented in editor tests; live MCP validation passed; automated Unity test-run execution remains deferred to Epic 15.
+- Slice 7A.8: add an end-to-end validation case that recreates the reflection-outline graph path from the reference trial: view/vector source nodes, explicit `View Vector -> Split -> Combine.RG -> Gradient Noise.UV` narrowing, reflection-normal trig chain, gradient-noise displacement modulation, transform, vertex position output, base texture/color output. Implemented in editor tests; live MCP validation passed; automated Unity test-run execution remains deferred to Epic 15.
 
 Validation requirements:
 
@@ -233,6 +233,7 @@ Validation requirements:
 - Epic 7A local validation evidence:
   - `Codex_Epic7A_SettingsSmoke.shadergraph`: all new nodes created, typed settings read back, `Transform` duplicate/move/delete passed, final import reported `ShaderResolved=true` and `HasErrors=false`.
   - `Codex_Epic7A_E2E.shadergraph`: reflection-outline path wired with 22 nodes and 15 edges, including `Transform -> VertexDescription.Position`, preserved base texture/color output, final import reported `ShaderResolved=true` and `HasErrors=false`.
+  - `Codex_ViewVectorUV_ReflectionOutline.shadergraph`: exact trial path wired with 24 nodes and 19 edges, including `View Vector -> Split -> Combine.RG -> Gradient Noise.UV`, `Transform -> VertexDescription.Position`, preserved base texture/color output, final import reported `ShaderResolved=true` and `HasErrors=false`.
   - Unity test-runner discovery for package editor tests is still tracked under Epic 15.
 
 ## Epic 8: Node Parameter Editing

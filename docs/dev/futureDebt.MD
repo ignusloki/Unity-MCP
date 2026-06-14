@@ -87,6 +87,7 @@ The former conditional Slice 10.5 remains deferred.
 Future work:
 
 - Add additional slot compatibility cases only when a concrete unsupported URP graph path fails the current matrix.
+- Investigate direct `Vector3MaterialSlot -> UVMaterialSlot` only if Unity Shader Graph's editor and serialized model both validate that edge without an explicit conversion node.
 
 Current matrix already covers:
 
@@ -95,6 +96,13 @@ Current matrix already covers:
 - Compatible Vector3/Position slot pairs.
 - Texture2D property outputs into Texture2D input slots.
 - Compatible dynamic numeric, vector, and color slot families, including cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
+- Safe explicit Vector3-to-UV authoring through `Vector3 -> Split -> Combine.RG -> UV`.
+
+Accepted limitation:
+
+- Direct `Vector3 -> UV` edges are intentionally rejected. Use the explicit `Split` plus `Combine.RG` narrowing path when a source vector such as `View Vector` must feed a UV/vector2 input such as `Gradient Noise.UV`.
+- Unity Shader Graph documents vector promotion/truncation between vector ports, and `Gradient Noise.UV` is a `Vector 2` input while `View Vector.Out` is a `Vector 3` output. The explicit `Split -> Combine.RG` path is therefore semantically equivalent to dropping the third channel, but it is not topology-equivalent to a direct editor wire.
+- Before allowing direct `Vector3MaterialSlot -> UVMaterialSlot` writes, validate that Unity's serialized graph model imports and compiles that direct edge consistently across the supported Unity/ShaderGraph package versions. If validation passes, add typed compatibility tests for direct `Vector3 -> Vector2/UV`, `Vector4 -> Vector2`, and vector promotion cases; otherwise keep the explicit narrowing path and consider an MCP helper that auto-inserts the conversion nodes.
 
 ### Graph Organization And Cleanup
 
@@ -139,6 +147,7 @@ Live project-scoped MCP validation for Epic 7A passed on 2026-06-14 through the 
 
 - `Codex_Epic7A_SettingsSmoke.shadergraph` imported successfully after creating/updating all new node families and exercising duplicate/move/delete on `Transform`.
 - `Codex_Epic7A_E2E.shadergraph` imported successfully after wiring the reflection-outline path, including source-vector nodes, trig chain, gradient-noise displacement modulation, transform to vertex position, and preserved base texture/color output.
+- `Codex_ViewVectorUV_ReflectionOutline.shadergraph` imported successfully after wiring the exact trial path with `View Vector -> Split -> Combine.RG -> Gradient Noise.UV`, source-vector nodes, trig chain, gradient-noise displacement modulation, transform to vertex position, and preserved base texture/color output.
 
 The current workspace includes `Unity-test/TestShadergraph`, but `Unity-test/` is git-ignored. Treat it as local validation state, not a reproducible repository fixture.
 

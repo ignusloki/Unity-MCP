@@ -2586,6 +2586,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 var normalVector = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "normalVector", PositionX = -1200f, PositionY = 20f });
                 var viewDirection = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "viewDirection", PositionX = -1200f, PositionY = 200f });
                 var viewVector = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "viewVector", PositionX = -1200f, PositionY = 380f });
+                var viewVectorSplit = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "split", PositionX = -920f, PositionY = 380f });
+                var viewVectorUv = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "combine", PositionX = -680f, PositionY = 520f });
                 var sine = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "sine", PositionX = -920f, PositionY = 20f });
                 var negate = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "negate", PositionX = -920f, PositionY = 200f });
                 var cosine = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "cosine", PositionX = -680f, PositionY = 200f });
@@ -2629,6 +2631,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 var normalNode = nodesById[normalVector.Node!.ObjectId];
                 var viewDirectionNode = nodesById[viewDirection.Node!.ObjectId];
                 var viewVectorNode = nodesById[viewVector.Node!.ObjectId];
+                var viewVectorSplitNode = nodesById[viewVectorSplit.Node!.ObjectId];
+                var viewVectorUvNode = nodesById[viewVectorUv.Node!.ObjectId];
                 var sineNode = nodesById[sine.Node!.ObjectId];
                 var negateNode = nodesById[negate.Node!.ObjectId];
                 var cosineNode = nodesById[cosine.Node!.ObjectId];
@@ -2640,9 +2644,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 var vertexPositionBlock = structureBeforeWiring.Nodes!
                     .First(node => node.SerializedDescriptor == "VertexDescription.Position");
 
+                var directViewVectorToUv = Assert.Throws<InvalidOperationException>(() =>
+                    ConnectSlots(tool, shader, viewVectorNode, "Out", gradientNoiseNode, "UV"));
+                StringAssert.Contains("Unsupported slot compatibility", directViewVectorToUv!.Message);
+
                 ConnectSlots(tool, shader, normalNode, "Out", sineNode, "In");
                 ConnectSlots(tool, shader, viewDirectionNode, "Out", negateNode, "In");
                 ConnectSlots(tool, shader, negateNode, "Out", cosineNode, "In");
+                ConnectSlots(tool, shader, viewVectorNode, "Out", viewVectorSplitNode, "In");
+                ConnectSlots(tool, shader, viewVectorSplitNode, "R", viewVectorUvNode, "R");
+                ConnectSlots(tool, shader, viewVectorSplitNode, "G", viewVectorUvNode, "G");
+                ConnectSlots(tool, shader, viewVectorUvNode, "RG", gradientNoiseNode, "UV");
                 ConnectSlots(tool, shader, sineNode, "Out", trigMultiplyNode, "A");
                 ConnectSlots(tool, shader, cosineNode, "Out", trigMultiplyNode, "B");
                 ConnectSlots(tool, shader, trigMultiplyNode, "Out", displacementMultiplyNode, "A");
@@ -2659,11 +2671,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     && edge.InputNodeId == vertexPositionBlock.ObjectId
                     && edge.InputSlotId == FindSlot(vertexPositionBlock, "Position").SlotId));
                 Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
-                    edge.OutputNodeId == viewDirectionNode.ObjectId
-                    || edge.OutputNodeId == viewVectorNode.ObjectId
-                    || edge.OutputNodeId == normalNode.ObjectId
-                    || edge.OutputNodeId == positionNode.ObjectId),
-                    "Expected at least one source-vector node to participate in the wired graph.");
+                    edge.OutputNodeId == viewVectorUvNode.ObjectId
+                    && edge.OutputSlotId == FindSlot(viewVectorUvNode, "RG").SlotId
+                    && edge.InputNodeId == gradientNoiseNode.ObjectId
+                    && edge.InputSlotId == FindSlot(gradientNoiseNode, "UV").SlotId),
+                    "Expected the narrowed View Vector UV path to feed Gradient Noise.UV.");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
+                    edge.OutputNodeId == viewVectorNode.ObjectId
+                    && edge.InputNodeId == viewVectorSplitNode.ObjectId),
+                    "Expected View Vector to participate in the wired graph through the Split conversion node.");
 
                 var sampleTextureNode = finalConnectResult.Structure.Nodes!
                     .First(node => node.Type == "UnityEditor.ShaderGraph.SampleTexture2DNode");
@@ -2775,7 +2791,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsNotNull(movedColorNode);
                 Assert.AreEqual("updatePosition", movedColorNode.Operation);
                 Assert.IsNotNull(movedColorNode.Node);
-                Assert.AreEqual(baseColorNode.ObjectId, movedColorNode.NodeObjectId);
+                Assert.AreEqual(existingColorNode.ObjectId, movedColorNode.NodeObjectId);
                 Assert.AreEqual("UnityEditor.ShaderGraph.PropertyNode", movedColorNode.NodeType);
                 Assert.IsTrue(movedColorNode.ChangedFields!.Contains("node.positionX"));
                 Assert.IsTrue(movedColorNode.ChangedFields.Contains("node.positionY"));
@@ -4211,7 +4227,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             var destinationPath = $"{TestFolder}/{fileName}";
             EnsureFolder(TestFolder);
 
-            var packageInfo = PackageInfo.FindForAssetPath(templateAssetPath);
+            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(templateAssetPath);
             Assert.IsNotNull(packageInfo, $"Expected package info for '{templateAssetPath}'.");
 
             var packageRoot = $"Packages/{packageInfo!.name}";

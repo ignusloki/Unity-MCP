@@ -72,6 +72,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports compatible Vector3/Position slot pairs\n" +
             "- supports compatible Texture2D property outputs and Texture2D input slots\n" +
             "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n" +
+            "- supports explicit vector narrowing workflows such as `Vector3 -> Split -> Combine(Vector2) -> UV`; direct Vector3-to-UV remains rejected unless Unity exposes a validated direct conversion\n" +
             "- supports guarded input-edge replacement when `replaceExistingInputConnection` is true\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect node ids, slot ids, and slot types.")]
         [Description("Connect two existing Shader Graph slots and re-import the graph.")]

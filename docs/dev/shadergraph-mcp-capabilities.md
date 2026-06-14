@@ -17,7 +17,7 @@ The current implementation is ready for renewed first-pass URP Shader Graph recr
 
 The exposed MCP surface can create and inspect Shader Graph assets, mutate common URP graph settings, author common node/property/edge workflows, configure common URP stack blocks, assign texture assets, create materials from graphs, and validate graph/material texture behavior.
 
-Agents can now create and configure the source-vector, space-transform, procedural-noise, and trigonometric nodes needed for the reflection-outline trial path. Broader reference recreation parity still depends on concrete follow-up trials.
+Agents can now create and configure the source-vector, space-transform, procedural-noise, and trigonometric nodes needed for the reflection-outline trial path. The remaining `View Vector` to `Gradient Noise.UV` gap is supported through an explicit ShaderGraph conversion path: `View Vector.Out -> Split.In`, `Split.R/G -> Combine.R/G`, then `Combine.RG -> Gradient Noise.UV`. Broader reference recreation parity still depends on concrete follow-up trials.
 
 ## Scope
 
@@ -337,6 +337,8 @@ Node lifecycle mutation results include normalized summary fields:
   - Connects compatible existing graph slots by `nodeObjectId` plus `slotObjectId`.
   - Requires the input slot to be unconnected unless `replaceExistingInputConnection` is true.
   - Supports exact slot-type matches, compatible UV/vector2 pairs, compatible Vector3/Position pairs, Texture2D property outputs into Texture2D input slots, compatible dynamic numeric/vector/color slot families, and cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
+  - Supports safe explicit Vector3-to-UV authoring through ShaderGraph narrowing nodes: `Vector3 -> Split -> Combine.RG -> UV`.
+  - Direct `Vector3MaterialSlot -> UVMaterialSlot` edges remain intentionally rejected until Unity's serialized graph model is validated to allow that conversion safely without an explicit node.
   - Returns `removedEdge` when an incoming edge is replaced.
 - `assets-shadergraph-reconnect-edge`
   - Reconnects an exact existing edge to a new output endpoint, input endpoint, or both.
@@ -384,13 +386,15 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 ## Validation State
 
 - The current exposed surface has been validated through incremental live Unity checks in the local Unity 6 workspace validation project at `Unity-test/TestShadergraph`.
-- The 2026-06-14 reference-image trial created a valid graph, material, and scene, but exact recreation of a reflection-based outline ShaderGraph was blocked by missing node support for `View Direction`, `View Vector`, `Normal Vector`, `Position`, `Transform`, `Gradient Noise`, `Sine`, `Cosine`, and `Negate`.
-- Epic 7A now adds code support for those node families, typed settings/readback where stable, Vector3/Position slot compatibility, cross-family dynamic slot compatibility, and an editor-test e2e case for the reflection-outline path.
+- The 2026-06-14 reference-image trial created a valid graph, material, and scene, but exact recreation of a reflection-based outline ShaderGraph was blocked first by missing node support for `View Direction`, `View Vector`, `Normal Vector`, `Position`, `Transform`, `Gradient Noise`, `Sine`, `Cosine`, and `Negate`, then by the need for safe `View Vector` narrowing into `Gradient Noise.UV`.
+- Epic 7A now adds code support for those node families, typed settings/readback where stable, Vector3/Position slot compatibility, cross-family dynamic slot compatibility, explicit View Vector UV narrowing through `Split` plus `Combine.RG`, and an editor-test e2e case for the reflection-outline path.
 - A compile sanity check, `dotnet build Assembly-CSharp.csproj -v minimal`, passed in that local project with 0 warnings and 0 errors at the last checkpoint.
 - Epic 7A live validation through the already-open project-scoped MCP/editor session passed on 2026-06-14:
   - `Codex_Epic7A_SettingsSmoke.shadergraph`: add/update/readback for all Epic 7A nodes, duplicate/move/delete for `Transform`, final `ShaderResolved=true`, `HasErrors=false`.
   - `Codex_Epic7A_E2E.shadergraph`: reflection-outline path with source vectors, trig chain, gradient-noise displacement modulation, `Transform -> VertexDescription.Position`, preserved base texture/color output, final `ShaderResolved=true`, `HasErrors=false`, 22 nodes and 15 edges.
+  - `Codex_ViewVectorUV_ReflectionOutline.shadergraph`: exact trial path with `View Vector -> Split -> Combine.RG -> Gradient Noise.UV`, source-vector nodes, trig chain, gradient-noise displacement modulation, `Transform -> VertexDescription.Position`, preserved base texture/color output, final `ShaderResolved=true`, `HasErrors=false`, 24 nodes and 19 edges.
   - Short readback probe confirmed `Position.space=absoluteWorld`, `Transform` conversion `absoluteWorld -> object`, `GradientNoise.scale=18`, and the final vertex-position edge.
+  - Short readback probe confirmed the explicit `View Vector -> Split -> Combine.RG -> Gradient Noise.UV` edge path.
 - A Unity batch-mode editor test run was intentionally not performed while the project was already open in a Unity Editor instance.
 - The local `Unity-test/TestShadergraph` project is available in this workspace, but it is git-ignored and should not be treated as a reproducible repository fixture until explicitly promoted or documented as setup-required state.
 - Unity package editor test discovery for the ShaderGraph tests still needs to be fixed before this can be treated as a complete automated validation baseline.
