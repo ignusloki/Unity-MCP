@@ -2,58 +2,82 @@
 
 ## Purpose
 
-This document is the single source of truth for what the local ShaderGraph MCP implementation currently exposes to agents and users.
+This document is the source of truth for the ShaderGraph MCP surface currently exposed by the local private fork.
 
-- Roadmap and slice definitions live in `docs/dev/shadergraph-mcp-plan.md`
-- Current epic status and validation history live in `docs/dev/shadergraph-mcp-progress.md`
-- This file describes the actual MCP surface that exists today
+Related documents:
+
+- `docs/dev/shadergraph-mcp-plan.md`
+  - roadmap and historical epic/slice breakdown
+- `docs/dev/futureDebt.MD`
+  - deferred work, known limitations, validation gaps, and open questions
+
+## Current Checkpoint
+
+The current implementation is ready for first-pass URP Shader Graph recreation trials from a reference image, visual concept, or existing example.
+
+The exposed MCP surface can create and inspect Shader Graph assets, mutate common URP graph settings, author common node/property/edge workflows, configure common URP stack blocks, assign texture assets, create materials from graphs, and validate graph/material texture behavior.
 
 ## Scope
 
-- Focus: URP-first Shader Graph authoring
-- Current implementation lives in the core `com.ivanmurzak.unity.mcp` package
-- Validation has been performed in the local Unity test project used by this private workflow
+- Focus: URP-first Shader Graph authoring.
+- Implementation location: core `com.ivanmurzak.unity.mcp` package.
+- Validation baseline: local Unity test project at `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph`.
+- Unity validation version: `6000.4.1f1`.
+- Package baseline: `com.ivanmurzak.unity.mcp` version `0.81.0`.
 
 ## Exposure Model
 
-- ShaderGraph is exposed in Ivan's Extensions window as a built-in capability group named `ShaderGraph`
-- Enabling or disabling that row toggles the current ShaderGraph tool set as one group
+ShaderGraph is exposed in Ivan's Extensions window as a built-in capability group named `ShaderGraph`.
+
+Enabling or disabling that row toggles the ShaderGraph tool set as one group.
+
+## Recommended Authoring Flow
+
+1. Use `assets-shadergraph-find`, `assets-shadergraph-create`, or `assets-shadergraph-get-data` to select or create the graph.
+2. Use `assets-shadergraph-get-structure` and `assets-shadergraph-get-settings` before mutation.
+3. Configure root graph settings, URP target settings, and block stacks where needed.
+4. Create or update blackboard properties for reusable values and project texture assets.
+5. Add, duplicate, move, delete, and configure supported nodes.
+6. Wire graph edges with explicit compatibility checks and replacement/reconnect guardrails.
+7. Create or update materials from the graph shader.
+8. Use `assets-shadergraph-validate-texture-workflow` when texture assignment must be verified across graph source and material readback.
 
 ## Exposed MCP Tools
 
 ### Discovery And Diagnostics
 
 - `assets-shadergraph-find`
-  - Find Shader Graph assets by name or folder.
+  - Finds Shader Graph assets by name or folder.
 - `assets-shadergraph-get-data`
-  - Inspect compiled shader resolution, diagnostics, and optional shader messages and properties.
+  - Inspects compiled shader resolution, diagnostics, optional shader messages, and optional compiled shader properties.
 - `assets-shadergraph-get-structure`
-  - Read serialized properties, blackboard categories, nodes, slots, edges, and active targets from the graph source.
+  - Reads serialized properties, blackboard categories, nodes, slots, edges, and active targets from the graph source.
   - Property readback includes category object id, category name, and category index when available.
 - `assets-shadergraph-get-settings`
-  - Read graph root settings and supported target settings from the graph source.
+  - Reads graph root settings and supported target settings from the graph source.
 
-### Asset Creation
+### Asset And Material Creation
 
 - `assets-shadergraph-create`
-  - Create a new `.shadergraph` asset by cloning a known-good template.
+  - Creates a new `.shadergraph` asset by cloning a known-good template.
 - `assets-shadergraph-create-material`
-  - Create a `.mat` asset from the compiled shader resolved from a Shader Graph asset.
-- `assets-shadergraph-validate-texture-workflow`
-  - Create or overwrite a `.mat` asset from a Shader Graph, then return graph texture references, material texture-property readback, graph diagnostics, and optional expectation checks.
-  - Can copy Shader Graph blackboard `texture2D` asset defaults into matching material texture properties such as `_BaseMap`.
-  - Reports direct unconnected `Sample Texture 2D.Texture` slot assets as graph-embedded references rather than material properties.
+  - Creates a `.mat` asset from the compiled shader resolved from a Shader Graph asset.
 - `assets-shadergraph-create-from-style-recipe`
-  - Validate a declarative style-recipe JSON payload, create a graph and material, apply the currently supported material fields, and return warnings for deferred recipe fields.
+  - Validates a declarative style-recipe JSON payload, creates a graph and material, applies the currently supported material fields, and returns warnings for fields outside the current recipe implementation.
+- `assets-shadergraph-validate-texture-workflow`
+  - Creates or overwrites a `.mat` asset from a Shader Graph.
+  - Reports graph texture references, material texture-property readback, graph diagnostics, and optional expectation checks.
+  - Can copy Shader Graph blackboard `texture2D` asset defaults into matching material texture properties such as `_BaseMap`.
+  - Reports direct unconnected `Sample Texture 2D.Texture` slot assets as graph-embedded references.
 
 ### Graph Settings Mutation
 
 - `assets-shadergraph-set-settings`
-  - Supported graph root fields:
+  - Mutates supported graph root settings:
     - `graph.shaderMenuPath`
     - `graph.graphPrecision`
     - `graph.previewMode`
-  - Supported URP target fields:
+  - Mutates supported URP target settings:
     - `universalTarget.surfaceType`
     - `universalTarget.alphaMode`
     - `universalTarget.renderFace`
@@ -74,9 +98,9 @@ This document is the single source of truth for what the local ShaderGraph MCP i
 
 - `assets-shadergraph-set-blocks`
   - Sets the ordered built-in block stack for one selected context: `vertex` or `fragment`.
-  - This is a full replacement list for the selected context's supported built-in blocks.
-  - Missing requested blocks are created with Unity-compatible slots.
-  - Existing supported blocks omitted from the requested list are removed only when unconnected unless `allowRemovingConnectedBlocks` is true.
+  - Replaces the selected context's supported built-in block list.
+  - Creates missing requested blocks with Unity-compatible slots.
+  - Removes omitted supported blocks only when unconnected unless `allowRemovingConnectedBlocks` is true.
   - Supported vertex blocks:
     - `position`
     - `normal`
@@ -99,7 +123,6 @@ This document is the single source of truth for what the local ShaderGraph MCP i
     - `coatSmoothness`
     - `normalAlpha`
     - `maosAlpha`
-  - After block creation, use `assets-shadergraph-get-structure` to inspect block node ids and slots, then use the edge tools to connect values into those block slots.
 
 ### Blackboard Property Mutation
 
@@ -116,7 +139,7 @@ Blackboard property mutation results include normalized summary fields:
 - `removedNodeCount` and `removedEdgeCount` for delete operations
 
 - `assets-shadergraph-add-property`
-  - Supported property types:
+  - Adds supported blackboard property types:
     - `color`
     - `float`
     - `texture2D`
@@ -124,18 +147,17 @@ Blackboard property mutation results include normalized summary fields:
     - `vector3`
     - `vector4`
     - `boolean`
-  - New properties can be added to the default blackboard category.
-  - New properties can be placed by `categoryObjectId` or `categoryName`.
-  - Missing categories can be created with `createCategoryIfMissing`.
-  - Properties can be inserted at a zero-based `categoryIndex`.
-  - `texture2D` properties can assign a project default texture through `textureAssetPath`.
+  - Can place properties by `categoryObjectId` or `categoryName`.
+  - Can create missing categories with `createCategoryIfMissing`.
+  - Can insert at a zero-based `categoryIndex`.
+  - Can assign a project default texture for `texture2D` through `textureAssetPath`.
 - `assets-shadergraph-update-property`
-  - Supported generic fields:
+  - Updates generic fields:
     - `displayName`
     - `overrideReferenceName`
     - `hidden`
     - `generatePropertyBlock`
-  - Supported typed default-value editing:
+  - Updates typed default values:
     - `colorHex`
     - `floatValue`
     - `vectorX`
@@ -150,7 +172,7 @@ Blackboard property mutation results include normalized summary fields:
     - `textureIsMainTexture`
     - `textureIsHdr`
     - `textureModifiable`
-  - For `texture2D` properties, omitted `textureAssetPath` means no change; an empty string clears the assigned default texture asset.
+  - For `texture2D` properties, omitted `textureAssetPath` means no change and an empty string clears the assigned default texture asset.
   - Texture property readback includes `textureAssetGuid` and `textureAssetPath` when a project texture asset is assigned.
 - `assets-shadergraph-delete-property`
   - Deletes a blackboard property selected by object id or effective reference name.
@@ -159,7 +181,7 @@ Blackboard property mutation results include normalized summary fields:
   - Removes edges connected to removed dependent `PropertyNode` instances.
 - `assets-shadergraph-reorder-property`
   - Reorders a property inside its current category by zero-based `categoryIndex`.
-  - Can also move the property into a selected category while reordering.
+  - Can move the property into a selected category while reordering.
 - `assets-shadergraph-create-category`
   - Creates a Shader Graph blackboard category.
   - Category names must be unique.
@@ -169,15 +191,8 @@ Blackboard property mutation results include normalized summary fields:
   - Supports zero-based insertion with `categoryIndex`.
 - `assets-shadergraph-add-property-node`
   - Creates a `PropertyNode` for an existing blackboard property.
-  - Supported property-backed node types:
-    - `color`
-    - `float`
-    - `texture2D`
-    - `vector2`
-    - `vector3`
-    - `vector4`
-    - `boolean`
-  - No automatic edge wiring is performed.
+  - Supports `color`, `float`, `texture2D`, `vector2`, `vector3`, `vector4`, and `boolean`.
+  - Does not perform automatic edge wiring.
 
 ### Node Lifecycle Mutation
 
@@ -192,6 +207,7 @@ Node lifecycle mutation results include normalized summary fields:
 - `graph`
 
 - `assets-shadergraph-add-node`
+  - Adds allowlisted graph nodes without automatic edge wiring.
   - Current allowlisted node families:
     - `add`
     - `subtract`
@@ -204,15 +220,11 @@ Node lifecycle mutation results include normalized summary fields:
     - `sampleTexture2D`
     - `tilingAndOffset`
     - `branch`
-  - Nodes are created without automatic edge wiring.
 - `assets-shadergraph-duplicate-node`
   - Duplicates a supported existing node by serialized `nodeObjectId`.
-  - Supported node families:
-    - `PropertyNode`
-    - the same allowlisted node families as `assets-shadergraph-add-node`
+  - Supports `PropertyNode` plus the same allowlisted node families as `assets-shadergraph-add-node`.
   - Copies node settings, slots, and property references with fresh serialized object ids.
-  - Does not copy edges; duplicates start disconnected and must be wired explicitly.
-  - Uses a default placement offset unless explicit duplicate position values are provided.
+  - Does not copy edges.
 - `assets-shadergraph-delete-node`
   - Deletes an existing node by serialized `nodeObjectId`.
   - Uses Unity's own node-removal flow and removes connected edges as part of the mutation.
@@ -223,133 +235,87 @@ Node lifecycle mutation results include normalized summary fields:
 ### Node Settings Mutation
 
 - `assets-shadergraph-update-node-settings`
-  - Current supported node families and typed fields:
-    - `Sample Texture 2D`
-      - `textureType`
-      - `normalMapSpace`
-      - `useGlobalMipBias`
-      - `mipSamplingMode`
-      - `textureSlotAssetPath`
-      - `textureSlotDefaultType`
-      - Direct texture slot assignment requires the `Texture` input slot to be unconnected; connected texture inputs should be controlled by assigning the connected blackboard `texture2D` property.
-    - `Tiling And Offset`
-      - `tiling.x`
-      - `tiling.y`
-      - `offset.x`
-      - `offset.y`
-    - `Branch`
-      - `predicate`
-      - `trueValue.x`
-      - `trueValue.y`
-      - `trueValue.z`
-      - `trueValue.w`
-      - `falseValue.x`
-      - `falseValue.y`
-      - `falseValue.z`
-      - `falseValue.w`
-    - `Split`
-      - `input.x`
-      - `input.y`
-      - `input.z`
-      - `input.w`
-    - `Combine`
-      - `r`
-      - `g`
-      - `b`
-      - `a`
-    - `Add`
-      - `a.x`
-      - `a.y`
-      - `a.z`
-      - `a.w`
-      - `b.x`
-      - `b.y`
-      - `b.z`
-      - `b.w`
-    - `Subtract`
-      - `a.x`
-      - `a.y`
-      - `a.z`
-      - `a.w`
-      - `b.x`
-      - `b.y`
-      - `b.z`
-      - `b.w`
-    - `Divide`
-      - `a.x`
-      - `a.y`
-      - `a.z`
-      - `a.w`
-      - `b.x`
-      - `b.y`
-      - `b.z`
-      - `b.w`
-    - `Lerp`
-      - `a.x`
-      - `a.y`
-      - `a.z`
-      - `a.w`
-      - `b.x`
-      - `b.y`
-      - `b.z`
-      - `b.w`
-      - `t.x`
-      - `t.y`
-      - `t.z`
-      - `t.w`
-    - `One Minus`
-      - `input.x`
-      - `input.y`
-      - `input.z`
-      - `input.w`
-    - `Multiply`
-      - `multiplyType`
+  - Updates supported serialized settings on existing graph nodes.
+  - Supported `Sample Texture 2D` fields:
+    - `textureType`
+    - `normalMapSpace`
+    - `useGlobalMipBias`
+    - `mipSamplingMode`
+    - `textureSlotAssetPath`
+    - `textureSlotDefaultType`
+  - Supported `Tiling And Offset` fields:
+    - `tiling.x`
+    - `tiling.y`
+    - `offset.x`
+    - `offset.y`
+  - Supported `Branch` fields:
+    - `predicate`
+    - `trueValue.x`
+    - `trueValue.y`
+    - `trueValue.z`
+    - `trueValue.w`
+    - `falseValue.x`
+    - `falseValue.y`
+    - `falseValue.z`
+    - `falseValue.w`
+  - Supported `Split` fields:
+    - `input.x`
+    - `input.y`
+    - `input.z`
+    - `input.w`
+  - Supported `Combine` fields:
+    - `r`
+    - `g`
+    - `b`
+    - `a`
+  - Supported `Add`, `Subtract`, and `Divide` fields:
+    - `a.x`
+    - `a.y`
+    - `a.z`
+    - `a.w`
+    - `b.x`
+    - `b.y`
+    - `b.z`
+    - `b.w`
+  - Supported `Lerp` fields:
+    - `a.x`
+    - `a.y`
+    - `a.z`
+    - `a.w`
+    - `b.x`
+    - `b.y`
+    - `b.z`
+    - `b.w`
+    - `t.x`
+    - `t.y`
+    - `t.z`
+    - `t.w`
+  - Supported `One Minus` fields:
+    - `input.x`
+    - `input.y`
+    - `input.z`
+    - `input.w`
+  - Supported `Multiply` fields:
+    - `multiplyType`
 
 ### Edge Mutation
 
 - `assets-shadergraph-connect-edge`
-  - Selects slots by `nodeObjectId` plus `slotObjectId`.
-  - Requires the input slot to be currently unconnected unless `replaceExistingInputConnection` is set to `true`.
-  - Supports exact slot-type matches.
-  - Supports compatible UV/vector2 slot pairs.
-  - Supports compatible Texture2D property outputs and Texture2D input slots.
-  - Supports compatible dynamic numeric, vector, and color slot families including `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`.
-  - Supports explicit single-input replacement for already-connected inputs.
-  - When replacement is used, the removed incoming edge is returned as `removedEdge` in the mutation result.
+  - Connects compatible existing graph slots by `nodeObjectId` plus `slotObjectId`.
+  - Requires the input slot to be unconnected unless `replaceExistingInputConnection` is true.
+  - Supports exact slot-type matches, compatible UV/vector2 pairs, Texture2D property outputs into Texture2D input slots, and compatible dynamic numeric/vector/color slot families.
+  - Returns `removedEdge` when an incoming edge is replaced.
 - `assets-shadergraph-reconnect-edge`
-  - Selects an exact existing edge by output node/slot plus input node/slot.
-  - Reconnects the existing edge to a new output endpoint, input endpoint, or both.
+  - Reconnects an exact existing edge to a new output endpoint, input endpoint, or both.
   - Supports the same slot compatibility matrix as `assets-shadergraph-connect-edge`.
   - Rejects no-op reconnects.
-  - Can explicitly replace another incoming edge on the new target input when `replaceExistingInputConnection` is set to `true`.
-  - Returns the removed original edge and the newly connected edge in the mutation result.
+  - Can replace another incoming edge on the new target input when `replaceExistingInputConnection` is true.
 - `assets-shadergraph-reroute-output-slot`
   - Moves every outgoing edge from one output slot to another compatible output slot.
-  - Requires the original output slot to have at least one outgoing edge.
-  - Preflights every downstream input for slot compatibility before any write is persisted.
+  - Preflights every downstream input before any write is persisted.
   - Refuses to overwrite unrelated incoming edges or create duplicate edges.
-  - Returns all removed edges as `removedEdges` and all newly connected edges as `edges`.
 - `assets-shadergraph-disconnect-edge`
   - Removes an existing edge selected by output node and slot plus input node and slot.
-
-## Known Limitation And Current Workaround
-
-- Direct typed node-setting mutation now exists for the high-value URP node families listed above, but editor-facing validation showed that some dynamic-vector-driven default-slot edits are not surfaced reliably enough in the Shader Graph UI to be the preferred authoring flow.
-- The current recommended workflow for those cases is:
-  - create or update a blackboard property
-  - add a `PropertyNode`
-  - connect that property-backed output into the target node input
-- This workaround has been validated in the local Unity project for:
-  - `Tiling And Offset`
-  - `Branch`
-  - `Split`
-  - `Combine`
-  - `Add`
-  - `Subtract`
-  - `Divide`
-  - `Lerp`
-  - `One Minus`
-- A better long-term solution is still needed so direct literal and default-slot editing can become reliable enough to stand on its own instead of depending on property-backed inputs.
 
 ## Current Extensions Window Group
 
@@ -361,6 +327,7 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - `assets-shadergraph-get-settings`
 - `assets-shadergraph-create`
 - `assets-shadergraph-create-material`
+- `assets-shadergraph-validate-texture-workflow`
 - `assets-shadergraph-create-from-style-recipe`
 - `assets-shadergraph-set-settings`
 - `assets-shadergraph-set-blocks`
@@ -381,12 +348,8 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - `assets-shadergraph-reroute-output-slot`
 - `assets-shadergraph-disconnect-edge`
 
-## Not Yet Exposed
+## Validation State
 
-- Robust editor-visible direct literal/default-slot mutation for the common dynamic-vector-driven node families without relying on the property-node workaround.
-- Multiply input-slot literal editing beyond the current `multiplyType` support.
-- Project texture assignment workflows across blackboard properties and texture-consuming nodes.
-- Additional higher-level guarded rewiring workflows beyond the current connect, disconnect, replace, reconnect, and output-slot reroute flows.
-- Groups, sticky notes, and other graph cleanup and organization tools.
-- Subgraphs, custom function nodes, keywords, enums, and other long-tail Shader Graph authoring flows.
-- Broader URP subtarget and unsupported/custom block mutation parity beyond the current Universal target and built-in stack allowlists.
+- The current exposed surface has been validated through incremental live Unity checks in the local Unity 6 validation project.
+- `dotnet build Assembly-CSharp.csproj -v minimal` passed in the local Unity test project with existing warnings and no errors at the last checkpoint.
+- Future gaps and non-blocking limitations are tracked in `docs/dev/futureDebt.MD`.

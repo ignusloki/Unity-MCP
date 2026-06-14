@@ -4,16 +4,16 @@
 
 This document is the stable roadmap for ShaderGraph MCP work in the user's private fork. It defines the goal, sequencing rules, and sorted epics/slices.
 
-Update this file only when the roadmap changes. For current status, active slice notes, and validation history, update `docs/dev/shadergraph-mcp-progress.md`.
+Update this file only when the roadmap changes. For the currently exposed tool surface, use `docs/dev/shadergraph-mcp-capabilities.md`. For deferred work and accepted limitations, use `docs/dev/futureDebt.MD`.
 
 ## Related Documents
 
 - `docs/dev/shadergraph-mcp-plan.md`
   - stable roadmap, epic definitions, and slice order
-- `docs/dev/shadergraph-mcp-progress.md`
-  - current branch state, active slice, per-epic progress, and validation history
 - `docs/dev/shadergraph-mcp-capabilities.md`
   - currently exposed ShaderGraph MCP tools and user-facing capability surface
+- `docs/dev/futureDebt.MD`
+  - deferred work, accepted limitations, validation gaps, and open questions
 
 ## Goal
 
@@ -66,7 +66,7 @@ This ShaderGraph control track is done when an agent can:
 - The next slice should come from the highest-value unresolved control gap.
 - A later epic may be worked before an earlier epic if it unlocks practical ShaderGraph control sooner.
 - When an epic is broken into slices, record those slices here before implementation starts.
-- Keep day-to-day status updates in `shadergraph-mcp-progress.md`, not in this roadmap.
+- Keep deferred work and accepted limitations in `docs/dev/futureDebt.MD`, not in this roadmap.
 
 ## Epic 0: Reconnaissance, Workflow Review, And Branch Setup
 
@@ -319,4 +319,4 @@ Slices:
 - Slice 15.1: make package editor tests discoverable from the local Unity validation project.
 - Slice 15.2: add higher-signal end-to-end ShaderGraph authoring validation cases.
 - Slice 15.3: document the supported URP node, property, settings, and edge matrix.
-- Slice 15.4: keep roadmap, progress, and capability docs aligned without duplicating ownership.
+- Slice 15.4: keep roadmap, capability, and future-debt docs aligned without duplicating ownership.
