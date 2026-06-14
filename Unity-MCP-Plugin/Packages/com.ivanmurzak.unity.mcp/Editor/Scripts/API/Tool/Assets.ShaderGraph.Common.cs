@@ -350,7 +350,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     var objectId = GetString(root, "m_ObjectId");
                     var objectType = GetString(root, "m_Type");
                     if (!string.IsNullOrEmpty(objectId) && !string.IsNullOrEmpty(objectType))
-                        typesByObjectId[objectId] = objectType;
+                        typesByObjectId[objectId!] = objectType!;
                 }
 
                 if (objectIndex == 0)
@@ -400,7 +400,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 {
                     var targetId = GetString(target, "m_Id");
                     if (!string.IsNullOrEmpty(targetId))
-                        activeTargetIds.Add(targetId);
+                        activeTargetIds.Add(targetId!);
                 }
             }
         }
@@ -551,6 +551,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                                 .Where(slotsByObjectId.ContainsKey)
                                 .Select(slotObjectId => slotsByObjectId[slotObjectId])
                                 .ToList();
+                            PopulateSlotDerivedNodeSettings(node);
                         }
 
                         return node;
@@ -769,6 +770,22 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.MultiplyNode", StringComparison.Ordinal))
                 node.Multiply = ParseMultiplyNodeSettings(root);
 
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.ViewDirectionNode", StringComparison.Ordinal)
+                || string.Equals(node.Type, "UnityEditor.ShaderGraph.ViewVectorNode", StringComparison.Ordinal)
+                || string.Equals(node.Type, "UnityEditor.ShaderGraph.NormalVectorNode", StringComparison.Ordinal))
+            {
+                node.SourceVector = ParseSpaceNodeSettings(root);
+            }
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.PositionNode", StringComparison.Ordinal))
+                node.Position = ParsePositionNodeSettings(root);
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.TransformNode", StringComparison.Ordinal))
+                node.Transform = ParseTransformNodeSettings(root);
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.GradientNoiseNode", StringComparison.Ordinal))
+                node.GradientNoise = ParseGradientNoiseNodeSettings(root);
+
             return node;
         }
 
@@ -799,6 +816,99 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 MultiplyTypeValue = multiplyTypeValue,
                 MultiplyType = FormatMultiplyType(multiplyTypeValue)
             };
+        }
+
+        static ShaderGraphSpaceNodeSettingsData ParseSpaceNodeSettings(JsonElement root)
+        {
+            var spaceValue = GetInt(root, "m_Space");
+
+            return new ShaderGraphSpaceNodeSettingsData
+            {
+                SpaceValue = spaceValue,
+                Space = FormatCoordinateSpace(spaceValue)
+            };
+        }
+
+        static ShaderGraphPositionNodeSettingsData ParsePositionNodeSettings(JsonElement root)
+        {
+            var spaceValue = GetInt(root, "m_Space");
+            var positionSourceValue = GetInt(root, "m_PositionSource");
+
+            return new ShaderGraphPositionNodeSettingsData
+            {
+                SpaceValue = spaceValue,
+                Space = FormatCoordinateSpace(spaceValue),
+                PositionSourceValue = positionSourceValue,
+                PositionSource = FormatPositionSource(positionSourceValue)
+            };
+        }
+
+        static ShaderGraphTransformNodeSettingsData ParseTransformNodeSettings(JsonElement root)
+        {
+            var inputSpaceValue = GetIntAt(root, "m_Conversion", "from");
+            var outputSpaceValue = GetIntAt(root, "m_Conversion", "to");
+            var transformTypeValue = GetInt(root, "m_ConversionType");
+
+            return new ShaderGraphTransformNodeSettingsData
+            {
+                InputSpaceValue = inputSpaceValue,
+                InputSpace = FormatCoordinateSpace(inputSpaceValue),
+                OutputSpaceValue = outputSpaceValue,
+                OutputSpace = FormatCoordinateSpace(outputSpaceValue),
+                TransformTypeValue = transformTypeValue,
+                TransformType = FormatTransformType(transformTypeValue),
+                Normalize = GetBool(root, "m_Normalize")
+            };
+        }
+
+        static ShaderGraphGradientNoiseNodeSettingsData ParseGradientNoiseNodeSettings(JsonElement root)
+        {
+            var hashTypeValue = GetInt(root, "m_HashType");
+
+            return new ShaderGraphGradientNoiseNodeSettingsData
+            {
+                HashTypeValue = hashTypeValue,
+                HashType = FormatGradientNoiseHashType(hashTypeValue)
+            };
+        }
+
+        static void PopulateSlotDerivedNodeSettings(ShaderGraphNodeDefinitionData node)
+        {
+            if (node.GradientNoise != null)
+                node.GradientNoise.Scale = ParseSlotFloatValue(node, "Scale");
+        }
+
+        static float? ParseSlotFloatValue(ShaderGraphNodeDefinitionData node, string slotDisplayName)
+        {
+            var slot = node.Slots?.FirstOrDefault(s => string.Equals(s.DisplayName, slotDisplayName, StringComparison.Ordinal));
+            if (slot == null)
+                return null;
+
+            return ParseScalarJson(slot.ValueJson) ?? ParseScalarJson(slot.DefaultValueJson);
+        }
+
+        static float? ParseScalarJson(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return null;
+
+            try
+            {
+                using var document = JsonDocument.Parse(json!);
+                if (document.RootElement.ValueKind != JsonValueKind.Number)
+                    return null;
+
+                if (document.RootElement.TryGetSingle(out var singleValue))
+                    return singleValue;
+
+                return document.RootElement.TryGetDouble(out var doubleValue)
+                    ? (float)doubleValue
+                    : null;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
 
         static ShaderGraphSlotDefinitionData ParseSlotDefinition(JsonElement root, string objectId)
@@ -893,7 +1003,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 var id = GetString(item, "m_Id");
                 if (!string.IsNullOrEmpty(id))
-                    result.Add(id);
+                    result.Add(id!);
             }
 
             return result;
@@ -1053,6 +1163,55 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 0 => "vector",
                 1 => "matrix",
                 2 => "mixed",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatCoordinateSpace(int? value)
+        {
+            return value switch
+            {
+                0 => "object",
+                1 => "view",
+                2 => "world",
+                3 => "tangent",
+                4 => "absoluteWorld",
+                5 => "screen",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatPositionSource(int? value)
+        {
+            return value switch
+            {
+                0 => "default",
+                1 => "predisplacement",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatTransformType(int? value)
+        {
+            return value switch
+            {
+                0 => "position",
+                1 => "direction",
+                2 => "normal",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatGradientNoiseHashType(int? value)
+        {
+            return value switch
+            {
+                0 => "deterministic",
+                1 => "legacyMod",
                 null => null,
                 _ => $"unknown({value})"
             };

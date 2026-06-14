@@ -50,6 +50,7 @@ This ShaderGraph control track is done when an agent can:
 
 - Inspect a URP Shader Graph structurally and semantically.
 - Create, delete, and duplicate common URP authoring nodes.
+- Create, delete, duplicate, and configure core source-vector, space-transform, procedural-noise, and unary math nodes needed by reference-driven shader recreation.
 - Edit meaningful serialized settings on supported nodes.
 - Create, update, delete, reorder, and categorize common blackboard property types.
 - Create property nodes for supported property types.
@@ -188,6 +189,51 @@ Initial node families:
 - `tilingAndOffset`
 - `branch`
 - `PropertyNode`
+
+## Epic 7A: Core Reference-Driven Node Expansion
+
+Status:
+
+- Implemented in code on `custom/shadergraph-mcp`.
+- Compile sanity check passed in the local Unity 6 validation project.
+- Live Unity Editor validation through the existing project-scoped MCP session passed on 2026-06-14.
+
+Purpose:
+
+- Close the concrete node-coverage gap found during the 2026-06-14 reflection-outline reference-image trial.
+- Promote common source-vector, transform, procedural-noise, and unary math nodes out of long-tail debt because they are required for practical reference-driven ShaderGraph recreation.
+
+Required node families:
+
+- `viewDirection` (`View Direction`)
+- `viewVector` (`View Vector`)
+- `normalVector` (`Normal Vector`)
+- `position` (`Position`)
+- `transform` (`Transform`)
+- `gradientNoise` (`Gradient Noise`)
+- `sine` (`Sine`)
+- `cosine` (`Cosine`)
+- `negate` (`Negate`)
+
+Implementation plan:
+
+- Slice 7A.1: add source-vector node creation for `viewDirection`, `viewVector`, `normalVector`, and `position`, including typed space settings where Unity exposes them. Implemented.
+- Slice 7A.2: add `transform` node creation with explicit input space, output space, and transform type settings; reject unsupported space/type combinations loudly. Implemented.
+- Slice 7A.3: add unary math node creation for `sine`, `cosine`, and `negate`, and include them in duplicate/delete/move flows. Implemented.
+- Slice 7A.4: add `gradientNoise` node creation with safe default scale handling and typed settings for scale where serialized behavior is stable. Implemented.
+- Slice 7A.5: extend `assets-shadergraph-update-node-settings`, node readback, tool descriptions, and docs for the new node families. Implemented.
+- Slice 7A.6: expand slot compatibility only where these nodes expose concrete unsupported output/input pairs during validation. Implemented for Vector3/Position slot pairs and cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
+- Slice 7A.7: add editor tests that create, inspect, duplicate, move, wire, and reimport each new node family. Implemented in editor tests; live MCP validation passed; automated Unity test-run execution remains deferred to Epic 15.
+- Slice 7A.8: add an end-to-end validation case that recreates the reflection-outline graph path from the reference trial: view/vector source nodes, reflection-normal trig chain, gradient-noise displacement modulation, transform, vertex position output, base texture/color output. Implemented in editor tests; live MCP validation passed; automated Unity test-run execution remains deferred to Epic 15.
+
+Validation requirements:
+
+- Each slice must create a graph through MCP, force reimport, return no ShaderGraph diagnostics errors, and verify the created node is discoverable through `assets-shadergraph-get-structure`.
+- The final validation scene must prove the material uses the generated ShaderGraph rather than a proxy shell or handwritten shader fallback.
+- Epic 7A local validation evidence:
+  - `Codex_Epic7A_SettingsSmoke.shadergraph`: all new nodes created, typed settings read back, `Transform` duplicate/move/delete passed, final import reported `ShaderResolved=true` and `HasErrors=false`.
+  - `Codex_Epic7A_E2E.shadergraph`: reflection-outline path wired with 22 nodes and 15 edges, including `Transform -> VertexDescription.Position`, preserved base texture/color output, final import reported `ShaderResolved=true` and `HasErrors=false`.
+  - Unity test-runner discovery for package editor tests is still tracked under Epic 15.
 
 ## Epic 8: Node Parameter Editing
 

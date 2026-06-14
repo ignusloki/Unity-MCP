@@ -35,7 +35,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Update supported serialized settings on an existing Shader Graph node, then re-import the graph and return the updated node and diagnostics.")]
         [AiSkillBody("Update supported settings on an existing node inside a '.shadergraph' asset.\n\n" +
-            "Current Epic 8 support is intentionally typed and allowlisted:\n" +
+            "Current Epic 7A/Epic 8 support is intentionally typed and allowlisted:\n" +
             "- existing nodes only\n" +
             "- selection by `nodeObjectId`\n" +
             "- `sampleTexture2D`: `textureType`, `normalMapSpace`, `useGlobalMipBias`, `mipSamplingMode`, direct unconnected Texture slot asset/default type via `textureSlotAssetPath` and `textureSlotDefaultType`\n" +
@@ -46,7 +46,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `add`, `subtract`, `divide`: default `a` and `b` slot values\n" +
             "- `lerp`: default `a`, `b`, and `t` slot values\n" +
             "- `oneMinus`: default `input` slot value\n" +
-            "- `multiply`: `multiplyType`\n\n" +
+            "- `multiply`: `multiplyType`\n" +
+            "- `viewDirection`, `viewVector`, `normalVector`: `space`\n" +
+            "- `position`: `space` and `positionSource`\n" +
+            "- `transform`: `inputSpace`, `outputSpace`, `transformType`, and `normalize`\n" +
+            "- `gradientNoise`: default `scale` slot value and `hashType`\n" +
+            "- `sine`, `cosine`, `negate`: default `input` slot value\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n" +
             "- `node` — node selector plus the typed settings payload for the supported node family.\n" +
@@ -94,6 +99,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             var hasSampleTexture2DUpdates = HasSampleTexture2DUpdates(node.SampleTexture2D);
             var hasSerializedNodeUpdates = HasSerializedNodeSettingsUpdates(node);
+            var serializedNodeUpdatePayloadCount = CountSerializedNodeSettingsUpdatePayloads(node);
 
             if (!hasSampleTexture2DUpdates && !hasSerializedNodeUpdates)
                 throw new ArgumentException("At least one supported node settings field must be provided.", nameof(node));
@@ -102,6 +108,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 throw new ArgumentException(
                     "Sample Texture 2D settings updates cannot be combined with other node settings payloads in the same request.",
+                    nameof(node));
+            }
+
+            if (serializedNodeUpdatePayloadCount > 1)
+            {
+                throw new ArgumentException(
+                    "Only one typed node settings payload can be provided per update request.",
                     nameof(node));
             }
 
@@ -194,6 +207,33 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "UnityEditor.ShaderGraph.MultiplyNode":
                     ApplyMultiplyNodeSettings(nodeObject, node.Multiply, changedFields);
                     break;
+                case "UnityEditor.ShaderGraph.ViewDirectionNode":
+                    ApplySpaceNodeSettings(nodeObject, node.ViewDirection, "View Direction", "node.viewDirection", changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.ViewVectorNode":
+                    ApplySpaceNodeSettings(nodeObject, node.ViewVector, "View Vector", "node.viewVector", changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.NormalVectorNode":
+                    ApplySpaceNodeSettings(nodeObject, node.NormalVector, "Normal Vector", "node.normalVector", changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.PositionNode":
+                    ApplyPositionNodeSettings(nodeObject, node.Position, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.TransformNode":
+                    ApplyTransformNodeSettings(nodeObject, node.Transform, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.GradientNoiseNode":
+                    ApplyGradientNoiseNodeSettings(document.Bindings, nodeObject, node.GradientNoise, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.SineNode":
+                    ApplyUnaryVectorNodeSettings(document.Bindings, nodeObject, node.Sine, "Sine", "node.sine", changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.CosineNode":
+                    ApplyUnaryVectorNodeSettings(document.Bindings, nodeObject, node.Cosine, "Cosine", "node.cosine", changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.NegateNode":
+                    ApplyUnaryVectorNodeSettings(document.Bindings, nodeObject, node.Negate, "Negate", "node.negate", changedFields);
+                    break;
                 default:
                     throw new InvalidOperationException(
                         $"Node '{nodeType}' does not yet support typed node settings updates.");
@@ -256,7 +296,41 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasBinaryVectorUpdates(node.Divide)
                || HasLerpUpdates(node.Lerp)
                || HasOneMinusUpdates(node.OneMinus)
-               || HasMultiplyUpdates(node.Multiply);
+               || HasMultiplyUpdates(node.Multiply)
+               || HasSpaceUpdates(node.ViewDirection)
+               || HasSpaceUpdates(node.ViewVector)
+               || HasSpaceUpdates(node.NormalVector)
+               || HasPositionUpdates(node.Position)
+               || HasTransformUpdates(node.Transform)
+               || HasGradientNoiseUpdates(node.GradientNoise)
+               || HasUnaryVectorUpdates(node.Sine)
+               || HasUnaryVectorUpdates(node.Cosine)
+               || HasUnaryVectorUpdates(node.Negate);
+
+        static int CountSerializedNodeSettingsUpdatePayloads(ShaderGraphUpdateNodeSettingsInput node)
+        {
+            var count = 0;
+            if (HasTilingAndOffsetUpdates(node.TilingAndOffset)) count++;
+            if (HasBranchUpdates(node.Branch)) count++;
+            if (HasSplitUpdates(node.Split)) count++;
+            if (HasCombineUpdates(node.Combine)) count++;
+            if (HasBinaryVectorUpdates(node.Add)) count++;
+            if (HasBinaryVectorUpdates(node.Subtract)) count++;
+            if (HasBinaryVectorUpdates(node.Divide)) count++;
+            if (HasLerpUpdates(node.Lerp)) count++;
+            if (HasOneMinusUpdates(node.OneMinus)) count++;
+            if (HasMultiplyUpdates(node.Multiply)) count++;
+            if (HasSpaceUpdates(node.ViewDirection)) count++;
+            if (HasSpaceUpdates(node.ViewVector)) count++;
+            if (HasSpaceUpdates(node.NormalVector)) count++;
+            if (HasPositionUpdates(node.Position)) count++;
+            if (HasTransformUpdates(node.Transform)) count++;
+            if (HasGradientNoiseUpdates(node.GradientNoise)) count++;
+            if (HasUnaryVectorUpdates(node.Sine)) count++;
+            if (HasUnaryVectorUpdates(node.Cosine)) count++;
+            if (HasUnaryVectorUpdates(node.Negate)) count++;
+            return count;
+        }
 
         static bool HasSampleTexture2DUpdates(ShaderGraphSampleTexture2DNodeSettingsUpdateInput? sampleTexture2D)
             => sampleTexture2D != null
@@ -308,6 +382,29 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
         static bool HasMultiplyUpdates(ShaderGraphMultiplyNodeSettingsUpdateInput? multiply)
             => multiply != null && !string.IsNullOrWhiteSpace(multiply.MultiplyType);
+
+        static bool HasSpaceUpdates(ShaderGraphSpaceNodeSettingsUpdateInput? space)
+            => space != null && !string.IsNullOrWhiteSpace(space.Space);
+
+        static bool HasPositionUpdates(ShaderGraphPositionNodeSettingsUpdateInput? position)
+            => position != null
+               && (!string.IsNullOrWhiteSpace(position.Space)
+                   || !string.IsNullOrWhiteSpace(position.PositionSource));
+
+        static bool HasTransformUpdates(ShaderGraphTransformNodeSettingsUpdateInput? transform)
+            => transform != null
+               && (!string.IsNullOrWhiteSpace(transform.InputSpace)
+                   || !string.IsNullOrWhiteSpace(transform.OutputSpace)
+                   || !string.IsNullOrWhiteSpace(transform.TransformType)
+                   || transform.Normalize.HasValue);
+
+        static bool HasGradientNoiseUpdates(ShaderGraphGradientNoiseNodeSettingsUpdateInput? gradientNoise)
+            => gradientNoise != null
+               && (gradientNoise.Scale.HasValue
+                   || !string.IsNullOrWhiteSpace(gradientNoise.HashType));
+
+        static bool HasUnaryVectorUpdates(ShaderGraphUnaryVectorNodeSettingsUpdateInput? unary)
+            => unary != null && HasVector4Updates(unary.Input);
 
         static bool HasVector2Updates(ShaderGraphVector2ValueUpdateInput? value)
             => value != null && (value.X.HasValue || value.Y.HasValue);
@@ -648,6 +745,144 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 var multiplyType = ParseMultiplyType(multiply.MultiplyType!);
                 SetIntOrEnumField(nodeObject, "m_MultiplyType", multiplyType, "node.multiply.multiplyType", changedFields);
             }
+        }
+
+        static void ApplySpaceNodeSettings(
+            object nodeObject,
+            ShaderGraphSpaceNodeSettingsUpdateInput? space,
+            string nodeDisplayName,
+            string changedFieldPrefix,
+            List<string> changedFields)
+        {
+            if (space == null)
+                throw new InvalidOperationException($"{nodeDisplayName} nodes require a `{changedFieldPrefix[(changedFieldPrefix.LastIndexOf('.') + 1)..]}` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_Space",
+                space.Space,
+                $"{changedFieldPrefix}.space",
+                new[] { "object", "view", "world", "tangent" },
+                changedFields);
+        }
+
+        static void ApplyPositionNodeSettings(
+            object nodeObject,
+            ShaderGraphPositionNodeSettingsUpdateInput? position,
+            List<string> changedFields)
+        {
+            if (position == null)
+                throw new InvalidOperationException("Position nodes require a `position` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_Space",
+                position.Space,
+                "node.position.space",
+                new[] { "object", "view", "world", "tangent", "absoluteWorld" },
+                changedFields);
+
+            SetEnumField(
+                nodeObject,
+                "m_PositionSource",
+                position.PositionSource,
+                "node.position.positionSource",
+                new[] { "default", "predisplacement" },
+                changedFields);
+        }
+
+        static void ApplyTransformNodeSettings(
+            object nodeObject,
+            ShaderGraphTransformNodeSettingsUpdateInput? transform,
+            List<string> changedFields)
+        {
+            if (transform == null)
+                throw new InvalidOperationException("Transform nodes require a `transform` settings payload.");
+
+            SetTransformConversionSpaces(nodeObject, transform, changedFields);
+
+            SetEnumField(
+                nodeObject,
+                "m_ConversionType",
+                transform.TransformType,
+                "node.transform.transformType",
+                new[] { "position", "direction", "normal" },
+                changedFields);
+
+            if (transform.Normalize.HasValue && SetBoolField(nodeObject, "m_Normalize", transform.Normalize.Value))
+                AddChangedField(changedFields, "node.transform.normalize");
+        }
+
+        static void ApplyGradientNoiseNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphGradientNoiseNodeSettingsUpdateInput? gradientNoise,
+            List<string> changedFields)
+        {
+            if (gradientNoise == null)
+                throw new InvalidOperationException("Gradient Noise nodes require a `gradientNoise` settings payload.");
+
+            SetSlotFloat(bindings, nodeObject, "Scale", gradientNoise.Scale, "node.gradientNoise.scale", changedFields);
+            SetEnumField(
+                nodeObject,
+                "m_HashType",
+                gradientNoise.HashType,
+                "node.gradientNoise.hashType",
+                new[] { "deterministic", "legacyMod" },
+                changedFields);
+        }
+
+        static void ApplyUnaryVectorNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphUnaryVectorNodeSettingsUpdateInput? unary,
+            string nodeDisplayName,
+            string changedFieldPrefix,
+            List<string> changedFields)
+        {
+            if (unary == null)
+                throw new InvalidOperationException($"{nodeDisplayName} nodes require a `{changedFieldPrefix[(changedFieldPrefix.LastIndexOf('.') + 1)..]}` settings payload.");
+
+            SetSlotVector4(bindings, nodeObject, "In", unary.Input, $"{changedFieldPrefix}.input", changedFields);
+        }
+
+        static void SetTransformConversionSpaces(
+            object nodeObject,
+            ShaderGraphTransformNodeSettingsUpdateInput transform,
+            List<string> changedFields)
+        {
+            var hasInputSpace = !string.IsNullOrWhiteSpace(transform.InputSpace);
+            var hasOutputSpace = !string.IsNullOrWhiteSpace(transform.OutputSpace);
+            if (!hasInputSpace && !hasOutputSpace)
+                return;
+
+            var conversionField = ResolveNodeInstanceField(nodeObject.GetType(), "m_Conversion");
+            var conversion = conversionField.GetValue(nodeObject)
+                ?? throw new InvalidOperationException("Transform node m_Conversion was unexpectedly null.");
+
+            if (hasInputSpace)
+            {
+                SetEnumField(
+                    conversion,
+                    "from",
+                    transform.InputSpace,
+                    "node.transform.inputSpace",
+                    new[] { "object", "view", "world", "tangent", "absoluteWorld", "screen" },
+                    changedFields);
+            }
+
+            if (hasOutputSpace)
+            {
+                SetEnumField(
+                    conversion,
+                    "to",
+                    transform.OutputSpace,
+                    "node.transform.outputSpace",
+                    new[] { "object", "view", "world", "tangent", "absoluteWorld", "screen" },
+                    changedFields);
+            }
+
+            conversionField.SetValue(nodeObject, conversion);
         }
 
         static object ResolveRuntimeSlotObject(
@@ -1122,6 +1357,39 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 return;
 
             field.SetValue(target, fieldValue);
+            AddChangedField(changedFields, changedFieldName);
+        }
+
+        static void SetEnumField(
+            object target,
+            string fieldName,
+            string? value,
+            string changedFieldName,
+            IReadOnlyCollection<string> supportedValues,
+            List<string> changedFields)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return;
+
+            var normalizedValue = NormalizeEnumValue(value!);
+            var supportedNormalizedValues = supportedValues
+                .Select(NormalizeEnumValue)
+                .ToHashSet(StringComparer.Ordinal);
+            if (!supportedNormalizedValues.Contains(normalizedValue))
+            {
+                throw new ArgumentException(
+                    $"Unsupported value '{value}' for {changedFieldName}. Supported values: {string.Join(", ", supportedValues)}.");
+            }
+
+            var field = ResolveNodeInstanceField(target.GetType(), fieldName);
+            if (!field.FieldType.IsEnum)
+                throw new InvalidOperationException($"Field '{target.GetType().FullName}.{fieldName}' is not an enum.");
+
+            var parsedValue = ParseNodeEnumValue(field.FieldType, value!, changedFieldName);
+            if (Equals(field.GetValue(target), parsedValue))
+                return;
+
+            field.SetValue(target, parsedValue);
             AddChangedField(changedFields, changedFieldName);
         }
 

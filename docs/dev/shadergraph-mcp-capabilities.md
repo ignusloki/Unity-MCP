@@ -13,16 +13,19 @@ Related documents:
 
 ## Current Checkpoint
 
-The current implementation is ready for first-pass URP Shader Graph recreation trials from a reference image, visual concept, or existing example.
+The current implementation is ready for renewed first-pass URP Shader Graph recreation trials from a reference image, visual concept, or existing example. The 2026-06-14 reflection-outline reference trial exposed a node-coverage blocker for reflection-driven vertex outline graphs; Epic 7A now implements and validates that core node set through the local Unity project-scoped MCP session.
 
 The exposed MCP surface can create and inspect Shader Graph assets, mutate common URP graph settings, author common node/property/edge workflows, configure common URP stack blocks, assign texture assets, create materials from graphs, and validate graph/material texture behavior.
+
+Agents can now create and configure the source-vector, space-transform, procedural-noise, and trigonometric nodes needed for the reflection-outline trial path. Broader reference recreation parity still depends on concrete follow-up trials.
 
 ## Scope
 
 - Focus: URP-first Shader Graph authoring.
 - Implementation location: core `com.ivanmurzak.unity.mcp` package.
-- Validation baseline: local Unity test project at `/Users/suporte/Unity-MCP/Unity-test/TestShadergraph`.
-- Unity validation version: `6000.4.1f1`.
+- Validation baseline: incremental live checks in the local Unity 6 URP/ShaderGraph workspace project at `Unity-test/TestShadergraph`.
+- Reproducibility note: `Unity-test/` is git-ignored, so this validation project is local workspace state rather than a tracked repository fixture.
+- Unity validation version used at the checkpoint: `6000.4.1f1`.
 - Package baseline: `com.ivanmurzak.unity.mcp` version `0.81.0`.
 
 ## Exposure Model
@@ -220,6 +223,15 @@ Node lifecycle mutation results include normalized summary fields:
     - `sampleTexture2D`
     - `tilingAndOffset`
     - `branch`
+    - `viewDirection` (`View Direction`)
+    - `viewVector` (`View Vector`)
+    - `normalVector` (`Normal Vector`)
+    - `position` (`Position`)
+    - `transform` (`Transform`)
+    - `gradientNoise` (`Gradient Noise`)
+    - `sine` (`Sine`)
+    - `cosine` (`Cosine`)
+    - `negate` (`Negate`)
 - `assets-shadergraph-duplicate-node`
   - Duplicates a supported existing node by serialized `nodeObjectId`.
   - Supports `PropertyNode` plus the same allowlisted node families as `assets-shadergraph-add-node`.
@@ -297,13 +309,34 @@ Node lifecycle mutation results include normalized summary fields:
     - `input.w`
   - Supported `Multiply` fields:
     - `multiplyType`
+  - Supported `View Direction`, `View Vector`, and `Normal Vector` fields:
+    - `space`
+  - Supported `Position` fields:
+    - `space`
+    - `positionSource`
+  - Supported `Transform` fields:
+    - `inputSpace`
+    - `outputSpace`
+    - `transformType`
+    - `normalize`
+  - Supported Transform spaces: `object`, `view`, `world`, `tangent`, `absoluteWorld`, `screen`.
+  - Supported Transform types: `position`, `direction`, `normal`.
+  - Supported `Gradient Noise` fields:
+    - `scale`
+    - `hashType`
+  - Supported `Sine`, `Cosine`, and `Negate` fields:
+    - `input.x`
+    - `input.y`
+    - `input.z`
+    - `input.w`
+  - Dynamic unary input defaults are intended for unconnected literal fallback values. For connected dynamic arithmetic chains, wire the upstream node output and inspect returned diagnostics instead of forcing a mismatched literal vector width first.
 
 ### Edge Mutation
 
 - `assets-shadergraph-connect-edge`
   - Connects compatible existing graph slots by `nodeObjectId` plus `slotObjectId`.
   - Requires the input slot to be unconnected unless `replaceExistingInputConnection` is true.
-  - Supports exact slot-type matches, compatible UV/vector2 pairs, Texture2D property outputs into Texture2D input slots, and compatible dynamic numeric/vector/color slot families.
+  - Supports exact slot-type matches, compatible UV/vector2 pairs, compatible Vector3/Position pairs, Texture2D property outputs into Texture2D input slots, compatible dynamic numeric/vector/color slot families, and cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
   - Returns `removedEdge` when an incoming edge is replaced.
 - `assets-shadergraph-reconnect-edge`
   - Reconnects an exact existing edge to a new output endpoint, input endpoint, or both.
@@ -350,6 +383,15 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 
 ## Validation State
 
-- The current exposed surface has been validated through incremental live Unity checks in the local Unity 6 validation project.
-- `dotnet build Assembly-CSharp.csproj -v minimal` passed in the local Unity test project with existing warnings and no errors at the last checkpoint.
+- The current exposed surface has been validated through incremental live Unity checks in the local Unity 6 workspace validation project at `Unity-test/TestShadergraph`.
+- The 2026-06-14 reference-image trial created a valid graph, material, and scene, but exact recreation of a reflection-based outline ShaderGraph was blocked by missing node support for `View Direction`, `View Vector`, `Normal Vector`, `Position`, `Transform`, `Gradient Noise`, `Sine`, `Cosine`, and `Negate`.
+- Epic 7A now adds code support for those node families, typed settings/readback where stable, Vector3/Position slot compatibility, cross-family dynamic slot compatibility, and an editor-test e2e case for the reflection-outline path.
+- A compile sanity check, `dotnet build Assembly-CSharp.csproj -v minimal`, passed in that local project with 0 warnings and 0 errors at the last checkpoint.
+- Epic 7A live validation through the already-open project-scoped MCP/editor session passed on 2026-06-14:
+  - `Codex_Epic7A_SettingsSmoke.shadergraph`: add/update/readback for all Epic 7A nodes, duplicate/move/delete for `Transform`, final `ShaderResolved=true`, `HasErrors=false`.
+  - `Codex_Epic7A_E2E.shadergraph`: reflection-outline path with source vectors, trig chain, gradient-noise displacement modulation, `Transform -> VertexDescription.Position`, preserved base texture/color output, final `ShaderResolved=true`, `HasErrors=false`, 22 nodes and 15 edges.
+  - Short readback probe confirmed `Position.space=absoluteWorld`, `Transform` conversion `absoluteWorld -> object`, `GradientNoise.scale=18`, and the final vertex-position edge.
+- A Unity batch-mode editor test run was intentionally not performed while the project was already open in a Unity Editor instance.
+- The local `Unity-test/TestShadergraph` project is available in this workspace, but it is git-ignored and should not be treated as a reproducible repository fixture until explicitly promoted or documented as setup-required state.
+- Unity package editor test discovery for the ShaderGraph tests still needs to be fixed before this can be treated as a complete automated validation baseline.
 - Future gaps and non-blocking limitations are tracked in `docs/dev/futureDebt.MD`.

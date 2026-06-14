@@ -46,7 +46,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, split, combine, sampleTexture2D, tilingAndOffset, branch.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, transform, gradientNoise, sine, cosine, negate.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]
@@ -120,6 +120,33 @@ namespace AIGD
 
         [Description("Structured settings updates for a Multiply node.")]
         public ShaderGraphMultiplyNodeSettingsUpdateInput? Multiply { get; set; }
+
+        [Description("Structured settings updates for a View Direction node.")]
+        public ShaderGraphSpaceNodeSettingsUpdateInput? ViewDirection { get; set; }
+
+        [Description("Structured settings updates for a View Vector node.")]
+        public ShaderGraphSpaceNodeSettingsUpdateInput? ViewVector { get; set; }
+
+        [Description("Structured settings updates for a Normal Vector node.")]
+        public ShaderGraphSpaceNodeSettingsUpdateInput? NormalVector { get; set; }
+
+        [Description("Structured settings updates for a Position node.")]
+        public ShaderGraphPositionNodeSettingsUpdateInput? Position { get; set; }
+
+        [Description("Structured settings updates for a Transform node.")]
+        public ShaderGraphTransformNodeSettingsUpdateInput? Transform { get; set; }
+
+        [Description("Structured settings updates for a Gradient Noise node.")]
+        public ShaderGraphGradientNoiseNodeSettingsUpdateInput? GradientNoise { get; set; }
+
+        [Description("Structured settings updates for a Sine node.")]
+        public ShaderGraphUnaryVectorNodeSettingsUpdateInput? Sine { get; set; }
+
+        [Description("Structured settings updates for a Cosine node.")]
+        public ShaderGraphUnaryVectorNodeSettingsUpdateInput? Cosine { get; set; }
+
+        [Description("Structured settings updates for a Negate node.")]
+        public ShaderGraphUnaryVectorNodeSettingsUpdateInput? Negate { get; set; }
     }
 
     [Description("Structured settings updates for a Sample Texture 2D node.")]
@@ -251,6 +278,56 @@ namespace AIGD
     {
         [Description("Multiply mode. Supported values: vector, matrix, mixed.")]
         public string? MultiplyType { get; set; }
+    }
+
+    [Description("Structured settings updates for source-vector nodes with a space selector.")]
+    public class ShaderGraphSpaceNodeSettingsUpdateInput
+    {
+        [Description("Coordinate space. Supported values: object, view, world, tangent. Position additionally supports absoluteWorld.")]
+        public string? Space { get; set; }
+    }
+
+    [Description("Structured settings updates for a Position node.")]
+    public class ShaderGraphPositionNodeSettingsUpdateInput
+    {
+        [Description("Coordinate space. Supported values: object, view, world, tangent, absoluteWorld.")]
+        public string? Space { get; set; }
+
+        [Description("Position source. Supported values: default, predisplacement.")]
+        public string? PositionSource { get; set; }
+    }
+
+    [Description("Structured settings updates for a Transform node.")]
+    public class ShaderGraphTransformNodeSettingsUpdateInput
+    {
+        [Description("Input coordinate space. Supported values: object, view, world, tangent, absoluteWorld, screen.")]
+        public string? InputSpace { get; set; }
+
+        [Description("Output coordinate space. Supported values: object, view, world, tangent, absoluteWorld, screen.")]
+        public string? OutputSpace { get; set; }
+
+        [Description("Transform conversion type. Supported values: position, direction, normal.")]
+        public string? TransformType { get; set; }
+
+        [Description("Whether the transform result should be normalized where the selected transform type supports it.")]
+        public bool? Normalize { get; set; }
+    }
+
+    [Description("Structured settings updates for a Gradient Noise node.")]
+    public class ShaderGraphGradientNoiseNodeSettingsUpdateInput
+    {
+        [Description("Default value for the Scale input slot.")]
+        public float? Scale { get; set; }
+
+        [Description("Gradient Noise hash type. Supported values: deterministic, legacyMod.")]
+        public string? HashType { get; set; }
+    }
+
+    [Description("Structured settings updates for unary vector nodes such as Sine, Cosine, and Negate.")]
+    public class ShaderGraphUnaryVectorNodeSettingsUpdateInput
+    {
+        [Description("Default value for the In input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
     }
 
     [Description("Result of mutating a Shader Graph node and re-importing the graph.")]

@@ -437,15 +437,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
         static JsonObject GetOrCreateDefaultCategoryObject(ShaderGraphMutableDocument document)
         {
-            var categoryIds = GetIdArray(document.Root, "m_CategoryData");
-            foreach (var categoryId in categoryIds)
-            {
-                if (document.ObjectsById.TryGetValue(categoryId, out var categoryObject)
-                    && IsCategoryObject(categoryObject))
-                {
-                    return categoryObject;
-                }
-            }
+            var defaultCategory = FindCategoryByName(document, string.Empty);
+            if (defaultCategory != null)
+                return defaultCategory;
 
             return CreateCategoryObject(document, string.Empty);
         }

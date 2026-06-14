@@ -520,9 +520,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
         static string GetEffectivePropertyReferenceName(JsonObject propertyObject)
         {
-            return GetString(propertyObject, "m_OverrideReferenceName")
-                ?? GetString(propertyObject, "m_DefaultReferenceName")
-                ?? string.Empty;
+            var overrideReferenceName = GetString(propertyObject, "m_OverrideReferenceName");
+            if (!string.IsNullOrWhiteSpace(overrideReferenceName))
+                return overrideReferenceName!;
+
+            return GetString(propertyObject, "m_DefaultReferenceName") ?? string.Empty;
         }
 
         static string GenerateDefaultReferenceName(string displayName)

@@ -31,8 +31,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Add a safe allowlisted Shader Graph node, then re-import the graph and return the created node and diagnostics.")]
         [AiSkillBody("Add a safe allowlisted node to a '.shadergraph' asset.\n\n" +
-            "Current Epic 7 support is intentionally explicit:\n" +
-            "- node types: `add`, `subtract`, `multiply`, `divide`, `lerp`, `oneMinus`, `split`, `combine`, `sampleTexture2D`, `tilingAndOffset`, `branch`\n" +
+            "Current Epic 7A support is intentionally explicit:\n" +
+            "- node types: `add`, `subtract`, `multiply`, `divide`, `lerp`, `oneMinus`, `split`, `combine`, `sampleTexture2D`, `tilingAndOffset`, `branch`, `viewDirection`, `viewVector`, `normalVector`, `position`, `transform`, `gradientNoise`, `sine`, `cosine`, `negate`\n" +
             "- node creation only, no automatic edge wiring\n" +
             "- uses Unity's own Shader Graph graph APIs through reflection, then re-imports the asset\n\n" +
             "## Inputs\n\n" +
@@ -90,10 +90,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             InvokeShaderGraphMethod(document.Bindings.ValidateGraphMethod, document.GraphData);
 
             SaveShaderGraphReflectionDocument(document);
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+            FinalizeShaderGraphMutation(assetPath);
 
             var createdNodeObjectId = GetShaderGraphNodeObjectId(document.Bindings, createdNodeObject);
             var graphRef = new AssetObjectRef(assetPath);

@@ -8,7 +8,7 @@ The current exposed tool surface is documented in `docs/dev/shadergraph-mcp-capa
 
 ## Current Checkpoint
 
-The implementation is sufficient to start first-pass URP Shader Graph recreation trials from a reference image, visual concept, or existing example.
+The implementation is sufficient to start first-pass URP Shader Graph recreation trials from a reference image, visual concept, or existing example, but it is not yet sufficient to claim broad reference recreation parity.
 
 Future work should be driven by concrete failures found during those trials instead of continuing speculative expansion.
 
@@ -17,6 +17,8 @@ Future work should be driven by concrete failures found during those trials inst
 ### Dynamic Default-Slot Editing
 
 Direct typed node-setting mutation exists for high-value URP node families, but editor-facing validation showed that some dynamic-vector-driven default-slot edits are not surfaced reliably enough in the Shader Graph UI to be the preferred authoring flow.
+
+Epic 7A validation also showed that connected dynamic arithmetic chains should not force a mismatched literal default value first. For example, setting a unary trig node's dynamic input fallback to a vector literal and then wiring a different vector width can cause Unity Shader Graph concretization diagnostics. The stable authoring flow is to wire connected dynamic chains first, or to use a blackboard property when an explicit reusable value is required.
 
 Current stable workaround:
 
@@ -40,6 +42,7 @@ Future work:
 
 - Improve direct literal/default-slot mutation so this workaround is no longer needed.
 - Expand direct `Multiply` input-slot literal editing beyond the current `multiplyType` support.
+- Investigate whether connected dynamic inputs should automatically clear or normalize incompatible literal fallback metadata before edge creation.
 
 ### Texture Slot Assignment Boundaries
 
@@ -89,8 +92,9 @@ Current matrix already covers:
 
 - Exact slot-type matches.
 - Compatible UV/vector2 slot pairs.
+- Compatible Vector3/Position slot pairs.
 - Texture2D property outputs into Texture2D input slots.
-- Compatible dynamic numeric, vector, and color slot families.
+- Compatible dynamic numeric, vector, and color slot families, including cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
 
 ### Graph Organization And Cleanup
 
@@ -114,6 +118,8 @@ Deferred advanced features:
 - Broader render-pipeline support beyond the current URP-first scope.
 - Long-tail Shader Graph node families not covered by the current allowlist.
 
+Note: the reflection-outline trial nodes implemented in Epic 7A are no longer considered long-tail.
+
 ### Style Recipe Expansion
 
 The style-recipe tool intentionally returns warnings for fields outside the current implementation.
@@ -127,13 +133,21 @@ Future work:
 
 ### Unity Test Runner Discovery
 
-`dotnet build Assembly-CSharp.csproj -v minimal` passes in the local Unity test project with existing warnings and no errors at the last checkpoint.
+A compile sanity check, `dotnet build Assembly-CSharp.csproj -v minimal`, passed in the local Unity 6 URP/ShaderGraph validation project with 0 warnings and 0 errors at the last checkpoint.
 
-Earlier Unity `tests-run` attempts did not discover the package editor tests from `TestShadergraph`.
+Live project-scoped MCP validation for Epic 7A passed on 2026-06-14 through the already-open Unity Editor:
+
+- `Codex_Epic7A_SettingsSmoke.shadergraph` imported successfully after creating/updating all new node families and exercising duplicate/move/delete on `Transform`.
+- `Codex_Epic7A_E2E.shadergraph` imported successfully after wiring the reflection-outline path, including source-vector nodes, trig chain, gradient-noise displacement modulation, transform to vertex position, and preserved base texture/color output.
+
+The current workspace includes `Unity-test/TestShadergraph`, but `Unity-test/` is git-ignored. Treat it as local validation state, not a reproducible repository fixture.
+
+Earlier Unity `tests-run` attempts did not discover the package editor tests from the local validation project.
 
 Future work:
 
 - Make package editor tests discoverable from the local Unity validation project.
+- Decide whether `Unity-test/TestShadergraph` should remain local-only, become documented setup-required state, or be replaced by a tracked minimal validation fixture.
 - Add higher-signal end-to-end ShaderGraph authoring validation cases.
 
 Until this is fixed, use:

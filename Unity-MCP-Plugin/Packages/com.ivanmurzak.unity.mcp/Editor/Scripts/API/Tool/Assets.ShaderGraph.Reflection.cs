@@ -157,6 +157,78 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     TypeName = "UnityEditor.ShaderGraph.BranchNode",
                     DefaultWidth = 208f,
                     DefaultHeight = 126f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "viewDirection",
+                    DisplayName = "View Direction",
+                    TypeName = "UnityEditor.ShaderGraph.ViewDirectionNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "viewVector",
+                    DisplayName = "View Vector",
+                    TypeName = "UnityEditor.ShaderGraph.ViewVectorNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "normalVector",
+                    DisplayName = "Normal Vector",
+                    TypeName = "UnityEditor.ShaderGraph.NormalVectorNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "position",
+                    DisplayName = "Position",
+                    TypeName = "UnityEditor.ShaderGraph.PositionNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "transform",
+                    DisplayName = "Transform",
+                    TypeName = "UnityEditor.ShaderGraph.TransformNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 96f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "gradientNoise",
+                    DisplayName = "Gradient Noise",
+                    TypeName = "UnityEditor.ShaderGraph.GradientNoiseNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 112f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "sine",
+                    DisplayName = "Sine",
+                    TypeName = "UnityEditor.ShaderGraph.SineNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "cosine",
+                    DisplayName = "Cosine",
+                    TypeName = "UnityEditor.ShaderGraph.CosineNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "negate",
+                    DisplayName = "Negate",
+                    TypeName = "UnityEditor.ShaderGraph.NegateNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
                 }
             };
 
@@ -171,7 +243,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.IsNullOrWhiteSpace(nodeType))
                 throw new ArgumentException("nodeType must be provided.");
 
-            var normalized = NormalizeEnumValue(nodeType);
+            var normalized = NormalizeEnumValue(nodeType!);
             if (AllowlistedNodeDefinitions.TryGetValue(normalized, out var definition))
                 return definition;
 

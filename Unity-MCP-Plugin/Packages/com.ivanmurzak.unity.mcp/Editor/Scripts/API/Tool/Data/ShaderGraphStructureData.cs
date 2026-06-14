@@ -226,6 +226,18 @@ namespace AIGD
 
         [Description("Resolved Multiply settings when the node is a supported Multiply node.")]
         public ShaderGraphMultiplyNodeSettingsData? Multiply { get; set; }
+
+        [Description("Resolved source-vector settings when the node exposes a coordinate-space selector.")]
+        public ShaderGraphSpaceNodeSettingsData? SourceVector { get; set; }
+
+        [Description("Resolved Position settings when the node is a supported Position node.")]
+        public ShaderGraphPositionNodeSettingsData? Position { get; set; }
+
+        [Description("Resolved Transform settings when the node is a supported Transform node.")]
+        public ShaderGraphTransformNodeSettingsData? Transform { get; set; }
+
+        [Description("Resolved Gradient Noise settings when the node is a supported Gradient Noise node.")]
+        public ShaderGraphGradientNoiseNodeSettingsData? GradientNoise { get; set; }
     }
 
     public class ShaderGraphSampleTexture2DNodeSettingsData
@@ -259,6 +271,66 @@ namespace AIGD
 
         [Description("Formatted multiply type when recognized.")]
         public string? MultiplyType { get; set; }
+    }
+
+    public class ShaderGraphSpaceNodeSettingsData
+    {
+        [Description("Serialized coordinate space enum value.")]
+        public int? SpaceValue { get; set; }
+
+        [Description("Formatted coordinate space when recognized.")]
+        public string? Space { get; set; }
+    }
+
+    public class ShaderGraphPositionNodeSettingsData
+    {
+        [Description("Serialized coordinate space enum value.")]
+        public int? SpaceValue { get; set; }
+
+        [Description("Formatted coordinate space when recognized.")]
+        public string? Space { get; set; }
+
+        [Description("Serialized position source enum value.")]
+        public int? PositionSourceValue { get; set; }
+
+        [Description("Formatted position source when recognized.")]
+        public string? PositionSource { get; set; }
+    }
+
+    public class ShaderGraphTransformNodeSettingsData
+    {
+        [Description("Serialized input coordinate space enum value.")]
+        public int? InputSpaceValue { get; set; }
+
+        [Description("Formatted input coordinate space when recognized.")]
+        public string? InputSpace { get; set; }
+
+        [Description("Serialized output coordinate space enum value.")]
+        public int? OutputSpaceValue { get; set; }
+
+        [Description("Formatted output coordinate space when recognized.")]
+        public string? OutputSpace { get; set; }
+
+        [Description("Serialized transform conversion type enum value.")]
+        public int? TransformTypeValue { get; set; }
+
+        [Description("Formatted transform conversion type when recognized.")]
+        public string? TransformType { get; set; }
+
+        [Description("Whether the transform result is normalized where the selected transform type supports it.")]
+        public bool? Normalize { get; set; }
+    }
+
+    public class ShaderGraphGradientNoiseNodeSettingsData
+    {
+        [Description("Serialized hash type enum value.")]
+        public int? HashTypeValue { get; set; }
+
+        [Description("Formatted hash type when recognized.")]
+        public string? HashType { get; set; }
+
+        [Description("Default value for the Scale input slot when readable.")]
+        public float? Scale { get; set; }
     }
 
     public class ShaderGraphSlotDefinitionData

@@ -33,7 +33,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Duplicate a supported Shader Graph node without copying edges, then re-import the graph and return the duplicate node and diagnostics.")]
         [AiSkillBody("Duplicate a supported node inside a '.shadergraph' asset.\n\n" +
-            "Current Epic 7 support is intentionally explicit:\n" +
+            "Current Epic 7A support is intentionally explicit:\n" +
             "- selection by serialized `nodeObjectId`\n" +
             "- supported nodes: PropertyNode plus the same allowlisted node families as `assets-shadergraph-add-node`\n" +
             "- duplicates the node and its serialized slots with fresh object ids\n" +

@@ -10,10 +10,12 @@
 
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AIGD;
 using com.IvanMurzak.Unity.MCP.Editor.API;
 using NUnit.Framework;
@@ -30,6 +32,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         const string LitFullTemplateAssetPath =
             "Packages/com.unity.shadergraph/GraphTemplates/Cross Pipeline/1_Lit Full.shadergraph";
         const string TestFolder = "Assets/Unity-MCP-Test/ShaderGraphs";
+        static readonly JsonSerializerOptions ShaderGraphTestJsonWriteOptions = new()
+        {
+            WriteIndented = true
+        };
 
         [Test]
         public void ShaderGraph_Find_ReturnsShaderGraphAsset()
@@ -776,6 +782,66 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_AddProperty_GeneratedReferenceNameCanBeUsedForLookup()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_GeneratedReferenceName.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var addResult = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Generated Lookup",
+                        FloatValue = 0.25f
+                    });
+
+                Assert.IsNotNull(addResult.Property);
+                Assert.AreEqual("_Generated_Lookup", addResult.Property!.EffectiveReferenceName);
+
+                var updateResult = tool.UpdateProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphPropertyUpdateInput
+                    {
+                        PropertyReferenceName = "_Generated_Lookup",
+                        Hidden = true
+                    });
+
+                Assert.IsNotNull(updateResult.Property);
+                Assert.IsTrue(updateResult.Property!.Hidden);
+
+                var propertyNodeResult = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_Generated_Lookup",
+                        PositionX = -720f,
+                        PositionY = 420f
+                    });
+
+                Assert.IsNotNull(propertyNodeResult.Node);
+                Assert.AreEqual("_Generated_Lookup", propertyNodeResult.Node!.PropertyReferenceName);
+
+                Assert.Throws<InvalidOperationException>(() => tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Generated-Lookup",
+                        FloatValue = 0.5f
+                    }));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_AddProperty_AddsExpandedBlackboardPropertyTypes()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_AddProperty_Expanded.shadergraph");
@@ -1182,6 +1248,51 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_AddProperty_WithoutCategorySelectorUsesEmptyDefaultCategory()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_DefaultCategoryFallback.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var categoryResult = tool.CreateCategory(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphCreateCategoryInput
+                    {
+                        CategoryName = "Named First"
+                    });
+
+                MoveCategoryReferenceToFront(assetPath, categoryResult.CategoryObjectId!);
+
+                var propertyResult = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Default Category Strength",
+                        FloatValue = 0.6f
+                    });
+
+                Assert.IsNotNull(propertyResult.Property);
+                Assert.AreEqual(string.Empty, propertyResult.Property!.CategoryName);
+
+                var namedCategory = propertyResult.Structure!.Categories!
+                    .First(c => c.Name == "Named First");
+                var defaultCategory = propertyResult.Structure.Categories!
+                    .First(c => string.IsNullOrEmpty(c.Name));
+
+                CollectionAssert.DoesNotContain(namedCategory.PropertyObjectIds!, propertyResult.PropertyObjectId);
+                CollectionAssert.Contains(defaultCategory.PropertyObjectIds!, propertyResult.PropertyObjectId);
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_AddPropertyNode_AddsSupportedPropertyNodes()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_AddPropertyNode.shadergraph");
@@ -1477,6 +1588,118 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsTrue(branchNodeResult.Graph!.ShaderResolved, "Adding allowlisted nodes should keep the Shader Graph import valid.");
                 Assert.IsFalse(branchNodeResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
                     "Adding allowlisted nodes should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_AddNode_AddsReflectionOutlineCoreNodes()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode_Epic7A.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var nodesToCreate = new[]
+                {
+                    new { ApiName = "viewDirection", TypeName = "UnityEditor.ShaderGraph.ViewDirectionNode", DisplayName = "View Direction", SlotName = "Out" },
+                    new { ApiName = "viewVector", TypeName = "UnityEditor.ShaderGraph.ViewVectorNode", DisplayName = "View Vector", SlotName = "Out" },
+                    new { ApiName = "normalVector", TypeName = "UnityEditor.ShaderGraph.NormalVectorNode", DisplayName = "Normal Vector", SlotName = "Out" },
+                    new { ApiName = "position", TypeName = "UnityEditor.ShaderGraph.PositionNode", DisplayName = "Position", SlotName = "Out" },
+                    new { ApiName = "transform", TypeName = "UnityEditor.ShaderGraph.TransformNode", DisplayName = "Transform", SlotName = "In" },
+                    new { ApiName = "gradientNoise", TypeName = "UnityEditor.ShaderGraph.GradientNoiseNode", DisplayName = "Gradient Noise", SlotName = "Scale" },
+                    new { ApiName = "sine", TypeName = "UnityEditor.ShaderGraph.SineNode", DisplayName = "Sine", SlotName = "In" },
+                    new { ApiName = "cosine", TypeName = "UnityEditor.ShaderGraph.CosineNode", DisplayName = "Cosine", SlotName = "In" },
+                    new { ApiName = "negate", TypeName = "UnityEditor.ShaderGraph.NegateNode", DisplayName = "Negate", SlotName = "In" }
+                };
+
+                ShaderGraphNodeMutationResultData? transformResult = null;
+                for (var i = 0; i < nodesToCreate.Length; i++)
+                {
+                    var nodeToCreate = nodesToCreate[i];
+                    var result = tool.AddNode(
+                        new AssetObjectRef(shader),
+                        new ShaderGraphAddNodeInput
+                        {
+                            NodeType = nodeToCreate.ApiName,
+                            PositionX = -1200f + i * 120f,
+                            PositionY = 60f + i * 40f
+                        },
+                        includeMessages: i == nodesToCreate.Length - 1,
+                        includeProperties: i == nodesToCreate.Length - 1);
+
+                    Assert.AreEqual("add", result.Operation);
+                    Assert.IsTrue(result.ChangedFields!.Contains("node.added"));
+                    Assert.IsNotNull(result.Node);
+                    Assert.AreEqual(nodeToCreate.TypeName, result.Node!.Type);
+                    Assert.AreEqual(nodeToCreate.DisplayName, result.Node.Name);
+                    Assert.IsNotEmpty(result.Node.Slots, $"Expected '{nodeToCreate.DisplayName}' to expose slots.");
+                    Assert.IsTrue(result.Node.Slots!.Any(slot => slot.DisplayName == nodeToCreate.SlotName),
+                        $"Expected '{nodeToCreate.DisplayName}' to expose slot '{nodeToCreate.SlotName}'.");
+
+                    if (nodeToCreate.ApiName == "transform")
+                        transformResult = result;
+
+                    if (i == nodesToCreate.Length - 1)
+                    {
+                        Assert.IsNotNull(result.Graph);
+                        Assert.IsTrue(result.Graph!.ShaderResolved, "Adding Epic 7A nodes should keep the Shader Graph import valid.");
+                        Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                            "Adding Epic 7A nodes should not introduce import errors.");
+                    }
+                }
+
+                Assert.IsNotNull(transformResult, "Expected the Transform node to be created for duplicate/move/delete validation.");
+                var duplicateResult = tool.DuplicateNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDuplicateNodeInput
+                    {
+                        NodeObjectId = transformResult!.Node!.ObjectId,
+                        PositionOffsetX = 88f,
+                        PositionOffsetY = 44f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(duplicateResult.Node);
+                Assert.AreEqual("UnityEditor.ShaderGraph.TransformNode", duplicateResult.Node!.Type);
+                Assert.AreNotEqual(transformResult.Node.ObjectId, duplicateResult.Node.ObjectId);
+                Assert.AreEqual(transformResult.Node.PositionX + 88f, duplicateResult.Node.PositionX, 0.001f);
+                Assert.AreEqual(transformResult.Node.PositionY + 44f, duplicateResult.Node.PositionY, 0.001f);
+
+                var moveResult = tool.UpdateNodePosition(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodePositionInput
+                    {
+                        NodeObjectId = duplicateResult.Node.ObjectId,
+                        PositionX = -320f,
+                        PositionY = 480f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual(-320f, moveResult.Node!.PositionX);
+                Assert.AreEqual(480f, moveResult.Node.PositionY);
+
+                var deleteResult = tool.DeleteNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDeleteNodeInput
+                    {
+                        NodeObjectId = duplicateResult.Node.ObjectId
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("delete", deleteResult.Operation);
+                Assert.IsFalse(deleteResult.Structure!.Nodes!.Any(node => node.ObjectId == duplicateResult.Node.ObjectId));
+                Assert.IsTrue(deleteResult.Graph!.ShaderResolved, "Deleting a duplicated Epic 7A node should keep the Shader Graph import valid.");
+                Assert.IsFalse(deleteResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Deleting a duplicated Epic 7A node should not introduce import errors.");
             }
             finally
             {
@@ -2202,6 +2425,259 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsTrue(result.Graph!.ShaderResolved, "Updating Multiply settings should keep the Shader Graph import valid.");
                 Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
                     "Updating Multiply settings should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_UpdateNodeSettings_UpdatesReflectionOutlineCoreSettings()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_Epic7A.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var viewDirection = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "viewDirection", PositionX = -1100f, PositionY = 0f });
+                var viewVector = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "viewVector", PositionX = -1100f, PositionY = 120f });
+                var normalVector = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "normalVector", PositionX = -1100f, PositionY = 240f });
+                var position = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "position", PositionX = -1100f, PositionY = 360f });
+                var transform = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "transform", PositionX = -820f, PositionY = 0f });
+                var gradientNoise = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "gradientNoise", PositionX = -820f, PositionY = 160f });
+                var sine = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "sine", PositionX = -540f, PositionY = 0f });
+                var cosine = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "cosine", PositionX = -540f, PositionY = 120f });
+                var negate = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "negate", PositionX = -540f, PositionY = 240f });
+
+                var viewDirectionResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = viewDirection.Node!.ObjectId,
+                        ViewDirection = new ShaderGraphSpaceNodeSettingsUpdateInput { Space = "object" }
+                    });
+                var viewVectorResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = viewVector.Node!.ObjectId,
+                        ViewVector = new ShaderGraphSpaceNodeSettingsUpdateInput { Space = "tangent" }
+                    });
+                var normalVectorResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = normalVector.Node!.ObjectId,
+                        NormalVector = new ShaderGraphSpaceNodeSettingsUpdateInput { Space = "view" }
+                    });
+                var positionResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = position.Node!.ObjectId,
+                        Position = new ShaderGraphPositionNodeSettingsUpdateInput
+                        {
+                            Space = "absoluteWorld",
+                            PositionSource = "predisplacement"
+                        }
+                    });
+                var transformResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = transform.Node!.ObjectId,
+                        Transform = new ShaderGraphTransformNodeSettingsUpdateInput
+                        {
+                            InputSpace = "tangent",
+                            OutputSpace = "absoluteWorld",
+                            TransformType = "normal",
+                            Normalize = false
+                        }
+                    });
+                var gradientNoiseResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = gradientNoise.Node!.ObjectId,
+                        GradientNoise = new ShaderGraphGradientNoiseNodeSettingsUpdateInput
+                        {
+                            Scale = 23.5f,
+                            HashType = "legacyMod"
+                        }
+                    });
+                var sineResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = sine.Node!.ObjectId,
+                        Sine = new ShaderGraphUnaryVectorNodeSettingsUpdateInput
+                        {
+                            Input = new ShaderGraphVector4ValueUpdateInput { X = 0.1f, Y = 0.2f, Z = 0.3f, W = 0.4f }
+                        }
+                    });
+                var cosineResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = cosine.Node!.ObjectId,
+                        Cosine = new ShaderGraphUnaryVectorNodeSettingsUpdateInput
+                        {
+                            Input = new ShaderGraphVector4ValueUpdateInput { X = 0.5f, Y = 0.6f, Z = 0.7f, W = 0.8f }
+                        }
+                    });
+                var negateResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = negate.Node!.ObjectId,
+                        Negate = new ShaderGraphUnaryVectorNodeSettingsUpdateInput
+                        {
+                            Input = new ShaderGraphVector4ValueUpdateInput { X = -0.1f, Y = -0.2f, Z = -0.3f, W = -0.4f }
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("object", viewDirectionResult.Node!.SourceVector!.Space);
+                Assert.AreEqual("tangent", viewVectorResult.Node!.SourceVector!.Space);
+                Assert.AreEqual("view", normalVectorResult.Node!.SourceVector!.Space);
+
+                Assert.AreEqual("absoluteWorld", positionResult.Node!.Position!.Space);
+                Assert.AreEqual("predisplacement", positionResult.Node.Position.PositionSource);
+
+                Assert.AreEqual("tangent", transformResult.Node!.Transform!.InputSpace);
+                Assert.AreEqual("absoluteWorld", transformResult.Node.Transform.OutputSpace);
+                Assert.AreEqual("normal", transformResult.Node.Transform.TransformType);
+                Assert.IsFalse(transformResult.Node.Transform.Normalize ?? true);
+
+                Assert.AreEqual("legacyMod", gradientNoiseResult.Node!.GradientNoise!.HashType);
+                Assert.AreEqual(23.5f, gradientNoiseResult.Node.GradientNoise.Scale ?? 0f, 0.0001f);
+                AssertSlotFloat(gradientNoiseResult.Node, "Scale", 23.5f);
+
+                AssertSlotVector4(sineResult.Node!, "In", 0.1f, 0.2f, 0.3f, 0.4f);
+                AssertSlotVector4(cosineResult.Node!, "In", 0.5f, 0.6f, 0.7f, 0.8f);
+                AssertSlotVector4(negateResult.Node!, "In", -0.1f, -0.2f, -0.3f, -0.4f);
+
+                Assert.IsNotNull(negateResult.Graph);
+                Assert.IsTrue(negateResult.Graph!.ShaderResolved, "Updating Epic 7A node settings should keep the Shader Graph import valid.");
+                Assert.IsFalse(negateResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Updating Epic 7A node settings should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ReflectionOutlineCorePath_CanBeWiredEndToEnd()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ReflectionOutlinePath.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var position = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "position", PositionX = -1200f, PositionY = -160f });
+                var normalVector = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "normalVector", PositionX = -1200f, PositionY = 20f });
+                var viewDirection = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "viewDirection", PositionX = -1200f, PositionY = 200f });
+                var viewVector = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "viewVector", PositionX = -1200f, PositionY = 380f });
+                var sine = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "sine", PositionX = -920f, PositionY = 20f });
+                var negate = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "negate", PositionX = -920f, PositionY = 200f });
+                var cosine = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "cosine", PositionX = -680f, PositionY = 200f });
+                var trigMultiply = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -460f, PositionY = 80f });
+                var gradientNoise = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "gradientNoise", PositionX = -680f, PositionY = 380f });
+                var displacementMultiply = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -220f, PositionY = 160f });
+                var add = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "add", PositionX = 20f, PositionY = 20f });
+                var transform = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "transform", PositionX = 260f, PositionY = 20f });
+
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = position.Node!.ObjectId,
+                        Position = new ShaderGraphPositionNodeSettingsUpdateInput { Space = "absoluteWorld" }
+                    });
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = transform.Node!.ObjectId,
+                        Transform = new ShaderGraphTransformNodeSettingsUpdateInput
+                        {
+                            InputSpace = "absoluteWorld",
+                            OutputSpace = "object",
+                            TransformType = "position",
+                            Normalize = false
+                        }
+                    });
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = gradientNoise.Node!.ObjectId,
+                        GradientNoise = new ShaderGraphGradientNoiseNodeSettingsUpdateInput { Scale = 18f }
+                    });
+
+                var structureBeforeWiring = tool.GetStructure(new AssetObjectRef(shader));
+                var nodesById = structureBeforeWiring.Nodes!.ToDictionary(node => node.ObjectId);
+                var positionNode = nodesById[position.Node!.ObjectId];
+                var normalNode = nodesById[normalVector.Node!.ObjectId];
+                var viewDirectionNode = nodesById[viewDirection.Node!.ObjectId];
+                var viewVectorNode = nodesById[viewVector.Node!.ObjectId];
+                var sineNode = nodesById[sine.Node!.ObjectId];
+                var negateNode = nodesById[negate.Node!.ObjectId];
+                var cosineNode = nodesById[cosine.Node!.ObjectId];
+                var trigMultiplyNode = nodesById[trigMultiply.Node!.ObjectId];
+                var gradientNoiseNode = nodesById[gradientNoise.Node!.ObjectId];
+                var displacementMultiplyNode = nodesById[displacementMultiply.Node!.ObjectId];
+                var addNode = nodesById[add.Node!.ObjectId];
+                var transformNode = nodesById[transform.Node!.ObjectId];
+                var vertexPositionBlock = structureBeforeWiring.Nodes!
+                    .First(node => node.SerializedDescriptor == "VertexDescription.Position");
+
+                ConnectSlots(tool, shader, normalNode, "Out", sineNode, "In");
+                ConnectSlots(tool, shader, viewDirectionNode, "Out", negateNode, "In");
+                ConnectSlots(tool, shader, negateNode, "Out", cosineNode, "In");
+                ConnectSlots(tool, shader, sineNode, "Out", trigMultiplyNode, "A");
+                ConnectSlots(tool, shader, cosineNode, "Out", trigMultiplyNode, "B");
+                ConnectSlots(tool, shader, trigMultiplyNode, "Out", displacementMultiplyNode, "A");
+                ConnectSlots(tool, shader, gradientNoiseNode, "Out", displacementMultiplyNode, "B");
+                ConnectSlots(tool, shader, displacementMultiplyNode, "Out", addNode, "A");
+                ConnectSlots(tool, shader, positionNode, "Out", addNode, "B");
+                ConnectSlots(tool, shader, addNode, "Out", transformNode, "In");
+                var finalConnectResult = ConnectSlots(tool, shader, transformNode, "Out", vertexPositionBlock, "Position", includeMessages: true, includeProperties: true);
+
+                Assert.IsNotNull(finalConnectResult.Structure);
+                Assert.IsTrue(finalConnectResult.Structure!.Edges!.Any(edge =>
+                    edge.OutputNodeId == transformNode.ObjectId
+                    && edge.OutputSlotId == FindSlot(transformNode, "Out").SlotId
+                    && edge.InputNodeId == vertexPositionBlock.ObjectId
+                    && edge.InputSlotId == FindSlot(vertexPositionBlock, "Position").SlotId));
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
+                    edge.OutputNodeId == viewDirectionNode.ObjectId
+                    || edge.OutputNodeId == viewVectorNode.ObjectId
+                    || edge.OutputNodeId == normalNode.ObjectId
+                    || edge.OutputNodeId == positionNode.ObjectId),
+                    "Expected at least one source-vector node to participate in the wired graph.");
+
+                var sampleTextureNode = finalConnectResult.Structure.Nodes!
+                    .First(node => node.Type == "UnityEditor.ShaderGraph.SampleTexture2DNode");
+                var baseColorBlock = finalConnectResult.Structure.Nodes!
+                    .First(node => node.SerializedDescriptor == "SurfaceDescription.BaseColor");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge => edge.InputNodeId == baseColorBlock.ObjectId),
+                    "The template base texture/color path should remain wired into Base Color.");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge => edge.OutputNodeId == sampleTextureNode.ObjectId),
+                    "The template Sample Texture 2D node should remain wired into the base texture/color output path.");
+
+                Assert.IsNotNull(finalConnectResult.Graph);
+                Assert.IsTrue(finalConnectResult.Graph!.ShaderResolved, "Reflection-outline validation graph should resolve to a compiled Shader.");
+                Assert.IsFalse(finalConnectResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Reflection-outline validation graph should not introduce import errors.");
             }
             finally
             {
@@ -3625,6 +4101,111 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         static string CreateShaderGraphAssetCopy(string fileName)
             => CreateShaderGraphAssetCopy(fileName, TemplateAssetPath);
 
+        static void MoveCategoryReferenceToFront(string assetPath, string categoryObjectId)
+        {
+            var objects = ReadShaderGraphJsonObjects(assetPath);
+            var root = objects[0];
+            Assert.IsTrue(root["m_CategoryData"] is JsonArray, "Expected Shader Graph root to contain m_CategoryData.");
+
+            var categoryArray = (JsonArray)root["m_CategoryData"]!;
+            var categoryIndex = -1;
+            for (var i = 0; i < categoryArray.Count; i++)
+            {
+                if (string.Equals(categoryArray[i]?["m_Id"]?.GetValue<string>(), categoryObjectId, StringComparison.Ordinal))
+                {
+                    categoryIndex = i;
+                    break;
+                }
+            }
+
+            Assert.GreaterOrEqual(categoryIndex, 0, $"Expected category '{categoryObjectId}' to be referenced by m_CategoryData.");
+
+            categoryArray.RemoveAt(categoryIndex);
+            categoryArray.Insert(0, new JsonObject
+            {
+                ["m_Id"] = categoryObjectId
+            });
+
+            var sourceText = string.Join(
+                Environment.NewLine + Environment.NewLine,
+                objects.Select(obj => obj.ToJsonString(ShaderGraphTestJsonWriteOptions))) + Environment.NewLine;
+            File.WriteAllText(assetPath, sourceText);
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        }
+
+        static List<JsonObject> ReadShaderGraphJsonObjects(string assetPath)
+        {
+            var objects = new List<JsonObject>();
+            foreach (var jsonObject in EnumerateShaderGraphJsonObjects(File.ReadAllText(assetPath)))
+            {
+                var parsedObject = JsonNode.Parse(jsonObject)?.AsObject();
+                Assert.IsNotNull(parsedObject, $"Expected top-level Shader Graph JSON object in '{assetPath}' to parse.");
+                objects.Add(parsedObject!);
+            }
+
+            Assert.IsNotEmpty(objects, $"Expected Shader Graph source '{assetPath}' to contain JSON objects.");
+            return objects;
+        }
+
+        static IEnumerable<string> EnumerateShaderGraphJsonObjects(string sourceText)
+        {
+            var depth = 0;
+            var startIndex = -1;
+            var insideString = false;
+            var isEscaped = false;
+
+            for (var i = 0; i < sourceText.Length; i++)
+            {
+                var ch = sourceText[i];
+
+                if (insideString)
+                {
+                    if (isEscaped)
+                    {
+                        isEscaped = false;
+                        continue;
+                    }
+
+                    if (ch == '\\')
+                    {
+                        isEscaped = true;
+                        continue;
+                    }
+
+                    if (ch == '"')
+                        insideString = false;
+
+                    continue;
+                }
+
+                if (ch == '"')
+                {
+                    insideString = true;
+                    continue;
+                }
+
+                if (ch == '{')
+                {
+                    if (depth == 0)
+                        startIndex = i;
+
+                    depth++;
+                    continue;
+                }
+
+                if (ch != '}')
+                    continue;
+
+                depth--;
+                if (depth != 0 || startIndex < 0)
+                    continue;
+
+                yield return sourceText.Substring(startIndex, i - startIndex + 1);
+                startIndex = -1;
+            }
+        }
+
         static string CreateShaderGraphAssetCopy(string fileName, string templateAssetPath)
         {
             var destinationPath = $"{TestFolder}/{fileName}";
@@ -3703,6 +4284,32 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             var slot = node.Slots!.FirstOrDefault(s => string.Equals(s.DisplayName, displayName, StringComparison.Ordinal));
             Assert.IsNotNull(slot, $"Expected slot '{displayName}' on node '{node.Name ?? node.ObjectId}'.");
             return slot!;
+        }
+
+        static ShaderGraphEdgeMutationResultData ConnectSlots(
+            Tool_Assets_ShaderGraph tool,
+            Shader shader,
+            ShaderGraphNodeDefinitionData outputNode,
+            string outputSlotName,
+            ShaderGraphNodeDefinitionData inputNode,
+            string inputSlotName,
+            bool includeMessages = false,
+            bool includeProperties = false)
+        {
+            var outputSlot = FindSlot(outputNode, outputSlotName);
+            var inputSlot = FindSlot(inputNode, inputSlotName);
+
+            return tool.ConnectEdge(
+                new AssetObjectRef(shader),
+                new ShaderGraphConnectEdgeInput
+                {
+                    OutputNodeObjectId = outputNode.ObjectId,
+                    OutputSlotObjectId = outputSlot.ObjectId,
+                    InputNodeObjectId = inputNode.ObjectId,
+                    InputSlotObjectId = inputSlot.ObjectId
+                },
+                includeMessages: includeMessages,
+                includeProperties: includeProperties);
         }
 
         static void AssertSlotFloat(ShaderGraphNodeDefinitionData node, string displayName, float expectedValue)
