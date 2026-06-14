@@ -51,6 +51,20 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "UnityEditor.ShaderGraph.PositionMaterialSlot"
         };
 
+        static readonly HashSet<string> ColorSlotTypes = new(StringComparer.Ordinal)
+        {
+            "UnityEditor.ShaderGraph.ColorRGBMaterialSlot",
+            "UnityEditor.ShaderGraph.ColorRGBAMaterialSlot"
+        };
+
+        static readonly HashSet<string> ColorCompatibleValueSlotTypes = new(StringComparer.Ordinal)
+        {
+            "UnityEditor.ShaderGraph.Vector3MaterialSlot",
+            "UnityEditor.ShaderGraph.Vector4MaterialSlot",
+            "UnityEditor.ShaderGraph.ColorRGBMaterialSlot",
+            "UnityEditor.ShaderGraph.ColorRGBAMaterialSlot"
+        };
+
         static readonly HashSet<string> Texture2DLikeSlotTypes = new(StringComparer.Ordinal)
         {
             "UnityEditor.ShaderGraph.Texture2DMaterialSlot",
@@ -70,6 +84,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports exact slot-type matches\n" +
             "- supports compatible UV/vector2 slot pairs\n" +
             "- supports compatible Vector3/Position slot pairs\n" +
+            "- supports compatible color/vector slot pairs such as Color property outputs into Base Color\n" +
             "- supports compatible Texture2D property outputs and Texture2D input slots\n" +
             "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n" +
             "- supports explicit vector narrowing workflows such as `Vector3 -> Split -> Combine(Vector2) -> UV`; direct Vector3-to-UV remains rejected unless Unity exposes a validated direct conversion\n" +
@@ -677,6 +692,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 return;
 
             if (Vector3LikeSlotTypes.Contains(outputType) && Vector3LikeSlotTypes.Contains(inputType))
+                return;
+
+            if ((ColorSlotTypes.Contains(outputType) || ColorSlotTypes.Contains(inputType))
+                && ColorCompatibleValueSlotTypes.Contains(outputType)
+                && ColorCompatibleValueSlotTypes.Contains(inputType))
                 return;
 
             if (Texture2DLikeSlotTypes.Contains(outputType) && Texture2DLikeSlotTypes.Contains(inputType))

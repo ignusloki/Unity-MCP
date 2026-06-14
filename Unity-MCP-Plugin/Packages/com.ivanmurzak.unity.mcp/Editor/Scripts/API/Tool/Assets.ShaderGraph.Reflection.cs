@@ -192,6 +192,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {
+                    ApiName = "object",
+                    DisplayName = "Object",
+                    TypeName = "UnityEditor.ShaderGraph.ObjectNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 132f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
                     ApiName = "transform",
                     DisplayName = "Transform",
                     TypeName = "UnityEditor.ShaderGraph.TransformNode",

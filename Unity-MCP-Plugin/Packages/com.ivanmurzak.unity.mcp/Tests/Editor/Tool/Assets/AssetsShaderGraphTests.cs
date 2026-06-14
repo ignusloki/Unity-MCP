@@ -1611,6 +1611,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     new { ApiName = "viewVector", TypeName = "UnityEditor.ShaderGraph.ViewVectorNode", DisplayName = "View Vector", SlotName = "Out" },
                     new { ApiName = "normalVector", TypeName = "UnityEditor.ShaderGraph.NormalVectorNode", DisplayName = "Normal Vector", SlotName = "Out" },
                     new { ApiName = "position", TypeName = "UnityEditor.ShaderGraph.PositionNode", DisplayName = "Position", SlotName = "Out" },
+                    new { ApiName = "object", TypeName = "UnityEditor.ShaderGraph.ObjectNode", DisplayName = "Object", SlotName = "Scale" },
                     new { ApiName = "transform", TypeName = "UnityEditor.ShaderGraph.TransformNode", DisplayName = "Transform", SlotName = "In" },
                     new { ApiName = "gradientNoise", TypeName = "UnityEditor.ShaderGraph.GradientNoiseNode", DisplayName = "Gradient Noise", SlotName = "Scale" },
                     new { ApiName = "sine", TypeName = "UnityEditor.ShaderGraph.SineNode", DisplayName = "Sine", SlotName = "In" },
@@ -2694,6 +2695,153 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsTrue(finalConnectResult.Graph!.ShaderResolved, "Reflection-outline validation graph should resolve to a compiled Shader.");
                 Assert.IsFalse(finalConnectResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
                     "Reflection-outline validation graph should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ObjectScaleOutlinePath_CanBeWiredEndToEnd()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ObjectScaleOutlinePath.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var settingsResult = tool.SetSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphSettingsUpdateInput
+                    {
+                        UniversalTarget = new ShaderGraphUniversalTargetSettingsUpdateInput
+                        {
+                            SurfaceType = "opaque",
+                            RenderFace = "back"
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(settingsResult.Settings);
+                Assert.IsNotNull(settingsResult.Settings!.UniversalTarget);
+                Assert.AreEqual("opaque", settingsResult.Settings.UniversalTarget!.SurfaceType);
+                Assert.AreEqual("back", settingsResult.Settings.UniversalTarget.RenderFace);
+
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Thickness",
+                        OverrideReferenceName = "_Thickness",
+                        FloatValue = 0.08f
+                    });
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Outline Color",
+                        OverrideReferenceName = "_OutlineColor",
+                        ColorHex = "#00AAFFFF"
+                    });
+
+                var thicknessNode = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_Thickness",
+                        PositionX = -1180f,
+                        PositionY = 0f
+                    });
+                var outlineColorNode = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_OutlineColor",
+                        PositionX = -480f,
+                        PositionY = 360f
+                    });
+                var position = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "position", PositionX = -1180f, PositionY = 180f });
+                var objectNode = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "object", PositionX = -1180f, PositionY = 360f });
+                var divide = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "divide", PositionX = -860f, PositionY = 80f });
+                var multiply = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -560f, PositionY = 120f });
+                var add = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "add", PositionX = -260f, PositionY = 80f });
+
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = position.Node!.ObjectId,
+                        Position = new ShaderGraphPositionNodeSettingsUpdateInput { Space = "object" }
+                    });
+
+                var structureBeforeWiring = tool.GetStructure(new AssetObjectRef(shader));
+                var nodesById = structureBeforeWiring.Nodes!.ToDictionary(node => node.ObjectId);
+                var thicknessPropertyNode = nodesById[thicknessNode.Node!.ObjectId];
+                var outlineColorPropertyNode = nodesById[outlineColorNode.Node!.ObjectId];
+                var positionNode = nodesById[position.Node!.ObjectId];
+                var objectNodeData = nodesById[objectNode.Node!.ObjectId];
+                var divideNode = nodesById[divide.Node!.ObjectId];
+                var multiplyNode = nodesById[multiply.Node!.ObjectId];
+                var addNode = nodesById[add.Node!.ObjectId];
+                var vertexPositionBlock = structureBeforeWiring.Nodes!
+                    .First(node => node.SerializedDescriptor == "VertexDescription.Position");
+                var baseColorBlock = structureBeforeWiring.Nodes!
+                    .First(node => node.SerializedDescriptor == "SurfaceDescription.BaseColor");
+
+                Assert.AreEqual("UnityEditor.ShaderGraph.ObjectNode", objectNodeData.Type);
+                Assert.AreEqual("Object", objectNodeData.Name);
+                Assert.IsTrue(objectNodeData.Slots!.Any(slot =>
+                        slot.DisplayName == "Scale"
+                        && slot.Type == "UnityEditor.ShaderGraph.Vector3MaterialSlot"),
+                    "Expected Object node readback to expose a Vector3 Scale output slot.");
+
+                ConnectSlots(tool, shader, thicknessPropertyNode, "Thickness", divideNode, "A");
+                ConnectSlots(tool, shader, objectNodeData, "Scale", divideNode, "B");
+                ConnectSlots(tool, shader, positionNode, "Out", multiplyNode, "A");
+                ConnectSlots(tool, shader, divideNode, "Out", multiplyNode, "B");
+                ConnectSlots(tool, shader, positionNode, "Out", addNode, "A");
+                ConnectSlots(tool, shader, multiplyNode, "Out", addNode, "B");
+                ConnectSlots(tool, shader, addNode, "Out", vertexPositionBlock, "Position");
+                var finalConnectResult = ConnectSlots(
+                    tool,
+                    shader,
+                    outlineColorPropertyNode,
+                    "Outline Color",
+                    baseColorBlock,
+                    "Base Color",
+                    includeMessages: true,
+                    includeProperties: true,
+                    replaceExistingInputConnection: true);
+
+                Assert.IsNotNull(finalConnectResult.RemovedEdge,
+                    "Replacing the template Base Color input should report the removed incoming edge.");
+                Assert.IsNotNull(finalConnectResult.Structure);
+                Assert.IsTrue(finalConnectResult.Structure!.Edges!.Any(edge =>
+                    edge.OutputNodeId == objectNodeData.ObjectId
+                    && edge.OutputSlotId == FindSlot(objectNodeData, "Scale").SlotId
+                    && edge.InputNodeId == divideNode.ObjectId
+                    && edge.InputSlotId == FindSlot(divideNode, "B").SlotId),
+                    "Expected Object.Scale to feed Divide.B.");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
+                    edge.OutputNodeId == addNode.ObjectId
+                    && edge.OutputSlotId == FindSlot(addNode, "Out").SlotId
+                    && edge.InputNodeId == vertexPositionBlock.ObjectId
+                    && edge.InputSlotId == FindSlot(vertexPositionBlock, "Position").SlotId),
+                    "Expected Add.Out to feed Vertex.Position.");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
+                    edge.OutputNodeId == outlineColorPropertyNode.ObjectId
+                    && edge.InputNodeId == baseColorBlock.ObjectId),
+                    "Expected Outline Color to feed Fragment.Base Color.");
+
+                Assert.IsNotNull(finalConnectResult.Graph);
+                Assert.IsTrue(finalConnectResult.Graph!.ShaderResolved, "Object-scale outline validation graph should resolve to a compiled Shader.");
+                Assert.IsFalse(finalConnectResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Object-scale outline validation graph should not introduce import errors.");
             }
             finally
             {
@@ -4310,7 +4458,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             ShaderGraphNodeDefinitionData inputNode,
             string inputSlotName,
             bool includeMessages = false,
-            bool includeProperties = false)
+            bool includeProperties = false,
+            bool replaceExistingInputConnection = false)
         {
             var outputSlot = FindSlot(outputNode, outputSlotName);
             var inputSlot = FindSlot(inputNode, inputSlotName);
@@ -4322,7 +4471,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     OutputNodeObjectId = outputNode.ObjectId,
                     OutputSlotObjectId = outputSlot.ObjectId,
                     InputNodeObjectId = inputNode.ObjectId,
-                    InputSlotObjectId = inputSlot.ObjectId
+                    InputSlotObjectId = inputSlot.ObjectId,
+                    ReplaceExistingInputConnection = replaceExistingInputConnection
                 },
                 includeMessages: includeMessages,
                 includeProperties: includeProperties);

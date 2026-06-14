@@ -11,6 +11,7 @@ Follow-up status:
 - The three original P1 findings from the code review were fixed after this review.
 - The later reflection-outline node-coverage P1 is implemented and live-validated by `docs/dev/shadergraph-mcp-plan.md` Epic 7A.
 - A 2026-06-14 reference-image recreation trial confirmed a separate ShaderGraph node-coverage blocker: `View Direction`, `View Vector`, `Normal Vector`, `Position`, `Transform`, `Gradient Noise`, `Sine`, `Cosine`, and `Negate` were not exposed by the node lifecycle tools at the time of review.
+- A later second outline trial confirmed one additional node blocker, ShaderGraph `Object`; this is implemented and live-validated by `docs/dev/shadergraph-mcp-plan.md` Epic 7B.
 
 ## P0
 
@@ -20,9 +21,15 @@ Follow-up status:
 
 - Reflection-outline reference recreation was blocked by missing core node families at review time.
   - Current status: implemented by Epic 7A after this review and live-validated through the existing project-scoped Unity MCP/editor session.
-  - Evidence: [docs/dev/shadergraph-mcp-capabilities.md](/Users/suporte/Unity-MCP/docs/dev/shadergraph-mcp-capabilities.md:214) lists the current `assets-shadergraph-add-node` allowlist as math/split/combine/sample/tiling/branch nodes only. [Assets.ShaderGraph.AddNode.cs](/Users/suporte/Unity-MCP/Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp/Editor/Scripts/API/Tool/Assets.ShaderGraph.AddNode.cs:33) documents the same allowlist in the tool body. The 2026-06-14 reflection-outline trial needed `View Direction`, `View Vector`, `Normal Vector`, `Position`, `Transform`, `Gradient Noise`, `Sine`, `Cosine`, and `Negate`.
+  - Historical evidence: at review time, `assets-shadergraph-add-node` only exposed math/split/combine/sample/tiling/branch nodes. The 2026-06-14 reflection-outline trial needed `View Direction`, `View Vector`, `Normal Vector`, `Position`, `Transform`, `Gradient Noise`, `Sine`, `Cosine`, and `Negate`.
   - Impact at review time: the MCP could create a valid approximation graph/material/scene, but it could not faithfully author the reference graph's source-vector, reflection-normal, noise-displacement, transform, and vertex-output chain.
   - Why this was P1: it blocked the next meaningful reference-image trial for a common outline/reflection shader family. It did not corrupt existing graphs, but it prevented the feature from meeting the intended "most ShaderGraphs from reference" goal.
+
+- Second outline trial recreation was blocked by missing ShaderGraph `Object` node support.
+  - Current status: implemented by Epic 7B after this review and live-validated through the existing project-scoped Unity MCP/editor session.
+  - Evidence: the second trial needed `Object.Scale -> Divide.B` for object-scale-aware outline thickness. Current capabilities now list `object` as an allowlisted node and document Object slot readback.
+  - Impact at blocker time: the MCP could not author the simple outline graph topology without manual intervention or a non-equivalent graph.
+  - Why this was P1: it blocked a concrete trial graph and affected a common outline-shader pattern, but did not corrupt existing graph assets.
 
 - Default-reference-name flows are broken for properties that do not set `overrideReferenceName`.
   - Evidence: [Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp/Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateProperty.cs](/Users/suporte/Unity-MCP/Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp/Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateProperty.cs:486) uses `GetEffectivePropertyReferenceName(...)` for duplicate detection, but [that helper](/Users/suporte/Unity-MCP/Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp/Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateProperty.cs:521) returns `m_OverrideReferenceName` whenever the field exists, even when it is the empty string. New properties created without an override name explicitly serialize `m_OverrideReferenceName = ""`, for example in [Assets.ShaderGraph.AddProperty.cs](/Users/suporte/Unity-MCP/Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp/Editor/Scripts/API/Tool/Assets.ShaderGraph.AddProperty.cs:257).

@@ -46,7 +46,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, transform, gradientNoise, sine, cosine, negate.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, sine, cosine, negate.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]

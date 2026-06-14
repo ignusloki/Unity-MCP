@@ -19,6 +19,8 @@ The exposed MCP surface can create and inspect Shader Graph assets, mutate commo
 
 Agents can now create and configure the source-vector, space-transform, procedural-noise, and trigonometric nodes needed for the reflection-outline trial path. The remaining `View Vector` to `Gradient Noise.UV` gap is supported through an explicit ShaderGraph conversion path: `View Vector.Out -> Split.In`, `Split.R/G -> Combine.R/G`, then `Combine.RG -> Gradient Noise.UV`. Broader reference recreation parity still depends on concrete follow-up trials.
 
+The second outline trial's confirmed `Object` node blocker is also implemented. Agents can create `UnityEditor.ShaderGraph.ObjectNode`, inspect its output slots, and wire `Object.Scale` into dynamic math nodes such as `Divide.B`.
+
 ## Scope
 
 - Focus: URP-first Shader Graph authoring.
@@ -227,6 +229,7 @@ Node lifecycle mutation results include normalized summary fields:
     - `viewVector` (`View Vector`)
     - `normalVector` (`Normal Vector`)
     - `position` (`Position`)
+    - `object` (`Object`)
     - `transform` (`Transform`)
     - `gradientNoise` (`Gradient Noise`)
     - `sine` (`Sine`)
@@ -337,6 +340,7 @@ Node lifecycle mutation results include normalized summary fields:
   - Connects compatible existing graph slots by `nodeObjectId` plus `slotObjectId`.
   - Requires the input slot to be unconnected unless `replaceExistingInputConnection` is true.
   - Supports exact slot-type matches, compatible UV/vector2 pairs, compatible Vector3/Position pairs, Texture2D property outputs into Texture2D input slots, compatible dynamic numeric/vector/color slot families, and cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
+  - Supports compatible color/vector slot pairs when one endpoint is a ShaderGraph color slot, such as `Vector4MaterialSlot -> ColorRGBMaterialSlot` for Color properties feeding Fragment Base Color.
   - Supports safe explicit Vector3-to-UV authoring through ShaderGraph narrowing nodes: `Vector3 -> Split -> Combine.RG -> UV`.
   - Direct `Vector3MaterialSlot -> UVMaterialSlot` edges remain intentionally rejected until Unity's serialized graph model is validated to allow that conversion safely without an explicit node.
   - Returns `removedEdge` when an incoming edge is replaced.
@@ -388,6 +392,7 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - The current exposed surface has been validated through incremental live Unity checks in the local Unity 6 workspace validation project at `Unity-test/TestShadergraph`.
 - The 2026-06-14 reference-image trial created a valid graph, material, and scene, but exact recreation of a reflection-based outline ShaderGraph was blocked first by missing node support for `View Direction`, `View Vector`, `Normal Vector`, `Position`, `Transform`, `Gradient Noise`, `Sine`, `Cosine`, and `Negate`, then by the need for safe `View Vector` narrowing into `Gradient Noise.UV`.
 - Epic 7A now adds code support for those node families, typed settings/readback where stable, Vector3/Position slot compatibility, cross-family dynamic slot compatibility, explicit View Vector UV narrowing through `Split` plus `Combine.RG`, and an editor-test e2e case for the reflection-outline path.
+- The second outline trial confirmed one additional node blocker: `Object`. Current support adds `nodeType: "object"` for `UnityEditor.ShaderGraph.ObjectNode`, readback for `Position`, `Scale`, `World Bounds Min`, `World Bounds Max`, and `Bounds Size` output slots, and a simple object-scale outline e2e validation path.
 - A compile sanity check, `dotnet build Assembly-CSharp.csproj -v minimal`, passed in that local project with 0 warnings and 0 errors at the last checkpoint.
 - Epic 7A live validation through the already-open project-scoped MCP/editor session passed on 2026-06-14:
   - `Codex_Epic7A_SettingsSmoke.shadergraph`: add/update/readback for all Epic 7A nodes, duplicate/move/delete for `Transform`, final `ShaderResolved=true`, `HasErrors=false`.
@@ -395,7 +400,10 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
   - `Codex_ViewVectorUV_ReflectionOutline.shadergraph`: exact trial path with `View Vector -> Split -> Combine.RG -> Gradient Noise.UV`, source-vector nodes, trig chain, gradient-noise displacement modulation, `Transform -> VertexDescription.Position`, preserved base texture/color output, final `ShaderResolved=true`, `HasErrors=false`, 24 nodes and 19 edges.
   - Short readback probe confirmed `Position.space=absoluteWorld`, `Transform` conversion `absoluteWorld -> object`, `GradientNoise.scale=18`, and the final vertex-position edge.
   - Short readback probe confirmed the explicit `View Vector -> Split -> Combine.RG -> Gradient Noise.UV` edge path.
+- Second-trial live validation through the already-open project-scoped MCP/editor session passed on 2026-06-14:
+  - `Codex_ObjectScaleOutline.shadergraph`: simple object-scale outline graph with `Thickness -> Divide.A`, `Object.Scale -> Divide.B`, `Position(Object) -> Multiply/Add`, `Add -> VertexDescription.Position`, `Outline Color -> SurfaceDescription.BaseColor`, Universal target `surface=opaque`, `renderFace=back`, final `ShaderResolved=true`, `HasErrors=false`, 17 nodes and 11 edges.
 - A Unity batch-mode editor test run was intentionally not performed while the project was already open in a Unity Editor instance.
+- A targeted MCP `tests-run` attempt for the new editor test was blocked by an unsaved open scene; Codex did not save editor scene state automatically.
 - The local `Unity-test/TestShadergraph` project is available in this workspace, but it is git-ignored and should not be treated as a reproducible repository fixture until explicitly promoted or documented as setup-required state.
 - Unity package editor test discovery for the ShaderGraph tests still needs to be fixed before this can be treated as a complete automated validation baseline.
 - Future gaps and non-blocking limitations are tracked in `docs/dev/futureDebt.MD`.

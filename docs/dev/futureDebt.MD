@@ -94,6 +94,7 @@ Current matrix already covers:
 - Exact slot-type matches.
 - Compatible UV/vector2 slot pairs.
 - Compatible Vector3/Position slot pairs.
+- Compatible color/vector slot pairs when one endpoint is a ShaderGraph color slot, such as Color properties feeding Fragment Base Color.
 - Texture2D property outputs into Texture2D input slots.
 - Compatible dynamic numeric, vector, and color slot families, including cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
 - Safe explicit Vector3-to-UV authoring through `Vector3 -> Split -> Combine.RG -> UV`.
@@ -126,7 +127,7 @@ Deferred advanced features:
 - Broader render-pipeline support beyond the current URP-first scope.
 - Long-tail Shader Graph node families not covered by the current allowlist.
 
-Note: the reflection-outline trial nodes implemented in Epic 7A are no longer considered long-tail.
+Note: the reflection-outline trial nodes implemented in Epic 7A and the `Object` node implemented in Epic 7B are no longer considered long-tail.
 
 ### Style Recipe Expansion
 
@@ -148,10 +149,11 @@ Live project-scoped MCP validation for Epic 7A passed on 2026-06-14 through the 
 - `Codex_Epic7A_SettingsSmoke.shadergraph` imported successfully after creating/updating all new node families and exercising duplicate/move/delete on `Transform`.
 - `Codex_Epic7A_E2E.shadergraph` imported successfully after wiring the reflection-outline path, including source-vector nodes, trig chain, gradient-noise displacement modulation, transform to vertex position, and preserved base texture/color output.
 - `Codex_ViewVectorUV_ReflectionOutline.shadergraph` imported successfully after wiring the exact trial path with `View Vector -> Split -> Combine.RG -> Gradient Noise.UV`, source-vector nodes, trig chain, gradient-noise displacement modulation, transform to vertex position, and preserved base texture/color output.
+- `Codex_ObjectScaleOutline.shadergraph` imported successfully after wiring the second-trial object-scale outline path, including `Object.Scale -> Divide.B`, object-space position extrusion to vertex position, outline color to fragment base color, and Universal target `surface=opaque`, `renderFace=back`.
 
 The current workspace includes `Unity-test/TestShadergraph`, but `Unity-test/` is git-ignored. Treat it as local validation state, not a reproducible repository fixture.
 
-Earlier Unity `tests-run` attempts did not discover the package editor tests from the local validation project.
+Earlier Unity `tests-run` attempts did not discover the package editor tests from the local validation project. A later targeted test-run attempt for the Object outline editor test was blocked because the already-open Unity Editor had an unsaved scene; do not save user/editor scene state automatically just to run package tests.
 
 Future work:
 

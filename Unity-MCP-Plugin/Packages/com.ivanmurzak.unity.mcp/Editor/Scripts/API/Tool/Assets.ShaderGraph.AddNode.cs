@@ -31,8 +31,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Add a safe allowlisted Shader Graph node, then re-import the graph and return the created node and diagnostics.")]
         [AiSkillBody("Add a safe allowlisted node to a '.shadergraph' asset.\n\n" +
-            "Current Epic 7A support is intentionally explicit:\n" +
-            "- node types: `add`, `subtract`, `multiply`, `divide`, `lerp`, `oneMinus`, `split`, `combine`, `sampleTexture2D`, `tilingAndOffset`, `branch`, `viewDirection`, `viewVector`, `normalVector`, `position`, `transform`, `gradientNoise`, `sine`, `cosine`, `negate`\n" +
+            "Current ShaderGraph node support is intentionally explicit:\n" +
+            "- node types: `add`, `subtract`, `multiply`, `divide`, `lerp`, `oneMinus`, `split`, `combine`, `sampleTexture2D`, `tilingAndOffset`, `branch`, `viewDirection`, `viewVector`, `normalVector`, `position`, `object`, `transform`, `gradientNoise`, `sine`, `cosine`, `negate`\n" +
             "- node creation only, no automatic edge wiring\n" +
             "- uses Unity's own Shader Graph graph APIs through reflection, then re-imports the asset\n\n" +
             "## Inputs\n\n" +

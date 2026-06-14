@@ -236,6 +236,35 @@ Validation requirements:
   - `Codex_ViewVectorUV_ReflectionOutline.shadergraph`: exact trial path wired with 24 nodes and 19 edges, including `View Vector -> Split -> Combine.RG -> Gradient Noise.UV`, `Transform -> VertexDescription.Position`, preserved base texture/color output, final import reported `ShaderResolved=true` and `HasErrors=false`.
   - Unity test-runner discovery for package editor tests is still tracked under Epic 15.
 
+## Epic 7B: Object-Scale Outline Trial Gap
+
+Status:
+
+- Implemented in code on `custom/shadergraph-mcp`.
+- Compile sanity check passed in the local Unity 6 validation project.
+- Live Unity Editor validation through the existing project-scoped MCP session passed on 2026-06-14.
+
+Purpose:
+
+- Close the confirmed node gap found during the second outline trial: ShaderGraph `Object` node support.
+- Validate the simple object-scale outline topology needed by that trial.
+
+Required node family:
+
+- `object` (`Object`, `UnityEditor.ShaderGraph.ObjectNode`)
+
+Implementation plan:
+
+- Slice 7B.1: add `object` to the `assets-shadergraph-add-node` allowlist and public input descriptions. Implemented.
+- Slice 7B.2: verify structure readback exposes Object output slots, especially `Scale`. Implemented.
+- Slice 7B.3: verify `Object.Scale -> Divide.B` can be wired through the existing dynamic slot compatibility path. Implemented.
+- Slice 7B.4: add an end-to-end simple outline validation case with `Thickness`, `Object.Scale`, `Position(Object)`, `Divide`, `Multiply`, `Add`, vertex position output, outline color to fragment base color, and Universal target `opaque/back`. Implemented.
+
+Validation evidence:
+
+- `Codex_ObjectScaleOutline.shadergraph`: live MCP validation passed with 17 nodes and 11 edges, including `Object.Scale -> Divide.B`, `Add -> VertexDescription.Position`, `Outline Color -> SurfaceDescription.BaseColor`, Universal target `surface=opaque`, `renderFace=back`, final import reported `ShaderResolved=true` and `HasErrors=false`.
+- Targeted Unity `tests-run` for the new editor test was blocked by an unsaved open scene in the existing editor session; Codex did not save user scene state automatically.
+
 ## Epic 8: Node Parameter Editing
 
 Purpose:
