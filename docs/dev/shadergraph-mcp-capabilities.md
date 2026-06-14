@@ -225,6 +225,9 @@ Node lifecycle mutation results include normalized summary fields:
       - `normalMapSpace`
       - `useGlobalMipBias`
       - `mipSamplingMode`
+      - `textureSlotAssetPath`
+      - `textureSlotDefaultType`
+      - Direct texture slot assignment requires the `Texture` input slot to be unconnected; connected texture inputs should be controlled by assigning the connected blackboard `texture2D` property.
     - `Tiling And Offset`
       - `tiling.x`
       - `tiling.y`

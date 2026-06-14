@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json.Nodes;
 using AIGD;
 using com.IvanMurzak.McpPlugin;
 using com.IvanMurzak.ReflectorNet.Utils;
@@ -37,7 +38,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "Current Epic 8 support is intentionally typed and allowlisted:\n" +
             "- existing nodes only\n" +
             "- selection by `nodeObjectId`\n" +
-            "- `sampleTexture2D`: `textureType`, `normalMapSpace`, `useGlobalMipBias`, `mipSamplingMode`\n" +
+            "- `sampleTexture2D`: `textureType`, `normalMapSpace`, `useGlobalMipBias`, `mipSamplingMode`, direct unconnected Texture slot asset/default type via `textureSlotAssetPath` and `textureSlotDefaultType`\n" +
             "- `tilingAndOffset`: default `tiling` and `offset` slot values\n" +
             "- `branch`: default `predicate`, `trueValue`, and `falseValue` slot values\n" +
             "- `split`: default `input` slot value\n" +
@@ -118,16 +119,24 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             var assetPath = ResolveAssetPath(assetRef);
             var nodeObjectId = node.NodeObjectId!.Trim();
 
+            if (HasSampleTexture2DTextureSlotUpdates(node.SampleTexture2D))
+            {
+                var structure = BuildShaderGraphStructureData(new AssetObjectRef(assetPath));
+                EnsureSampleTexture2DTextureSlotIsUnconnected(structure, nodeObjectId);
+            }
+
             var document = LoadShaderGraphReflectionDocument(assetPath);
             var nodeObject = ResolveShaderGraphNodeObject(document, nodeObjectId);
             var changedFields = new List<string>();
 
-            ApplySampleTexture2DNodeSettings(nodeObject, node.SampleTexture2D!, changedFields);
+            ApplySampleTexture2DNodeSettings(document.Bindings, nodeObject, node.SampleTexture2D!, changedFields);
 
             if (changedFields.Count == 0)
                 throw new InvalidOperationException($"Shader Graph node '{nodeObjectId}' did not change.");
 
+            InvokeShaderGraphMethod(document.Bindings.ValidateGraphMethod, document.GraphData);
             SaveShaderGraphReflectionDocument(document);
+            ApplySampleTexture2DTextureSlotSourceUpdates(assetPath, nodeObjectId, node.SampleTexture2D!);
             FinalizeShaderGraphMutation(assetPath);
 
             return BuildNodeSettingsMutationResult(
@@ -254,7 +263,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                && (!string.IsNullOrWhiteSpace(sampleTexture2D.TextureType)
                    || !string.IsNullOrWhiteSpace(sampleTexture2D.NormalMapSpace)
                    || sampleTexture2D.UseGlobalMipBias.HasValue
-                   || !string.IsNullOrWhiteSpace(sampleTexture2D.MipSamplingMode));
+                   || !string.IsNullOrWhiteSpace(sampleTexture2D.MipSamplingMode)
+                   || HasSampleTexture2DTextureSlotUpdates(sampleTexture2D));
+
+        static bool HasSampleTexture2DTextureSlotUpdates(ShaderGraphSampleTexture2DNodeSettingsUpdateInput? sampleTexture2D)
+            => sampleTexture2D != null
+               && (sampleTexture2D.TextureSlotAssetPath != null
+                   || !string.IsNullOrWhiteSpace(sampleTexture2D.TextureSlotDefaultType));
 
         static bool HasTilingAndOffsetUpdates(ShaderGraphTilingAndOffsetNodeSettingsUpdateInput? tilingAndOffset)
             => tilingAndOffset != null
@@ -305,6 +320,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                    || value.W.HasValue);
 
         static void ApplySampleTexture2DNodeSettings(
+            ShaderGraphReflectionBindings bindings,
             object nodeObject,
             ShaderGraphSampleTexture2DNodeSettingsUpdateInput sampleTexture2D,
             List<string> changedFields)
@@ -359,6 +375,170 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     "node.sampleTexture2D.mipSamplingMode",
                     changedFields);
             }
+
+            SetSampleTexture2DTextureSlot(bindings, nodeObject, sampleTexture2D, changedFields);
+        }
+
+        static void EnsureSampleTexture2DTextureSlotIsUnconnected(ShaderGraphStructureData structure, string nodeObjectId)
+        {
+            var node = structure.Nodes?
+                .FirstOrDefault(n => string.Equals(n.ObjectId, nodeObjectId, StringComparison.Ordinal));
+            if (node == null)
+                throw new InvalidOperationException($"Shader Graph node '{nodeObjectId}' could not be resolved.");
+
+            if (!string.Equals(node.Type, "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Node '{node.Type ?? "unknown"}' does not support sampleTexture2D settings updates. Expected UnityEditor.ShaderGraph.SampleTexture2DNode.");
+            }
+
+            var textureSlot = node.Slots?
+                .FirstOrDefault(slot => string.Equals(slot.DisplayName, "Texture", StringComparison.Ordinal)
+                    && string.Equals(slot.Type, "UnityEditor.ShaderGraph.Texture2DInputMaterialSlot", StringComparison.Ordinal));
+            if (textureSlot?.SlotId == null)
+                throw new InvalidOperationException($"Sample Texture 2D node '{nodeObjectId}' does not expose a Texture input slot.");
+
+            var isConnected = structure.Edges?.Any(edge =>
+                string.Equals(edge.InputNodeId, nodeObjectId, StringComparison.Ordinal)
+                && edge.InputSlotId == textureSlot.SlotId) ?? false;
+            if (isConnected)
+            {
+                throw new InvalidOperationException(
+                    "sampleTexture2D.textureSlotAssetPath and textureSlotDefaultType require the Texture input slot to be unconnected. Disconnect the edge first, or assign the texture through the connected blackboard Texture2D property.");
+            }
+        }
+
+        static void SetSampleTexture2DTextureSlot(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphSampleTexture2DNodeSettingsUpdateInput sampleTexture2D,
+            List<string> changedFields)
+        {
+            if (!HasSampleTexture2DTextureSlotUpdates(sampleTexture2D))
+                return;
+
+            var slotObject = ResolveRuntimeSlotObject(bindings, nodeObject, "Texture");
+            if (!string.Equals(slotObject.GetType().FullName, "UnityEditor.ShaderGraph.Texture2DInputMaterialSlot", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Sample Texture 2D Texture slot resolved as '{slotObject.GetType().FullName}', expected UnityEditor.ShaderGraph.Texture2DInputMaterialSlot.");
+            }
+
+            if (sampleTexture2D.TextureSlotAssetPath != null)
+            {
+                var texture = ResolveTexture2DAsset(sampleTexture2D.TextureSlotAssetPath, "node.sampleTexture2D.textureSlotAssetPath");
+                SetTextureSlotAsset(slotObject, texture, "node.sampleTexture2D.textureSlotAssetPath", changedFields);
+            }
+
+            if (!string.IsNullOrWhiteSpace(sampleTexture2D.TextureSlotDefaultType))
+            {
+                SetIntOrEnumField(
+                    slotObject,
+                    "m_DefaultType",
+                    ParseTexture2DDefaultType(sampleTexture2D.TextureSlotDefaultType),
+                    "node.sampleTexture2D.textureSlotDefaultType",
+                    changedFields);
+            }
+        }
+
+        static void ApplySampleTexture2DTextureSlotSourceUpdates(
+            string assetPath,
+            string nodeObjectId,
+            ShaderGraphSampleTexture2DNodeSettingsUpdateInput sampleTexture2D)
+        {
+            if (!HasSampleTexture2DTextureSlotUpdates(sampleTexture2D))
+                return;
+
+            var document = LoadMutableDocument(assetPath);
+            if (!document.ObjectsById.TryGetValue(nodeObjectId, out var nodeObject))
+                throw new InvalidOperationException($"Shader Graph node '{nodeObjectId}' could not be resolved after runtime save.");
+
+            var textureSlot = ResolveSampleTexture2DTextureSlotObject(document, nodeObject, nodeObjectId);
+
+            if (sampleTexture2D.TextureSlotAssetPath != null)
+            {
+                var textureAssetGuid = ResolveTexture2DAssetGuid(
+                    sampleTexture2D.TextureSlotAssetPath,
+                    "node.sampleTexture2D.textureSlotAssetPath");
+                var textureValue = EnsureTextureSlotTextureObject(textureSlot);
+                textureValue["m_SerializedTexture"] = string.Empty;
+                textureValue["m_Guid"] = textureAssetGuid ?? string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(sampleTexture2D.TextureSlotDefaultType))
+                textureSlot["m_DefaultType"] = ParseTexture2DDefaultType(sampleTexture2D.TextureSlotDefaultType);
+
+            WriteMutableDocument(document);
+        }
+
+        static JsonObject ResolveSampleTexture2DTextureSlotObject(
+            ShaderGraphMutableDocument document,
+            JsonObject nodeObject,
+            string nodeObjectId)
+        {
+            foreach (var slotObjectId in GetIdArray(nodeObject, "m_Slots"))
+            {
+                if (!document.ObjectsById.TryGetValue(slotObjectId, out var slotObject))
+                    continue;
+
+                if (string.Equals(GetString(slotObject, "m_Type"), "UnityEditor.ShaderGraph.Texture2DInputMaterialSlot", StringComparison.Ordinal)
+                    && string.Equals(GetString(slotObject, "m_DisplayName"), "Texture", StringComparison.Ordinal))
+                {
+                    return slotObject;
+                }
+            }
+
+            throw new InvalidOperationException($"Sample Texture 2D node '{nodeObjectId}' does not expose a serialized Texture input slot.");
+        }
+
+        static JsonObject EnsureTextureSlotTextureObject(JsonObject textureSlot)
+        {
+            if (textureSlot["m_Texture"] is JsonObject textureValue)
+                return textureValue;
+
+            textureValue = new JsonObject
+            {
+                ["m_SerializedTexture"] = string.Empty,
+                ["m_Guid"] = string.Empty
+            };
+            textureSlot["m_Texture"] = textureValue;
+            return textureValue;
+        }
+
+        static Texture2D? ResolveTexture2DAsset(string? textureAssetPath, string fieldPath)
+        {
+            if (textureAssetPath == null)
+                return null;
+
+            var trimmedPath = textureAssetPath.Trim();
+            if (trimmedPath.Length == 0)
+                return null;
+
+            ValidateProjectAssetPath(trimmedPath, fieldPath);
+
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(trimmedPath);
+            if (texture == null)
+            {
+                throw new ArgumentException(
+                    $"{fieldPath} points to '{trimmedPath}', but no Texture2D asset could be loaded from that path.");
+            }
+
+            return texture;
+        }
+
+        static void SetTextureSlotAsset(
+            object slotObject,
+            Texture2D? texture,
+            string changedFieldName,
+            List<string> changedFields)
+        {
+            var textureProperty = ResolveNodeInstanceProperty(slotObject.GetType(), "texture");
+            var currentTexture = textureProperty.GetValue(slotObject) as Texture2D;
+            if (Equals(currentTexture, texture))
+                return;
+
+            textureProperty.SetValue(slotObject, texture);
+            AddChangedField(changedFields, changedFieldName);
         }
 
         static void ApplyTilingAndOffsetNodeSettings(

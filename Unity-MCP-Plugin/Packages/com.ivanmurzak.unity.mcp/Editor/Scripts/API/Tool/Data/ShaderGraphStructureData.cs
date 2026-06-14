@@ -292,6 +292,18 @@ namespace AIGD
 
         [Description("Serialized default slot value JSON.")]
         public string? DefaultValueJson { get; set; }
+
+        [Description("Texture slot default texture type enum value, when this is a texture input slot.")]
+        public int? TextureDefaultTypeValue { get; set; }
+
+        [Description("Texture slot default texture type, when recognized.")]
+        public string? TextureDefaultType { get; set; }
+
+        [Description("Serialized GUID of the Texture asset assigned directly to this texture input slot, when present.")]
+        public string? TextureAssetGuid { get; set; }
+
+        [Description("Project asset path of the Texture asset assigned directly to this texture input slot, when present.")]
+        public string? TextureAssetPath { get; set; }
     }
 
     public class ShaderGraphEdgeDefinitionData

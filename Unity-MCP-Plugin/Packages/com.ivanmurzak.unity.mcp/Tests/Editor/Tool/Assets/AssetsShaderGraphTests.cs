@@ -1752,6 +1752,88 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_UpdateNodeSettings_AssignsSampleTexture2DTextureSlotAsset()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeTextureSlot.shadergraph");
+            var textureAssetPath = CreateTextureAsset("Validation_Node_Texture.png", new Color(0.2f, 0.8f, 0.95f, 1f));
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var sampleNodeResult = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "sampleTexture2D",
+                        PositionX = -640f,
+                        PositionY = 40f
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var textureGuid = AssetDatabase.AssetPathToGUID(textureAssetPath);
+                var result = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = sampleNodeResult.NodeObjectId,
+                        SampleTexture2D = new ShaderGraphSampleTexture2DNodeSettingsUpdateInput
+                        {
+                            TextureSlotAssetPath = textureAssetPath,
+                            TextureSlotDefaultType = "red"
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(result);
+                Assert.IsTrue(result.ChangedFields!.Contains("node.sampleTexture2D.textureSlotAssetPath"));
+                Assert.IsTrue(result.ChangedFields.Contains("node.sampleTexture2D.textureSlotDefaultType"));
+
+                Assert.IsNotNull(result.Node);
+                var textureSlot = result.Node!.Slots!
+                    .Single(slot => slot.DisplayName == "Texture");
+                Assert.AreEqual("UnityEditor.ShaderGraph.Texture2DInputMaterialSlot", textureSlot.Type);
+                Assert.AreEqual(textureGuid, textureSlot.TextureAssetGuid);
+                Assert.AreEqual(textureAssetPath, textureSlot.TextureAssetPath);
+                Assert.AreEqual("red", textureSlot.TextureDefaultType);
+
+                Assert.IsNotNull(result.Graph);
+                Assert.IsTrue(result.Graph!.ShaderResolved, "Assigning a direct Sample Texture 2D slot texture should keep the Shader Graph import valid.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Assigning a direct Sample Texture 2D slot texture should not introduce import errors.");
+
+                var clearResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = sampleNodeResult.NodeObjectId,
+                        SampleTexture2D = new ShaderGraphSampleTexture2DNodeSettingsUpdateInput
+                        {
+                            TextureSlotAssetPath = string.Empty,
+                            TextureSlotDefaultType = "black"
+                        }
+                    },
+                    includeMessages: true,
+                    includeProperties: true);
+
+                var clearedTextureSlot = clearResult.Node!.Slots!
+                    .Single(slot => slot.DisplayName == "Texture");
+                Assert.IsNull(clearedTextureSlot.TextureAssetGuid);
+                Assert.IsNull(clearedTextureSlot.TextureAssetPath);
+                Assert.AreEqual("black", clearedTextureSlot.TextureDefaultType);
+                Assert.IsTrue(clearResult.Graph!.ShaderResolved, "Clearing a direct Sample Texture 2D slot texture should keep the Shader Graph import valid.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+                CleanupTestAsset(textureAssetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_UpdateNodeSettings_ReloadsOpenShaderGraphWindow()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_WindowReload.shadergraph");

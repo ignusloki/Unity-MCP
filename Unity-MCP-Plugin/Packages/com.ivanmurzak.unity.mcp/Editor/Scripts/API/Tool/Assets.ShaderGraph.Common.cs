@@ -698,11 +698,27 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (!string.Equals(propertyType, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal))
                 return null;
 
-            var directGuid = GetStringAt(root, "m_Value", "m_Guid");
+            return ParseSerializableTextureAssetGuid(root, "m_Value");
+        }
+
+        static string? ParseTexture2DInputSlotAssetGuid(JsonElement root, string? slotType)
+        {
+            if (!string.Equals(slotType, "UnityEditor.ShaderGraph.Texture2DInputMaterialSlot", StringComparison.Ordinal))
+                return null;
+
+            return ParseSerializableTextureAssetGuid(root, "m_Texture");
+        }
+
+        static string? ParseSerializableTextureAssetGuid(JsonElement root, params string[] texturePropertyPath)
+        {
+            if (!TryGetPropertyByPath(root, out var textureValue, texturePropertyPath) || textureValue.ValueKind != JsonValueKind.Object)
+                return null;
+
+            var directGuid = GetStringAt(textureValue, "m_Guid");
             if (!string.IsNullOrWhiteSpace(directGuid))
                 return directGuid;
 
-            var serializedTexture = GetStringAt(root, "m_Value", "m_SerializedTexture");
+            var serializedTexture = GetStringAt(textureValue, "m_SerializedTexture");
             if (string.IsNullOrWhiteSpace(serializedTexture))
                 return null;
 
@@ -787,10 +803,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
         static ShaderGraphSlotDefinitionData ParseSlotDefinition(JsonElement root, string objectId)
         {
+            var slotType = GetString(root, "m_Type");
+            var textureDefaultTypeValue = GetInt(root, "m_DefaultType");
+            var textureAssetGuid = ParseTexture2DInputSlotAssetGuid(root, slotType);
+
             return new ShaderGraphSlotDefinitionData
             {
                 ObjectId = objectId,
-                Type = GetString(root, "m_Type"),
+                Type = slotType,
                 SlotId = GetInt(root, "m_Id"),
                 DisplayName = GetString(root, "m_DisplayName"),
                 SlotType = GetInt(root, "m_SlotType"),
@@ -798,7 +818,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 StageCapability = GetInt(root, "m_StageCapability"),
                 Hidden = GetBool(root, "m_Hidden") ?? false,
                 ValueJson = GetRawText(root, "m_Value"),
-                DefaultValueJson = GetRawText(root, "m_DefaultValue")
+                DefaultValueJson = GetRawText(root, "m_DefaultValue"),
+                TextureDefaultTypeValue = string.Equals(slotType, "UnityEditor.ShaderGraph.Texture2DInputMaterialSlot", StringComparison.Ordinal)
+                    ? textureDefaultTypeValue
+                    : null,
+                TextureDefaultType = string.Equals(slotType, "UnityEditor.ShaderGraph.Texture2DInputMaterialSlot", StringComparison.Ordinal)
+                    ? FormatTexture2DDefaultType(textureDefaultTypeValue)
+                    : null,
+                TextureAssetGuid = textureAssetGuid,
+                TextureAssetPath = string.IsNullOrWhiteSpace(textureAssetGuid)
+                    ? null
+                    : AssetDatabase.GUIDToAssetPath(textureAssetGuid)
             };
         }
 

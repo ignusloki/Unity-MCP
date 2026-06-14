@@ -136,6 +136,12 @@ namespace AIGD
 
         [Description("Mip sampling mode. Supported values: standard, lod, gradient, bias.")]
         public string? MipSamplingMode { get; set; }
+
+        [Description("Project Texture2D asset path to assign directly to the unconnected Texture input slot, such as 'Assets/Textures/BaseMap.png'. Use an empty string to clear the slot texture.")]
+        public string? TextureSlotAssetPath { get; set; }
+
+        [Description("Fallback texture type for the Texture input slot. Supported values: white, black, grey, normalMap, bump, linearGrey, red.")]
+        public string? TextureSlotDefaultType { get; set; }
     }
 
     [Description("Structured vector2 value update.")]
