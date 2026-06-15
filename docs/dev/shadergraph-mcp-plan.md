@@ -8,8 +8,6 @@ Update this file only when the roadmap changes. For the currently exposed tool s
 
 ## Related Documents
 
-- `docs/dev/shadergraph-mcp-plan.md`
-  - stable roadmap, epic definitions, and slice order
 - `docs/dev/shadergraph-mcp-capabilities.md`
   - currently exposed ShaderGraph MCP tools and user-facing capability surface
 - `docs/dev/futureDebt.MD`
@@ -264,6 +262,99 @@ Validation evidence:
 
 - `Codex_ObjectScaleOutline.shadergraph`: live MCP validation passed with 17 nodes and 11 edges, including `Object.Scale -> Divide.B`, `Add -> VertexDescription.Position`, `Outline Color -> SurfaceDescription.BaseColor`, Universal target `surface=opaque`, `renderFace=back`, final import reported `ShaderResolved=true` and `HasErrors=false`.
 - Targeted Unity `tests-run` for the new editor test was blocked by an unsaved open scene in the existing editor session; Codex did not save user scene state automatically.
+
+## Epic 7C: MinionsArt Water Shader Trial Gap
+
+Status:
+
+- Implemented in code on `custom/shadergraph-mcp`.
+- Compile sanity check passed in the local Unity 6 validation project with 0 warnings and 0 errors.
+- Live Unity Editor validation through the existing project-scoped MCP session passed on 2026-06-14.
+
+Purpose:
+
+- Close the confirmed node and wiring gaps found before attempting MinionsArt's water shader trial.
+- Validate that the MCP can author the water graph's core screen-depth, time, smoothing, saturation, vector2 UV, and Lit/PBR output paths without manual Shader Graph JSON edits.
+
+Required node families:
+
+- `screenPosition` (`Screen Position`, `UnityEditor.ShaderGraph.ScreenPositionNode`)
+- `sceneDepth` (`Scene Depth`, `UnityEditor.ShaderGraph.SceneDepthNode`)
+- `time` (`Time`, `UnityEditor.ShaderGraph.TimeNode`)
+- `smoothstep` (`Smoothstep`, `UnityEditor.ShaderGraph.SmoothstepNode`)
+- `saturate` (`Saturate`, `UnityEditor.ShaderGraph.SaturateNode`)
+- `vector2` (`Vector 2`, `UnityEditor.ShaderGraph.Vector2Node`)
+
+Implementation plan:
+
+- Slice 7C.1: add the water-core node families to `assets-shadergraph-add-node` and public tool descriptions. Implemented.
+- Slice 7C.2: expose readback for Screen Position mode, Scene Depth sampling mode, Time outputs, Smoothstep slots, Saturate slots, and Vector 2 slots. Implemented.
+- Slice 7C.3: add typed settings for `screenPosition.mode`, `sceneDepth.samplingMode`, and `vector2.x/y`; reject unsupported Screen Position modes loudly. Implemented.
+- Slice 7C.4: validate and support `ScreenPosition.Out -> SceneDepth.UV` without broadening unsafe vector conversions. Implemented.
+- Slice 7C.5: verify Lit/PBR-style outputs through a Lit template plus `assets-shadergraph-set-blocks`; document that target/subtarget switching from an existing Unlit graph is not exposed. Implemented.
+- Slice 7C.6: add editor tests for node creation/readback/settings and a minimal water-core e2e graph. Implemented.
+- Slice 7C.7: run live MCP validation in the existing Unity editor and record the generated graph evidence. Implemented.
+- Slice 7C.8: close the concrete MinionsArt UV-math blocker by supporting vector2-resolved `DynamicVectorMaterialSlot -> UVMaterialSlot` paths such as `Add.Out -> Tiling And Offset.UV`, and validate connect, reconnect, and reroute on that path. Implemented.
+
+Validation requirements:
+
+- Create a graph through MCP, force reimport, return no ShaderGraph diagnostics errors, and verify every new node is discoverable through `assets-shadergraph-get-structure`.
+- The minimal water-core graph must include `Screen Position -> Scene Depth`, `Smoothstep`, `Saturate`, `Time`, real `Vector 2`, Base Color output, and at least one Lit/PBR-style output block such as Smoothness or Alpha.
+- Do not fake Lit/PBR support by mutating unsupported target/subtarget internals; use a Lit template until explicit target switching is implemented.
+
+Validation evidence:
+
+- `Codex_WaterCore_MinionsArt.shadergraph`: live MCP validation passed with 109 nodes and 116 edges, including `ScreenPosition.Out -> SceneDepth.UV`, Screen Position `raw`, Scene Depth `eye`, `Vector2(0.25, 0.75) -> Sample Texture 2D.UV`, `Saturate.Out -> Alpha`, sampled texture to Base Color, and time/depth-driven Smoothness. Final graph data reported `ShaderResolved=true` and `HasErrors=false`.
+- `Codex_Water_AddUvScriptValidation.shadergraph`: follow-up live validation passed with 117 nodes and 122 edges after authoring `Add.Out -> Tiling And Offset.UV`, retargeting the same UV input through `ReconnectEdge`, and rerouting two legacy UV consumers through `RerouteOutputSlot`. Final graph data reported `ShaderResolved=true` and `HasErrors=false`.
+- A targeted Unity `tests-run` attempt for `ShaderGraph_WaterCorePath_CanBeWiredEndToEnd` did not discover the package editor test from the local validation project; automated package test discovery remains tracked under Epic 15.
+
+## Epic 7D: MinionsArt Full-Water Behavior Node Parity
+
+Status:
+
+- Implemented in code on `custom/shadergraph-mcp`.
+- Compile sanity check passed in the local Unity 6 validation project on 2026-06-15 with 0 warnings and 0 errors.
+- Structure readback, editor-test validation, and live MCP mutation validation passed on 2026-06-15.
+
+Purpose:
+
+- Close the remaining behavior-relevant node-coverage gap exposed by the original MinionsArt water reference graph.
+- Let a follow-up agent recreate the behavior-bearing portions of `StylizedWaterInteractiveUpdate.shadergraph` without manual `.shadergraph` edits or prior knowledge of these missing families.
+
+Required node families:
+
+- `sceneColor` (`Scene Color`, `UnityEditor.ShaderGraph.SceneColorNode`)
+- `comparison` (`Comparison`, `UnityEditor.ShaderGraph.ComparisonNode`)
+- `normalFromHeight` (`Normal From Height`, `UnityEditor.ShaderGraph.NormalFromHeightNode`)
+- `blend` (`Blend`, `UnityEditor.ShaderGraph.BlendNode`)
+- `remap` (`Remap`, `UnityEditor.ShaderGraph.RemapNode`)
+- `swizzle` (`Swizzle`, `UnityEditor.ShaderGraph.SwizzleNode`)
+
+Implementation plan:
+
+- Slice 7D.1: add the six behavior-node families to `assets-shadergraph-add-node`, duplicate/delete/move flows, and public tool descriptions. Implemented.
+- Slice 7D.2: extend `assets-shadergraph-get-structure` to expose meaningful typed readback for serialized settings and stable slot topology taken from the original reference graph. Implemented.
+- Slice 7D.3: add typed `assets-shadergraph-update-node-settings` support for `comparisonType`, `normalFromHeight.outputSpace`, `blendMode`, and `swizzle.mask`; keep `sceneColor` and `remap` slot-driven and reject unsupported values loudly. Implemented.
+- Slice 7D.4: validate safe swizzle-mask normalization and topology changes, including loud rejection of mixed `xyzw`/`rgba` notation. Implemented.
+- Slice 7D.5: add only the concrete extra edge compatibility required by the behavior path: `Vector3 -> NormalMaterialSlot` for flows such as `Normal From Height.Out -> Fragment NormalWS`. Implemented.
+- Slice 7D.6: add editor tests for create, inspect, duplicate, move, delete, wire, reimport, and diagnostics across the new behavior nodes. Implemented.
+- Slice 7D.7: inspect `RedirectNodeData` and keep it deferred as non-essential layout/readability data unless a future trial proves it is behavior-relevant. Implemented as documentation/positioning only.
+
+Validation requirements:
+
+- Read the original reference asset structurally before changing behavior support.
+- Verify every new node family is addable and discoverable through `assets-shadergraph-get-structure`.
+- Verify typed settings updates reimport cleanly and return explicit diagnostics.
+- Verify the supported behavior path can wire into Lit outputs without manual JSON editing.
+- Do not broaden slot compatibility beyond the exact validated cases needed by the reference path.
+
+Validation evidence:
+
+- [StylizedWaterInteractiveUpdate.shadergraph](/Users/suporte/Unity-MCP/Unity-test/TestShadergraph/Assets/ShaderGraphValidation/MinionsArtWaterTrial/StylizedWaterInteractiveUpdate.shadergraph): reference-graph readback confirmed `Comparison=less`, `Scene Color` slot topology, `Normal From Height.outputSpace=world`, `Swizzle.mask=xz`, `Remap` vector2 min/max slots, `Blend=screen`, and two `RedirectNodeData` layout nodes.
+- `Validation_AddNode_MinionsArtWaterBehavior.shadergraph`: editor test created the six new node families and exercised duplicate, move, and delete on `Blend`.
+- `Validation_UpdateNodeSettings_MinionsArtWaterBehavior.shadergraph`: editor test updated `comparisonType`, `normalFromHeight.outputSpace`, `blendMode`, and `swizzle.mask`, confirmed the `xz` mask rewired the node shape to `Vector3 -> Vector2`, and verified unsupported mixed notation fails loudly.
+- `Validation_MinionsArtWaterBehaviorPath.shadergraph`: editor test recreated the supported behavior path with `Scene Color`, `Swizzle`, `Remap`, `Blend`, `Normal From Height`, `Comparison`, Lit blocks, and `Normal From Height.Out -> Fragment NormalWS`, with final `ShaderResolved=true` and `HasErrors=false`.
+- `Codex_MinionsArt_NodeCoverage.shadergraph`: transient live MCP validation asset created in the local project-scoped Unity session on 2026-06-15; `Scene Color` add-node and `Swizzle.mask=xz` update/readback succeeded without diagnostics regressions.
 
 ## Epic 8: Node Parameter Editing
 

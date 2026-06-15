@@ -51,6 +51,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `position`: `space` and `positionSource`\n" +
             "- `transform`: `inputSpace`, `outputSpace`, `transformType`, and `normalize`\n" +
             "- `gradientNoise`: default `scale` slot value and `hashType`\n" +
+            "- `screenPosition`: `mode` (`default` or `raw`)\n" +
+            "- `sceneDepth`: `samplingMode` (`linear01`, `raw`, or `eye`)\n" +
+            "- `comparison`: `comparisonType`\n" +
+            "- `normalFromHeight`: `outputSpace`\n" +
+            "- `blend`: `blendMode`\n" +
+            "- `swizzle`: `mask`\n" +
+            "- `vector2`: default `x` and `y` slot values\n" +
             "- `sine`, `cosine`, `negate`: default `input` slot value\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n" +
@@ -225,6 +232,27 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "UnityEditor.ShaderGraph.GradientNoiseNode":
                     ApplyGradientNoiseNodeSettings(document.Bindings, nodeObject, node.GradientNoise, changedFields);
                     break;
+                case "UnityEditor.ShaderGraph.ScreenPositionNode":
+                    ApplyScreenPositionNodeSettings(nodeObject, node.ScreenPosition, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.SceneDepthNode":
+                    ApplySceneDepthNodeSettings(nodeObject, node.SceneDepth, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.ComparisonNode":
+                    ApplyComparisonNodeSettings(nodeObject, node.Comparison, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.NormalFromHeightNode":
+                    ApplyNormalFromHeightNodeSettings(nodeObject, node.NormalFromHeight, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.BlendNode":
+                    ApplyBlendNodeSettings(nodeObject, node.Blend, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.SwizzleNode":
+                    ApplySwizzleNodeSettings(nodeObject, node.Swizzle, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.Vector2Node":
+                    ApplyVector2NodeSettings(document.Bindings, nodeObject, node.Vector2, changedFields);
+                    break;
                 case "UnityEditor.ShaderGraph.SineNode":
                     ApplyUnaryVectorNodeSettings(document.Bindings, nodeObject, node.Sine, "Sine", "node.sine", changedFields);
                     break;
@@ -303,6 +331,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasPositionUpdates(node.Position)
                || HasTransformUpdates(node.Transform)
                || HasGradientNoiseUpdates(node.GradientNoise)
+               || HasScreenPositionUpdates(node.ScreenPosition)
+               || HasSceneDepthUpdates(node.SceneDepth)
+               || HasComparisonUpdates(node.Comparison)
+               || HasNormalFromHeightUpdates(node.NormalFromHeight)
+               || HasBlendUpdates(node.Blend)
+               || HasSwizzleUpdates(node.Swizzle)
+               || HasVector2NodeUpdates(node.Vector2)
                || HasUnaryVectorUpdates(node.Sine)
                || HasUnaryVectorUpdates(node.Cosine)
                || HasUnaryVectorUpdates(node.Negate);
@@ -326,6 +361,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasPositionUpdates(node.Position)) count++;
             if (HasTransformUpdates(node.Transform)) count++;
             if (HasGradientNoiseUpdates(node.GradientNoise)) count++;
+            if (HasScreenPositionUpdates(node.ScreenPosition)) count++;
+            if (HasSceneDepthUpdates(node.SceneDepth)) count++;
+            if (HasComparisonUpdates(node.Comparison)) count++;
+            if (HasNormalFromHeightUpdates(node.NormalFromHeight)) count++;
+            if (HasBlendUpdates(node.Blend)) count++;
+            if (HasSwizzleUpdates(node.Swizzle)) count++;
+            if (HasVector2NodeUpdates(node.Vector2)) count++;
             if (HasUnaryVectorUpdates(node.Sine)) count++;
             if (HasUnaryVectorUpdates(node.Cosine)) count++;
             if (HasUnaryVectorUpdates(node.Negate)) count++;
@@ -402,6 +444,27 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             => gradientNoise != null
                && (gradientNoise.Scale.HasValue
                    || !string.IsNullOrWhiteSpace(gradientNoise.HashType));
+
+        static bool HasScreenPositionUpdates(ShaderGraphScreenPositionNodeSettingsUpdateInput? screenPosition)
+            => screenPosition != null && !string.IsNullOrWhiteSpace(screenPosition.Mode);
+
+        static bool HasSceneDepthUpdates(ShaderGraphSceneDepthNodeSettingsUpdateInput? sceneDepth)
+            => sceneDepth != null && !string.IsNullOrWhiteSpace(sceneDepth.SamplingMode);
+
+        static bool HasComparisonUpdates(ShaderGraphComparisonNodeSettingsUpdateInput? comparison)
+            => comparison != null && !string.IsNullOrWhiteSpace(comparison.ComparisonType);
+
+        static bool HasNormalFromHeightUpdates(ShaderGraphNormalFromHeightNodeSettingsUpdateInput? normalFromHeight)
+            => normalFromHeight != null && !string.IsNullOrWhiteSpace(normalFromHeight.OutputSpace);
+
+        static bool HasBlendUpdates(ShaderGraphBlendNodeSettingsUpdateInput? blend)
+            => blend != null && !string.IsNullOrWhiteSpace(blend.BlendMode);
+
+        static bool HasSwizzleUpdates(ShaderGraphSwizzleNodeSettingsUpdateInput? swizzle)
+            => swizzle != null && !string.IsNullOrWhiteSpace(swizzle.Mask);
+
+        static bool HasVector2NodeUpdates(ShaderGraphVector2NodeSettingsUpdateInput? vector2)
+            => vector2 != null && (vector2.X.HasValue || vector2.Y.HasValue);
 
         static bool HasUnaryVectorUpdates(ShaderGraphUnaryVectorNodeSettingsUpdateInput? unary)
             => unary != null && HasVector4Updates(unary.Input);
@@ -830,6 +893,136 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 "node.gradientNoise.hashType",
                 new[] { "deterministic", "legacyMod" },
                 changedFields);
+        }
+
+        static void ApplyScreenPositionNodeSettings(
+            object nodeObject,
+            ShaderGraphScreenPositionNodeSettingsUpdateInput? screenPosition,
+            List<string> changedFields)
+        {
+            if (screenPosition == null)
+                throw new InvalidOperationException("Screen Position nodes require a `screenPosition` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_ScreenSpaceType",
+                screenPosition.Mode,
+                "node.screenPosition.mode",
+                new[] { "default", "raw" },
+                changedFields);
+        }
+
+        static void ApplySceneDepthNodeSettings(
+            object nodeObject,
+            ShaderGraphSceneDepthNodeSettingsUpdateInput? sceneDepth,
+            List<string> changedFields)
+        {
+            if (sceneDepth == null)
+                throw new InvalidOperationException("Scene Depth nodes require a `sceneDepth` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_DepthSamplingMode",
+                sceneDepth.SamplingMode,
+                "node.sceneDepth.samplingMode",
+                new[] { "linear01", "raw", "eye" },
+                changedFields);
+        }
+
+        static void ApplyComparisonNodeSettings(
+            object nodeObject,
+            ShaderGraphComparisonNodeSettingsUpdateInput? comparison,
+            List<string> changedFields)
+        {
+            if (comparison == null)
+                throw new InvalidOperationException("Comparison nodes require a `comparison` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_ComparisonType",
+                comparison.ComparisonType,
+                "node.comparison.comparisonType",
+                new[] { "equal", "notEqual", "less", "lessOrEqual", "greater", "greaterOrEqual" },
+                changedFields);
+        }
+
+        static void ApplyNormalFromHeightNodeSettings(
+            object nodeObject,
+            ShaderGraphNormalFromHeightNodeSettingsUpdateInput? normalFromHeight,
+            List<string> changedFields)
+        {
+            if (normalFromHeight == null)
+                throw new InvalidOperationException("Normal From Height nodes require a `normalFromHeight` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_OutputSpace",
+                normalFromHeight.OutputSpace,
+                "node.normalFromHeight.outputSpace",
+                new[] { "tangent", "world" },
+                changedFields);
+        }
+
+        static void ApplyBlendNodeSettings(
+            object nodeObject,
+            ShaderGraphBlendNodeSettingsUpdateInput? blend,
+            List<string> changedFields)
+        {
+            if (blend == null)
+                throw new InvalidOperationException("Blend nodes require a `blend` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_BlendMode",
+                blend.BlendMode,
+                "node.blend.blendMode",
+                new[]
+                {
+                    "burn", "darken", "difference", "dodge", "divide", "exclusion",
+                    "hardLight", "hardMix", "lighten", "linearBurn", "linearDodge",
+                    "linearLight", "linearLightAddSub", "multiply", "negation",
+                    "overlay", "pinLight", "screen", "softLight", "subtract",
+                    "vividLight", "overwrite"
+                },
+                changedFields);
+        }
+
+        static void ApplySwizzleNodeSettings(
+            object nodeObject,
+            ShaderGraphSwizzleNodeSettingsUpdateInput? swizzle,
+            List<string> changedFields)
+        {
+            if (swizzle == null)
+                throw new InvalidOperationException("Swizzle nodes require a `swizzle` settings payload.");
+
+            if (string.IsNullOrWhiteSpace(swizzle.Mask))
+                return;
+
+            var normalizedMask = NormalizeSwizzleMask(swizzle.Mask!);
+            var nodeType = nodeObject.GetType();
+            var maskProperty = ResolveNodeInstanceProperty(nodeType, "maskInput");
+            if (maskProperty.PropertyType != typeof(string))
+                throw new InvalidOperationException($"Property '{nodeType.FullName}.maskInput' is not a string.");
+
+            var currentValue = (maskProperty.GetValue(nodeObject) as string) ?? string.Empty;
+            if (string.Equals(currentValue, normalizedMask, StringComparison.Ordinal))
+                return;
+
+            maskProperty.SetValue(nodeObject, normalizedMask);
+            AddChangedField(changedFields, "node.swizzle.mask");
+        }
+
+        static void ApplyVector2NodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphVector2NodeSettingsUpdateInput? vector2,
+            List<string> changedFields)
+        {
+            if (vector2 == null)
+                throw new InvalidOperationException("Vector 2 nodes require a `vector2` settings payload.");
+
+            SetSlotFloat(bindings, nodeObject, "X", vector2.X, "node.vector2.x", changedFields);
+            SetSlotFloat(bindings, nodeObject, "Y", vector2.Y, "node.vector2.y", changedFields);
         }
 
         static void ApplyUnaryVectorNodeSettings(
@@ -1477,6 +1670,35 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 _ => throw new ArgumentException(
                     $"Unsupported multiplyType '{value}'. Supported values: vector, matrix, mixed.")
             };
+        }
+
+        static string NormalizeSwizzleMask(string value)
+        {
+            var trimmed = value?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(trimmed) || trimmed.Length > 4)
+            {
+                throw new ArgumentException(
+                    $"Unsupported swizzle mask '{value}'. Provide 1-4 characters from xyzw or rgba.");
+            }
+
+            var normalized = trimmed.ToLowerInvariant();
+            var usesXyzw = normalized.Any(ch => "xyzw".Contains(ch));
+            var usesRgba = normalized.Any(ch => "rgba".Contains(ch));
+
+            if (usesXyzw && usesRgba)
+            {
+                throw new ArgumentException(
+                    $"Unsupported swizzle mask '{value}'. Mixed xyzw/rgba notation is not allowed.");
+            }
+
+            var allowed = usesRgba ? "rgba" : "xyzw";
+            if (normalized.Any(ch => allowed.IndexOf(ch) < 0))
+            {
+                throw new ArgumentException(
+                    $"Unsupported swizzle mask '{value}'. Supported characters are {(usesRgba ? "rgba" : "xyzw")}.");
+            }
+
+            return normalized;
         }
 
         static string NormalizeRuntimeSlotDisplayName(string value)

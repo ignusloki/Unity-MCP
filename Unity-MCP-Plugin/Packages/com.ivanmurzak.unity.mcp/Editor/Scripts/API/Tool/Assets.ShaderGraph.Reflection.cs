@@ -216,6 +216,102 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {
+                    ApiName = "screenPosition",
+                    DisplayName = "Screen Position",
+                    TypeName = "UnityEditor.ShaderGraph.ScreenPositionNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "sceneDepth",
+                    DisplayName = "Scene Depth",
+                    TypeName = "UnityEditor.ShaderGraph.SceneDepthNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 96f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "sceneColor",
+                    DisplayName = "Scene Color",
+                    TypeName = "UnityEditor.ShaderGraph.SceneColorNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "comparison",
+                    DisplayName = "Comparison",
+                    TypeName = "UnityEditor.ShaderGraph.ComparisonNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 136f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "normalFromHeight",
+                    DisplayName = "Normal From Height",
+                    TypeName = "UnityEditor.ShaderGraph.NormalFromHeightNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 184f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "blend",
+                    DisplayName = "Blend",
+                    TypeName = "UnityEditor.ShaderGraph.BlendNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 200f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "remap",
+                    DisplayName = "Remap",
+                    TypeName = "UnityEditor.ShaderGraph.RemapNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 184f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "swizzle",
+                    DisplayName = "Swizzle",
+                    TypeName = "UnityEditor.ShaderGraph.SwizzleNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 124f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "time",
+                    DisplayName = "Time",
+                    TypeName = "UnityEditor.ShaderGraph.TimeNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 132f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "smoothstep",
+                    DisplayName = "Smoothstep",
+                    TypeName = "UnityEditor.ShaderGraph.SmoothstepNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 112f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "saturate",
+                    DisplayName = "Saturate",
+                    TypeName = "UnityEditor.ShaderGraph.SaturateNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "vector2",
+                    DisplayName = "Vector 2",
+                    TypeName = "UnityEditor.ShaderGraph.Vector2Node",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 96f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
                     ApiName = "sine",
                     DisplayName = "Sine",
                     TypeName = "UnityEditor.ShaderGraph.SineNode",

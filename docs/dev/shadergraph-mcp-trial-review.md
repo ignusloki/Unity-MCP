@@ -12,6 +12,8 @@ Follow-up status:
 - The later reflection-outline node-coverage P1 is implemented and live-validated by `docs/dev/shadergraph-mcp-plan.md` Epic 7A.
 - A 2026-06-14 reference-image recreation trial confirmed a separate ShaderGraph node-coverage blocker: `View Direction`, `View Vector`, `Normal Vector`, `Position`, `Transform`, `Gradient Noise`, `Sine`, `Cosine`, and `Negate` were not exposed by the node lifecycle tools at the time of review.
 - A later second outline trial confirmed one additional node blocker, ShaderGraph `Object`; this is implemented and live-validated by `docs/dev/shadergraph-mcp-plan.md` Epic 7B.
+- The MinionsArt water-shader pretrial confirmed missing water-core nodes: `Screen Position`, `Scene Depth`, `Time`, `Smoothstep`, `Saturate`, and real `Vector 2`. These are implemented and live-validated in Epic 7C.
+- The exact MinionsArt water reference graph then confirmed remaining behavior-node blockers: `Scene Color`, `Comparison`, `Normal From Height`, `Blend`, `Remap`, and `Swizzle`. These are implemented and validated in Epic 7D.
 
 ## P0
 
@@ -30,6 +32,18 @@ Follow-up status:
   - Evidence: the second trial needed `Object.Scale -> Divide.B` for object-scale-aware outline thickness. Current capabilities now list `object` as an allowlisted node and document Object slot readback.
   - Impact at blocker time: the MCP could not author the simple outline graph topology without manual intervention or a non-equivalent graph.
   - Why this was P1: it blocked a concrete trial graph and affected a common outline-shader pattern, but did not corrupt existing graph assets.
+
+- MinionsArt water-shader recreation was blocked by missing water-core ShaderGraph node families and screen-depth wiring.
+  - Current status: implemented by Epic 7C after this review and live-validated through the existing project-scoped Unity MCP/editor session.
+  - Evidence: the water graph needs `Screen Position`, `Scene Depth`, `Time`, `Smoothstep`, `Saturate`, and `Vector 2`, including `ScreenPosition.Out -> SceneDepth.UV`, Scene Depth `eye` sampling, and Lit/PBR-style output blocks.
+  - Impact at blocker time: the MCP could not author the water graph's core depth-fade and output chain without manual intervention.
+  - Why this is P1: it blocks the next concrete reference-shader trial and covers common water/transparent-surface graph patterns.
+
+- MinionsArt water-shader exact recreation was also blocked by missing behavior-node families.
+  - Current status: implemented by Epic 7D after this review with readback, settings-update, lifecycle, and behavior-path validation.
+  - Evidence: the exact reference graph uses `Scene Color`, `Comparison`, `Normal From Height`, `Blend`, `Remap`, and `Swizzle`, plus a `Normal From Height.Out -> SurfaceDescription.NormalWS` edge.
+  - Impact at blocker time: the MCP could author a minimal water-core approximation, but not the original graph's refraction, color blend, remap, comparison, and generated-normal behavior.
+  - Why this is P1: it blocked faithful MinionsArt recreation even after the water-core path compiled.
 
 - Default-reference-name flows are broken for properties that do not set `overrideReferenceName`.
   - Evidence: [Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp/Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateProperty.cs](/Users/suporte/Unity-MCP/Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp/Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateProperty.cs:486) uses `GetEffectivePropertyReferenceName(...)` for duplicate detection, but [that helper](/Users/suporte/Unity-MCP/Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp/Editor/Scripts/API/Tool/Assets.ShaderGraph.UpdateProperty.cs:521) returns `m_OverrideReferenceName` whenever the field exists, even when it is the empty string. New properties created without an override name explicitly serialize `m_OverrideReferenceName = ""`, for example in [Assets.ShaderGraph.AddProperty.cs](/Users/suporte/Unity-MCP/Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp/Editor/Scripts/API/Tool/Assets.ShaderGraph.AddProperty.cs:257).

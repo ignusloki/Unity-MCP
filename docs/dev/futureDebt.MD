@@ -93,6 +93,8 @@ Current matrix already covers:
 
 - Exact slot-type matches.
 - Compatible UV/vector2 slot pairs.
+- Vector2-resolved `DynamicVectorMaterialSlot -> UVMaterialSlot` paths such as `Add.Out -> Tiling And Offset.UV`.
+- Screen Position vector4 outputs into Shader Graph screen-position input slots, such as `ScreenPosition.Out -> SceneDepth.UV`.
 - Compatible Vector3/Position slot pairs.
 - Compatible color/vector slot pairs when one endpoint is a ShaderGraph color slot, such as Color properties feeding Fragment Base Color.
 - Texture2D property outputs into Texture2D input slots.
@@ -124,10 +126,24 @@ Deferred advanced features:
 - Custom function nodes.
 - Keyword-driven authoring.
 - Enum-driven authoring.
+- Explicit target/subtarget conversion between Unlit and Lit/PBR graphs. Current Lit/PBR-style validation uses Lit Shader Graph templates plus supported block control.
 - Broader render-pipeline support beyond the current URP-first scope.
 - Long-tail Shader Graph node families not covered by the current allowlist.
 
-Note: the reflection-outline trial nodes implemented in Epic 7A and the `Object` node implemented in Epic 7B are no longer considered long-tail.
+Note: the reflection-outline trial nodes implemented in Epic 7A, the `Object` node implemented in Epic 7B, the MinionsArt water-core nodes implemented in Epic 7C, and the MinionsArt behavior nodes implemented in Epic 7D are no longer considered long-tail.
+
+### Redirect Nodes
+
+`RedirectNodeData` remains intentionally unsupported for add, duplicate, and explicit read/write mutation flows.
+
+Current position:
+
+- Treat redirect nodes as layout/readability data rather than behavior-bearing graph topology.
+- Do not block ShaderGraph recreation work on redirect support unless a concrete trial proves Unity import or shader behavior depends on recreating them.
+
+Future work:
+
+- Revisit safe redirect-node authoring only if a later reference graph proves reroute-node parity is necessary for practical agent workflows or serialized-graph fidelity.
 
 ### Style Recipe Expansion
 
@@ -150,10 +166,11 @@ Live project-scoped MCP validation for Epic 7A passed on 2026-06-14 through the 
 - `Codex_Epic7A_E2E.shadergraph` imported successfully after wiring the reflection-outline path, including source-vector nodes, trig chain, gradient-noise displacement modulation, transform to vertex position, and preserved base texture/color output.
 - `Codex_ViewVectorUV_ReflectionOutline.shadergraph` imported successfully after wiring the exact trial path with `View Vector -> Split -> Combine.RG -> Gradient Noise.UV`, source-vector nodes, trig chain, gradient-noise displacement modulation, transform to vertex position, and preserved base texture/color output.
 - `Codex_ObjectScaleOutline.shadergraph` imported successfully after wiring the second-trial object-scale outline path, including `Object.Scale -> Divide.B`, object-space position extrusion to vertex position, outline color to fragment base color, and Universal target `surface=opaque`, `renderFace=back`.
+- `Codex_WaterCore_MinionsArt.shadergraph` imported successfully after wiring the MinionsArt water-core pretrial path, including `ScreenPosition.Out -> SceneDepth.UV`, Screen Position `raw`, Scene Depth `eye`, `Smoothstep`/`Saturate`, `Time`, real `Vector2 -> Sample Texture 2D.UV`, and Lit Base Color/Alpha/Smoothness outputs.
 
 The current workspace includes `Unity-test/TestShadergraph`, but `Unity-test/` is git-ignored. Treat it as local validation state, not a reproducible repository fixture.
 
-Earlier Unity `tests-run` attempts did not discover the package editor tests from the local validation project. A later targeted test-run attempt for the Object outline editor test was blocked because the already-open Unity Editor had an unsaved scene; do not save user/editor scene state automatically just to run package tests.
+Earlier Unity `tests-run` attempts did not discover the package editor tests from the local validation project. A later targeted test-run attempt for the Object outline editor test was blocked because the already-open Unity Editor had an unsaved scene; a targeted attempt for the water-core editor test returned "No tests found". Do not save user/editor scene state automatically just to run package tests.
 
 Future work:
 

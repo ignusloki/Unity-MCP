@@ -45,6 +45,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "UnityEditor.ShaderGraph.UVMaterialSlot"
         };
 
+        static readonly HashSet<string> ScreenPositionInputSlotTypes = new(StringComparer.Ordinal)
+        {
+            "UnityEditor.ShaderGraph.ScreenPositionMaterialSlot"
+        };
+
+        static readonly HashSet<string> NormalInputSlotTypes = new(StringComparer.Ordinal)
+        {
+            "UnityEditor.ShaderGraph.NormalMaterialSlot"
+        };
+
         static readonly HashSet<string> Vector3LikeSlotTypes = new(StringComparer.Ordinal)
         {
             "UnityEditor.ShaderGraph.Vector3MaterialSlot",
@@ -83,7 +93,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- requires the input slot to be currently unconnected unless `replaceExistingInputConnection` is true\n" +
             "- supports exact slot-type matches\n" +
             "- supports compatible UV/vector2 slot pairs\n" +
+            "- supports vector2-resolved `DynamicVectorMaterialSlot` outputs into Shader Graph UV inputs such as `Add.Out -> Tiling And Offset.UV`\n" +
+            "- supports Screen Position vector4 output into Shader Graph screen-position UV inputs such as Scene Depth UV\n" +
             "- supports compatible Vector3/Position slot pairs\n" +
+            "- supports Vector3 outputs into Shader Graph normal inputs such as `Normal From Height.Out -> Fragment NormalWS`\n" +
             "- supports compatible color/vector slot pairs such as Color property outputs into Base Color\n" +
             "- supports compatible Texture2D property outputs and Texture2D input slots\n" +
             "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n" +
@@ -691,7 +704,20 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (Vector2LikeSlotTypes.Contains(outputType) && Vector2LikeSlotTypes.Contains(inputType))
                 return;
 
+            if (IsDynamicVectorSlotType(outputType) && Vector2LikeSlotTypes.Contains(inputType))
+                return;
+
+            if (string.Equals(GetString(outputSlot.NodeObject, "m_Type"), "UnityEditor.ShaderGraph.ScreenPositionNode", StringComparison.Ordinal)
+                && string.Equals(outputType, "UnityEditor.ShaderGraph.Vector4MaterialSlot", StringComparison.Ordinal)
+                && ScreenPositionInputSlotTypes.Contains(inputType))
+            {
+                return;
+            }
+
             if (Vector3LikeSlotTypes.Contains(outputType) && Vector3LikeSlotTypes.Contains(inputType))
+                return;
+
+            if (Vector3LikeSlotTypes.Contains(outputType) && NormalInputSlotTypes.Contains(inputType))
                 return;
 
             if ((ColorSlotTypes.Contains(outputType) || ColorSlotTypes.Contains(inputType))
@@ -721,6 +747,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static bool IsDynamicSlotType(string slotType)
             => string.Equals(slotType, "UnityEditor.ShaderGraph.DynamicValueMaterialSlot", StringComparison.Ordinal)
                || string.Equals(slotType, "UnityEditor.ShaderGraph.DynamicVectorMaterialSlot", StringComparison.Ordinal);
+
+        static bool IsDynamicVectorSlotType(string slotType)
+            => string.Equals(slotType, "UnityEditor.ShaderGraph.DynamicVectorMaterialSlot", StringComparison.Ordinal);
 
         static JsonArray EnsureEdgeArray(JsonObject root)
         {

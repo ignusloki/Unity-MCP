@@ -46,7 +46,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, sine, cosine, negate.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, screenPosition, sceneDepth, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, saturate, vector2, sine, cosine, negate.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]
@@ -138,6 +138,27 @@ namespace AIGD
 
         [Description("Structured settings updates for a Gradient Noise node.")]
         public ShaderGraphGradientNoiseNodeSettingsUpdateInput? GradientNoise { get; set; }
+
+        [Description("Structured settings updates for a Screen Position node.")]
+        public ShaderGraphScreenPositionNodeSettingsUpdateInput? ScreenPosition { get; set; }
+
+        [Description("Structured settings updates for a Scene Depth node.")]
+        public ShaderGraphSceneDepthNodeSettingsUpdateInput? SceneDepth { get; set; }
+
+        [Description("Structured settings updates for a Comparison node.")]
+        public ShaderGraphComparisonNodeSettingsUpdateInput? Comparison { get; set; }
+
+        [Description("Structured settings updates for a Normal From Height node.")]
+        public ShaderGraphNormalFromHeightNodeSettingsUpdateInput? NormalFromHeight { get; set; }
+
+        [Description("Structured settings updates for a Blend node.")]
+        public ShaderGraphBlendNodeSettingsUpdateInput? Blend { get; set; }
+
+        [Description("Structured settings updates for a Swizzle node.")]
+        public ShaderGraphSwizzleNodeSettingsUpdateInput? Swizzle { get; set; }
+
+        [Description("Structured settings updates for a Vector 2 node.")]
+        public ShaderGraphVector2NodeSettingsUpdateInput? Vector2 { get; set; }
 
         [Description("Structured settings updates for a Sine node.")]
         public ShaderGraphUnaryVectorNodeSettingsUpdateInput? Sine { get; set; }
@@ -321,6 +342,58 @@ namespace AIGD
 
         [Description("Gradient Noise hash type. Supported values: deterministic, legacyMod.")]
         public string? HashType { get; set; }
+    }
+
+    [Description("Structured settings updates for a Screen Position node.")]
+    public class ShaderGraphScreenPositionNodeSettingsUpdateInput
+    {
+        [Description("Screen position mode. Supported values: default, raw.")]
+        public string? Mode { get; set; }
+    }
+
+    [Description("Structured settings updates for a Scene Depth node.")]
+    public class ShaderGraphSceneDepthNodeSettingsUpdateInput
+    {
+        [Description("Scene depth sampling mode. Supported values: linear01, raw, eye.")]
+        public string? SamplingMode { get; set; }
+    }
+
+    [Description("Structured settings updates for a Comparison node.")]
+    public class ShaderGraphComparisonNodeSettingsUpdateInput
+    {
+        [Description("Comparison operator. Supported values: equal, notEqual, less, lessOrEqual, greater, greaterOrEqual.")]
+        public string? ComparisonType { get; set; }
+    }
+
+    [Description("Structured settings updates for a Normal From Height node.")]
+    public class ShaderGraphNormalFromHeightNodeSettingsUpdateInput
+    {
+        [Description("Output space. Supported values: tangent, world.")]
+        public string? OutputSpace { get; set; }
+    }
+
+    [Description("Structured settings updates for a Blend node.")]
+    public class ShaderGraphBlendNodeSettingsUpdateInput
+    {
+        [Description("Blend mode. Supported values: burn, darken, difference, dodge, divide, exclusion, hardLight, hardMix, lighten, linearBurn, linearDodge, linearLight, linearLightAddSub, multiply, negation, overlay, pinLight, screen, softLight, subtract, vividLight, overwrite.")]
+        public string? BlendMode { get; set; }
+    }
+
+    [Description("Structured settings updates for a Swizzle node.")]
+    public class ShaderGraphSwizzleNodeSettingsUpdateInput
+    {
+        [Description("Swizzle mask. Use 1-4 characters from either xyzw or rgba. Mixed notation such as 'xg' is rejected.")]
+        public string? Mask { get; set; }
+    }
+
+    [Description("Structured settings updates for a Vector 2 node.")]
+    public class ShaderGraphVector2NodeSettingsUpdateInput
+    {
+        [Description("Default value for the X input slot.")]
+        public float? X { get; set; }
+
+        [Description("Default value for the Y input slot.")]
+        public float? Y { get; set; }
     }
 
     [Description("Structured settings updates for unary vector nodes such as Sine, Cosine, and Negate.")]

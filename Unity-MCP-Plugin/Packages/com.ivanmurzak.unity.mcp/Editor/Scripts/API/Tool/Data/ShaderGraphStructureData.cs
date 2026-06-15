@@ -238,6 +238,27 @@ namespace AIGD
 
         [Description("Resolved Gradient Noise settings when the node is a supported Gradient Noise node.")]
         public ShaderGraphGradientNoiseNodeSettingsData? GradientNoise { get; set; }
+
+        [Description("Resolved Screen Position settings when the node is a supported Screen Position node.")]
+        public ShaderGraphScreenPositionNodeSettingsData? ScreenPosition { get; set; }
+
+        [Description("Resolved Scene Depth settings when the node is a supported Scene Depth node.")]
+        public ShaderGraphSceneDepthNodeSettingsData? SceneDepth { get; set; }
+
+        [Description("Resolved Comparison settings when the node is a supported Comparison node.")]
+        public ShaderGraphComparisonNodeSettingsData? Comparison { get; set; }
+
+        [Description("Resolved Normal From Height settings when the node is a supported Normal From Height node.")]
+        public ShaderGraphNormalFromHeightNodeSettingsData? NormalFromHeight { get; set; }
+
+        [Description("Resolved Blend settings when the node is a supported Blend node.")]
+        public ShaderGraphBlendNodeSettingsData? Blend { get; set; }
+
+        [Description("Resolved Swizzle settings when the node is a supported Swizzle node.")]
+        public ShaderGraphSwizzleNodeSettingsData? Swizzle { get; set; }
+
+        [Description("Resolved Vector 2 settings when the node is a supported Vector 2 node.")]
+        public ShaderGraphVector2NodeSettingsData? Vector2 { get; set; }
     }
 
     public class ShaderGraphSampleTexture2DNodeSettingsData
@@ -331,6 +352,72 @@ namespace AIGD
 
         [Description("Default value for the Scale input slot when readable.")]
         public float? Scale { get; set; }
+    }
+
+    public class ShaderGraphScreenPositionNodeSettingsData
+    {
+        [Description("Serialized screen-space mode enum value.")]
+        public int? ModeValue { get; set; }
+
+        [Description("Formatted screen-space mode when recognized.")]
+        public string? Mode { get; set; }
+    }
+
+    public class ShaderGraphSceneDepthNodeSettingsData
+    {
+        [Description("Serialized scene-depth sampling mode enum value.")]
+        public int? SamplingModeValue { get; set; }
+
+        [Description("Formatted scene-depth sampling mode when recognized.")]
+        public string? SamplingMode { get; set; }
+    }
+
+    public class ShaderGraphComparisonNodeSettingsData
+    {
+        [Description("Serialized comparison operator enum value.")]
+        public int? ComparisonTypeValue { get; set; }
+
+        [Description("Formatted comparison operator when recognized.")]
+        public string? ComparisonType { get; set; }
+    }
+
+    public class ShaderGraphNormalFromHeightNodeSettingsData
+    {
+        [Description("Serialized output-space enum value.")]
+        public int? OutputSpaceValue { get; set; }
+
+        [Description("Formatted output space when recognized.")]
+        public string? OutputSpace { get; set; }
+
+        [Description("Default value for the Strength input slot when readable.")]
+        public float? Strength { get; set; }
+    }
+
+    public class ShaderGraphBlendNodeSettingsData
+    {
+        [Description("Serialized blend mode enum value.")]
+        public int? BlendModeValue { get; set; }
+
+        [Description("Formatted blend mode when recognized.")]
+        public string? BlendMode { get; set; }
+    }
+
+    public class ShaderGraphSwizzleNodeSettingsData
+    {
+        [Description("Serialized swizzle mask string.")]
+        public string? Mask { get; set; }
+
+        [Description("Normalized swizzle mask after Unity resolves rgba aliases to xyzw when available.")]
+        public string? NormalizedMask { get; set; }
+    }
+
+    public class ShaderGraphVector2NodeSettingsData
+    {
+        [Description("Default value for the X input slot when readable.")]
+        public float? X { get; set; }
+
+        [Description("Default value for the Y input slot when readable.")]
+        public float? Y { get; set; }
     }
 
     public class ShaderGraphSlotDefinitionData

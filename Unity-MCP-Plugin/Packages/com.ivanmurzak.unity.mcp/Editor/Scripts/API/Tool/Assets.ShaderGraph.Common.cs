@@ -786,6 +786,27 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.GradientNoiseNode", StringComparison.Ordinal))
                 node.GradientNoise = ParseGradientNoiseNodeSettings(root);
 
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.ScreenPositionNode", StringComparison.Ordinal))
+                node.ScreenPosition = ParseScreenPositionNodeSettings(root);
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.SceneDepthNode", StringComparison.Ordinal))
+                node.SceneDepth = ParseSceneDepthNodeSettings(root);
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.ComparisonNode", StringComparison.Ordinal))
+                node.Comparison = ParseComparisonNodeSettings(root);
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.NormalFromHeightNode", StringComparison.Ordinal))
+                node.NormalFromHeight = ParseNormalFromHeightNodeSettings(root);
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.BlendNode", StringComparison.Ordinal))
+                node.Blend = ParseBlendNodeSettings(root);
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.SwizzleNode", StringComparison.Ordinal))
+                node.Swizzle = ParseSwizzleNodeSettings(root);
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.Vector2Node", StringComparison.Ordinal))
+                node.Vector2 = new ShaderGraphVector2NodeSettingsData();
+
             return node;
         }
 
@@ -872,10 +893,83 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             };
         }
 
+        static ShaderGraphScreenPositionNodeSettingsData ParseScreenPositionNodeSettings(JsonElement root)
+        {
+            var modeValue = GetInt(root, "m_ScreenSpaceType");
+
+            return new ShaderGraphScreenPositionNodeSettingsData
+            {
+                ModeValue = modeValue,
+                Mode = FormatScreenPositionMode(modeValue)
+            };
+        }
+
+        static ShaderGraphSceneDepthNodeSettingsData ParseSceneDepthNodeSettings(JsonElement root)
+        {
+            var samplingModeValue = GetInt(root, "m_DepthSamplingMode");
+
+            return new ShaderGraphSceneDepthNodeSettingsData
+            {
+                SamplingModeValue = samplingModeValue,
+                SamplingMode = FormatSceneDepthSamplingMode(samplingModeValue)
+            };
+        }
+
+        static ShaderGraphComparisonNodeSettingsData ParseComparisonNodeSettings(JsonElement root)
+        {
+            var comparisonTypeValue = GetInt(root, "m_ComparisonType");
+
+            return new ShaderGraphComparisonNodeSettingsData
+            {
+                ComparisonTypeValue = comparisonTypeValue,
+                ComparisonType = FormatComparisonType(comparisonTypeValue)
+            };
+        }
+
+        static ShaderGraphNormalFromHeightNodeSettingsData ParseNormalFromHeightNodeSettings(JsonElement root)
+        {
+            var outputSpaceValue = GetInt(root, "m_OutputSpace");
+
+            return new ShaderGraphNormalFromHeightNodeSettingsData
+            {
+                OutputSpaceValue = outputSpaceValue,
+                OutputSpace = FormatNormalFromHeightOutputSpace(outputSpaceValue)
+            };
+        }
+
+        static ShaderGraphBlendNodeSettingsData ParseBlendNodeSettings(JsonElement root)
+        {
+            var blendModeValue = GetInt(root, "m_BlendMode");
+
+            return new ShaderGraphBlendNodeSettingsData
+            {
+                BlendModeValue = blendModeValue,
+                BlendMode = FormatBlendMode(blendModeValue)
+            };
+        }
+
+        static ShaderGraphSwizzleNodeSettingsData ParseSwizzleNodeSettings(JsonElement root)
+        {
+            return new ShaderGraphSwizzleNodeSettingsData
+            {
+                Mask = GetString(root, "_maskInput"),
+                NormalizedMask = GetString(root, "convertedMask")
+            };
+        }
+
         static void PopulateSlotDerivedNodeSettings(ShaderGraphNodeDefinitionData node)
         {
             if (node.GradientNoise != null)
                 node.GradientNoise.Scale = ParseSlotFloatValue(node, "Scale");
+
+            if (node.NormalFromHeight != null)
+                node.NormalFromHeight.Strength = ParseSlotFloatValue(node, "Strength");
+
+            if (node.Vector2 != null)
+            {
+                node.Vector2.X = ParseSlotFloatValue(node, "X");
+                node.Vector2.Y = ParseSlotFloatValue(node, "Y");
+            }
         }
 
         static float? ParseSlotFloatValue(ShaderGraphNodeDefinitionData node, string slotDisplayName)
@@ -1212,6 +1306,89 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 0 => "deterministic",
                 1 => "legacyMod",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatScreenPositionMode(int? value)
+        {
+            return value switch
+            {
+                0 => "default",
+                1 => "raw",
+                2 => "center",
+                3 => "tiled",
+                4 => "pixel",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatSceneDepthSamplingMode(int? value)
+        {
+            return value switch
+            {
+                0 => "linear01",
+                1 => "raw",
+                2 => "eye",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatComparisonType(int? value)
+        {
+            return value switch
+            {
+                0 => "equal",
+                1 => "notEqual",
+                2 => "less",
+                3 => "lessOrEqual",
+                4 => "greater",
+                5 => "greaterOrEqual",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatNormalFromHeightOutputSpace(int? value)
+        {
+            return value switch
+            {
+                0 => "tangent",
+                1 => "world",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatBlendMode(int? value)
+        {
+            return value switch
+            {
+                0 => "burn",
+                1 => "darken",
+                2 => "difference",
+                3 => "dodge",
+                4 => "divide",
+                5 => "exclusion",
+                6 => "hardLight",
+                7 => "hardMix",
+                8 => "lighten",
+                9 => "linearBurn",
+                10 => "linearDodge",
+                11 => "linearLight",
+                12 => "linearLightAddSub",
+                13 => "multiply",
+                14 => "negation",
+                15 => "overlay",
+                16 => "pinLight",
+                17 => "screen",
+                18 => "softLight",
+                19 => "subtract",
+                20 => "vividLight",
+                21 => "overwrite",
                 null => null,
                 _ => $"unknown({value})"
             };

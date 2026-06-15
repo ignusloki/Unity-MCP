@@ -21,6 +21,8 @@ Agents can now create and configure the source-vector, space-transform, procedur
 
 The second outline trial's confirmed `Object` node blocker is also implemented. Agents can create `UnityEditor.ShaderGraph.ObjectNode`, inspect its output slots, and wire `Object.Scale` into dynamic math nodes such as `Divide.B`.
 
+The MinionsArt water investigation's remaining behavior-relevant node blockers are also implemented for URP-first authoring. Agents can now add, inspect, duplicate, move, delete, and configure `Scene Color`, `Comparison`, `Normal From Height`, `Blend`, `Remap`, and `Swizzle` nodes through the MCP surface without falling back to manual `.shadergraph` edits.
+
 ## Scope
 
 - Focus: URP-first Shader Graph authoring.
@@ -232,6 +234,18 @@ Node lifecycle mutation results include normalized summary fields:
     - `object` (`Object`)
     - `transform` (`Transform`)
     - `gradientNoise` (`Gradient Noise`)
+    - `screenPosition` (`Screen Position`)
+    - `sceneDepth` (`Scene Depth`)
+    - `sceneColor` (`Scene Color`)
+    - `comparison` (`Comparison`)
+    - `normalFromHeight` (`Normal From Height`)
+    - `blend` (`Blend`)
+    - `remap` (`Remap`)
+    - `swizzle` (`Swizzle`)
+    - `time` (`Time`)
+    - `smoothstep` (`Smoothstep`)
+    - `saturate` (`Saturate`)
+    - `vector2` (`Vector 2`)
     - `sine` (`Sine`)
     - `cosine` (`Cosine`)
     - `negate` (`Negate`)
@@ -327,6 +341,29 @@ Node lifecycle mutation results include normalized summary fields:
   - Supported `Gradient Noise` fields:
     - `scale`
     - `hashType`
+  - Supported `Screen Position` fields:
+    - `mode`
+  - Supported Screen Position modes: `default`, `raw`.
+  - Supported `Scene Depth` fields:
+    - `samplingMode`
+  - Supported Scene Depth sampling modes: `linear01`, `raw`, `eye`.
+  - Supported `Comparison` fields:
+    - `comparisonType`
+  - Supported comparison operators: `equal`, `notEqual`, `less`, `lessOrEqual`, `greater`, `greaterOrEqual`.
+  - Supported `Normal From Height` fields:
+    - `outputSpace`
+  - Supported Normal From Height output spaces: `tangent`, `world`.
+  - `Normal From Height` structure readback also reports the current `strength` slot default when it is available from the graph source.
+  - Supported `Blend` fields:
+    - `blendMode`
+  - Supported Blend modes: `burn`, `darken`, `difference`, `dodge`, `divide`, `exclusion`, `hardLight`, `hardMix`, `lighten`, `linearBurn`, `linearDodge`, `linearLight`, `linearLightAddSub`, `multiply`, `negation`, `overlay`, `pinLight`, `screen`, `softLight`, `subtract`, `vividLight`.
+  - Supported `Swizzle` fields:
+    - `mask`
+  - Supported Swizzle masks: 1-4 characters from `xyzw` or `rgba`. Mixed notation such as `xg` is rejected loudly.
+  - `Scene Color` and `Remap` do not expose typed serialized settings today; their meaningful behavior is driven through slot wiring and slot defaults surfaced by `assets-shadergraph-get-structure`.
+  - Supported `Vector 2` fields:
+    - `x`
+    - `y`
   - Supported `Sine`, `Cosine`, and `Negate` fields:
     - `input.x`
     - `input.y`
@@ -339,8 +376,9 @@ Node lifecycle mutation results include normalized summary fields:
 - `assets-shadergraph-connect-edge`
   - Connects compatible existing graph slots by `nodeObjectId` plus `slotObjectId`.
   - Requires the input slot to be unconnected unless `replaceExistingInputConnection` is true.
-  - Supports exact slot-type matches, compatible UV/vector2 pairs, compatible Vector3/Position pairs, Texture2D property outputs into Texture2D input slots, compatible dynamic numeric/vector/color slot families, and cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
+  - Supports exact slot-type matches, compatible UV/vector2 pairs, vector2-resolved `DynamicVectorMaterialSlot -> UVMaterialSlot` paths such as `Add.Out -> Tiling And Offset.UV`, compatible Vector3/Position pairs, `Vector3 -> NormalMaterialSlot` paths such as `Normal From Height.Out -> Fragment NormalWS`, Texture2D property outputs into Texture2D input slots, compatible dynamic numeric/vector/color slot families, and cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
   - Supports compatible color/vector slot pairs when one endpoint is a ShaderGraph color slot, such as `Vector4MaterialSlot -> ColorRGBMaterialSlot` for Color properties feeding Fragment Base Color.
+  - Supports `ScreenPosition.Out` (`Vector4MaterialSlot`) into Shader Graph screen-position inputs such as `SceneDepth.UV` (`ScreenPositionMaterialSlot`).
   - Supports safe explicit Vector3-to-UV authoring through ShaderGraph narrowing nodes: `Vector3 -> Split -> Combine.RG -> UV`.
   - Direct `Vector3MaterialSlot -> UVMaterialSlot` edges remain intentionally rejected until Unity's serialized graph model is validated to allow that conversion safely without an explicit node.
   - Returns `removedEdge` when an incoming edge is replaced.
@@ -393,7 +431,11 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - The 2026-06-14 reference-image trial created a valid graph, material, and scene, but exact recreation of a reflection-based outline ShaderGraph was blocked first by missing node support for `View Direction`, `View Vector`, `Normal Vector`, `Position`, `Transform`, `Gradient Noise`, `Sine`, `Cosine`, and `Negate`, then by the need for safe `View Vector` narrowing into `Gradient Noise.UV`.
 - Epic 7A now adds code support for those node families, typed settings/readback where stable, Vector3/Position slot compatibility, cross-family dynamic slot compatibility, explicit View Vector UV narrowing through `Split` plus `Combine.RG`, and an editor-test e2e case for the reflection-outline path.
 - The second outline trial confirmed one additional node blocker: `Object`. Current support adds `nodeType: "object"` for `UnityEditor.ShaderGraph.ObjectNode`, readback for `Position`, `Scale`, `World Bounds Min`, `World Bounds Max`, and `Bounds Size` output slots, and a simple object-scale outline e2e validation path.
-- A compile sanity check, `dotnet build Assembly-CSharp.csproj -v minimal`, passed in that local project with 0 warnings and 0 errors at the last checkpoint.
+- The MinionsArt water-shader pretrial confirmed another concrete core-node gap. Current support adds `screenPosition`, `sceneDepth`, `time`, `smoothstep`, `saturate`, and real `vector2` node creation/readback, typed settings for Screen Position mode, Scene Depth sampling mode, and Vector 2 X/Y defaults, plus a minimal water-core Lit graph validation path.
+- The exact MinionsArt reference graph, [StylizedWaterInteractiveUpdate.shadergraph](/Users/suporte/Unity-MCP/Unity-test/TestShadergraph/Assets/ShaderGraphValidation/MinionsArtWaterTrial/StylizedWaterInteractiveUpdate.shadergraph), exposed a second behavior-node gap. Current support now covers `sceneColor`, `comparison`, `normalFromHeight`, `blend`, `remap`, and `swizzle`, including typed readback for serialized settings, typed updates for `comparisonType`, `normalFromHeight.outputSpace`, `blendMode`, and `swizzle.mask`, plus a narrow `Vector3 -> NormalMaterialSlot` compatibility rule for `Normal From Height.Out -> Fragment NormalWS`.
+- `RedirectNodeData` remains intentionally unsupported for add/duplicate flows. It is treated as non-essential layout/readability data rather than a behavior blocker unless a future trial proves otherwise.
+- Lit/PBR-style output blocks are supported when the graph is created from a Lit template and then managed with `assets-shadergraph-set-blocks`; converting an existing Unlit graph target/subtarget into Lit/PBR is not currently exposed.
+- Compile sanity check, `dotnet build Assembly-CSharp.csproj -v minimal`, passed in that local project on 2026-06-15 with 0 warnings and 0 errors.
 - Epic 7A live validation through the already-open project-scoped MCP/editor session passed on 2026-06-14:
   - `Codex_Epic7A_SettingsSmoke.shadergraph`: add/update/readback for all Epic 7A nodes, duplicate/move/delete for `Transform`, final `ShaderResolved=true`, `HasErrors=false`.
   - `Codex_Epic7A_E2E.shadergraph`: reflection-outline path with source vectors, trig chain, gradient-noise displacement modulation, `Transform -> VertexDescription.Position`, preserved base texture/color output, final `ShaderResolved=true`, `HasErrors=false`, 22 nodes and 15 edges.
@@ -402,8 +444,19 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
   - Short readback probe confirmed the explicit `View Vector -> Split -> Combine.RG -> Gradient Noise.UV` edge path.
 - Second-trial live validation through the already-open project-scoped MCP/editor session passed on 2026-06-14:
   - `Codex_ObjectScaleOutline.shadergraph`: simple object-scale outline graph with `Thickness -> Divide.A`, `Object.Scale -> Divide.B`, `Position(Object) -> Multiply/Add`, `Add -> VertexDescription.Position`, `Outline Color -> SurfaceDescription.BaseColor`, Universal target `surface=opaque`, `renderFace=back`, final `ShaderResolved=true`, `HasErrors=false`, 17 nodes and 11 edges.
+- Water-shader pretrial code support added editor tests for new node creation/readback/settings and a minimal Lit water-core graph covering `Screen Position -> Scene Depth`, depth fade through `Smoothstep`/`Saturate`, `Time`-driven smoothness modulation, real `Vector 2 -> Sample Texture 2D.UV`, and Base Color/Alpha/Smoothness Lit outputs.
+- Water-shader pretrial live validation through the already-open project-scoped MCP/editor session passed on 2026-06-14:
+  - `Codex_WaterCore_MinionsArt.shadergraph`: Lit-template graph with `ScreenPosition.Out -> SceneDepth.UV`, Scene Depth `eye`, Screen Position `raw`, `Smoothstep`/`Saturate` depth fade, `Time.Sine Time` modulation, real `Vector2(0.25, 0.75) -> Sample Texture 2D.UV`, and Base Color/Alpha/Smoothness Lit outputs. Final `ShaderResolved=true`, `HasErrors=false`, 109 nodes and 116 edges.
+- Follow-up live validation through the already-open project-scoped MCP/editor session passed on 2026-06-15:
+  - `Codex_Water_AddUvScriptValidation.shadergraph`: cloned from the water-core graph, then authored through the ShaderGraph tool methods with `Add.Out -> Tiling And Offset.UV`, `ReconnectEdge` retargeting the same UV input to `Add.Out`, and `RerouteOutputSlot` moving two legacy UV consumers onto `Add.Out`. Final `ShaderResolved=true`, `HasErrors=false`, 117 nodes and 122 edges.
+- Full-water behavior-node parity validation for the new MinionsArt blockers passed through readback, tests, and live MCP mutation on 2026-06-15:
+  - [StylizedWaterInteractiveUpdate.shadergraph](/Users/suporte/Unity-MCP/Unity-test/TestShadergraph/Assets/ShaderGraphValidation/MinionsArtWaterTrial/StylizedWaterInteractiveUpdate.shadergraph): readback confirmed `Comparison=less`, `Scene Color` slot topology, `Normal From Height.outputSpace=world`, `Swizzle.mask=xz`, `Remap` vector2 min/max slots, `Blend=screen`, and two `RedirectNodeData` layout nodes.
+  - `Validation_AddNode_MinionsArtWaterBehavior.shadergraph`: editor test created all six new node families and exercised duplicate, move, and delete on `Blend`.
+  - `Validation_UpdateNodeSettings_MinionsArtWaterBehavior.shadergraph`: editor test updated `comparisonType`, `normalFromHeight.outputSpace`, `blendMode`, and `swizzle.mask`, verified `swizzle.mask=xz` changed slot topology to `Vector3 -> Vector2`, and confirmed invalid mixed notation is rejected loudly.
+  - `Validation_MinionsArtWaterBehaviorPath.shadergraph`: editor test recreated the supported behavior path with `Scene Color`, `Swizzle`, `Remap`, `Blend`, `Normal From Height`, `Comparison`, Lit blocks, and `Normal From Height.Out -> Fragment NormalWS`, with final `ShaderResolved=true` and `HasErrors=false`.
 - A Unity batch-mode editor test run was intentionally not performed while the project was already open in a Unity Editor instance.
 - A targeted MCP `tests-run` attempt for the new editor test was blocked by an unsaved open scene; Codex did not save editor scene state automatically.
+- A targeted MCP `tests-run` attempt for `ShaderGraph_WaterCorePath_CanBeWiredEndToEnd` did not discover the package editor test from the local validation project.
 - The local `Unity-test/TestShadergraph` project is available in this workspace, but it is git-ignored and should not be treated as a reproducible repository fixture until explicitly promoted or documented as setup-required state.
 - Unity package editor test discovery for the ShaderGraph tests still needs to be fixed before this can be treated as a complete automated validation baseline.
 - Future gaps and non-blocking limitations are tracked in `docs/dev/futureDebt.MD`.
