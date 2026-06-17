@@ -35,19 +35,30 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- node types: `add`, `subtract`, `multiply`, `divide`, `lerp`, `oneMinus`, `split`, `combine`, `sampleTexture2D`, `tilingAndOffset`, `branch`, `viewDirection`, `viewVector`, `normalVector`, `position`, `object`, `transform`, `gradientNoise`, `simpleNoise`, `screenPosition`, `sceneDepth`, `sceneColor`, `comparison`, `normalFromHeight`, `blend`, `remap`, `swizzle`, `time`, `smoothstep`, `saturate`, `vector2`, `uv`, `sine`, `cosine`, `negate`\n" +
             "- node creation only, no automatic edge wiring\n" +
             "- uses Unity's own Shader Graph graph APIs through reflection, then re-imports the asset\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Operation`, `NodeObjectId`, `NodeType`, `Node`, `ChangedFields`, and `GraphSummary` (ShaderResolved, HasErrors, NodeCount, EdgeCount, error/warning diagnostics). " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block. " +
+            "Set `includeGraph: true` to also receive the full post-import `Graph` block. " +
+            "Use `assets-shadergraph-get-structure` / `assets-shadergraph-get-data` for standalone reads.\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n" +
             "- `node` — allowlisted node type plus the requested node position.\n" +
-            "- `includeMessages` — include shader compiler messages in returned graph data.\n" +
-            "- `includeProperties` — include compiled shader properties in returned graph data.\n\n" +
+            "- `includeStructure` — include the full read-only Structure block in the response. Default: false.\n" +
+            "- `includeGraph` — include the full post-import Graph block in the response. Default: false.\n" +
+            "- `includeMessages` — include shader compiler messages in returned graph data (only meaningful when includeGraph is true).\n" +
+            "- `includeProperties` — include compiled shader properties in returned graph data (only meaningful when includeGraph is true).\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect the current graph and choose placement. Use `assets-shadergraph-connect-edge` separately to wire the new node into the graph.")]
         [Description("Add a safe allowlisted Shader Graph node and re-import the graph.")]
         public ShaderGraphNodeMutationResultData AddNode(
             AssetObjectRef assetRef,
             ShaderGraphAddNodeInput node,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -62,6 +73,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => AddShaderGraphNode(
                 assetRef,
                 node,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -69,6 +82,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static ShaderGraphNodeMutationResultData AddShaderGraphNode(
             AssetObjectRef assetRef,
             ShaderGraphAddNodeInput node,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -111,12 +126,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 NodeType = addedNode.Type,
                 ChangedFields = new List<string> { "node.added" },
                 Node = addedNode,
-                Structure = structure,
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? structure : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
     }

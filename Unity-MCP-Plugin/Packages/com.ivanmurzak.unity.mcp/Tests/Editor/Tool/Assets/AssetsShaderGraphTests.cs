@@ -1671,6 +1671,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -560f,
                         PositionY = 260f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1752,6 +1754,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             PositionX = -1200f + i * 120f,
                             PositionY = 60f + i * 40f
                         },
+                        includeGraph: i == nodesToCreate.Length - 1,
                         includeMessages: i == nodesToCreate.Length - 1,
                         includeProperties: i == nodesToCreate.Length - 1);
 
@@ -1897,6 +1900,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             PositionX = -1180f + i * 180f,
                             PositionY = 520f + i * 30f
                         },
+                        includeGraph: i == nodesToCreate.Length - 1,
                         includeMessages: i == nodesToCreate.Length - 1,
                         includeProperties: i == nodesToCreate.Length - 1);
 
@@ -2043,6 +2047,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             PositionX = -1180f + i * 180f,
                             PositionY = 700f + i * 28f
                         },
+                        includeGraph: i == nodesToCreate.Length - 1,
                         includeMessages: i == nodesToCreate.Length - 1,
                         includeProperties: i == nodesToCreate.Length - 1);
 
@@ -6041,6 +6046,83 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_AddNode_DefaultsToSlimResponseShape()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode_SlimDefault.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+
+                var slim = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "add",
+                        PositionX = -200f,
+                        PositionY = 60f
+                    });
+
+                Assert.AreEqual("add", slim.Operation);
+                Assert.IsNotNull(slim.Node, "Slim default should still surface the added node diff.");
+                Assert.IsNotNull(slim.ChangedFields, "Slim default should still surface ChangedFields.");
+                Assert.IsTrue(slim.ChangedFields!.Contains("node.added"));
+
+                Assert.IsNotNull(slim.GraphSummary, "Slim default must populate GraphSummary.");
+                Assert.IsTrue(slim.GraphSummary!.ShaderResolved, "Adding an allowlisted node should keep the Shader Graph valid.");
+                Assert.IsFalse(slim.GraphSummary.HasErrors, "Adding an allowlisted node should not introduce import errors.");
+                Assert.Greater(slim.GraphSummary.NodeCount, 0, "GraphSummary should report a positive node count after add.");
+                if (slim.GraphSummary.Diagnostics != null)
+                {
+                    Assert.IsFalse(slim.GraphSummary.Diagnostics.Any(d => string.Equals(d.Severity, "Info", StringComparison.Ordinal)),
+                        "GraphSummary diagnostics should filter out Info-severity entries.");
+                }
+
+                Assert.IsNull(slim.Structure, "Slim default must NOT include the full Structure block.");
+                Assert.IsNull(slim.Graph, "Slim default must NOT include the full Graph block.");
+
+                var withStructure = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "add",
+                        PositionX = -200f,
+                        PositionY = 180f
+                    },
+                    includeStructure: true);
+
+                Assert.IsNotNull(withStructure.Structure, "Passing includeStructure: true must restore the full Structure block.");
+                Assert.IsNotNull(withStructure.GraphSummary, "GraphSummary should always be populated.");
+                Assert.IsNull(withStructure.Graph, "includeStructure alone must NOT populate the full Graph block.");
+                Assert.IsTrue(withStructure.Structure!.Nodes!.Any(n => n.ObjectId == withStructure.Node!.ObjectId),
+                    "Structure block should contain the freshly added node.");
+
+                var withGraph = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "add",
+                        PositionX = -200f,
+                        PositionY = 300f
+                    },
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(withGraph.Graph, "Passing includeGraph: true must restore the full Graph block.");
+                Assert.IsTrue(withGraph.Graph!.ShaderResolved);
+                Assert.IsNull(withGraph.Structure, "includeGraph alone must NOT populate the full Structure block.");
+                Assert.IsNotNull(withGraph.GraphSummary, "GraphSummary should always be populated.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_AddNode_AddsFlameTrialNodes()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode_FlameTrial.shadergraph");
@@ -6080,6 +6162,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             PositionX = -1200f + i * 200f,
                             PositionY = -80f
                         },
+                        includeGraph: i == nodesToCreate.Length - 1,
                         includeMessages: i == nodesToCreate.Length - 1,
                         includeProperties: i == nodesToCreate.Length - 1);
 

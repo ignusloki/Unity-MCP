@@ -460,10 +460,13 @@ namespace AIGD
         [Description("Snapshot of the affected node. For add and duplicate operations this is the created node after import; for delete operations this is the deleted node before removal.")]
         public ShaderGraphNodeDefinitionData? Node { get; set; }
 
-        [Description("Updated read-only graph structure after the mutation.")]
+        [Description("Compact post-import summary (always populated). Reports ShaderResolved, HasErrors, NodeCount, EdgeCount, plus filtered error/warning diagnostics.")]
+        public ShaderGraphSummaryData? GraphSummary { get; set; }
+
+        [Description("Updated read-only graph structure after the mutation. Populated only when the request opts in with includeStructure=true. Use assets-shadergraph-get-structure for the standalone read.")]
         public ShaderGraphStructureData? Structure { get; set; }
 
-        [Description("Post-import Shader Graph summary and diagnostics.")]
+        [Description("Post-import Shader Graph summary and diagnostics. Populated only when the request opts in with includeGraph=true. Use assets-shadergraph-get-data for the standalone read.")]
         public ShaderGraphData? Graph { get; set; }
 
         [Description("Number of connected edges that were removed automatically while deleting the node, if applicable.")]

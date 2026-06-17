@@ -103,4 +103,23 @@ namespace AIGD
         [Description("Graph and import diagnostics. Null if not requested.")]
         public List<ShaderGraphDiagnosticData>? Diagnostics { get; set; }
     }
+
+    [Description("Compact post-import summary returned by Shader Graph mutation tools by default. Use the includeStructure / includeGraph flags to opt in to the full Structure or Graph payloads.")]
+    public class ShaderGraphSummaryData
+    {
+        [Description("Whether Unity resolved the imported Shader Graph to a Shader asset after the mutation.")]
+        public bool ShaderResolved { get; set; }
+
+        [Description("Whether the compiled shader currently reports any errors after the mutation.")]
+        public bool HasErrors { get; set; }
+
+        [Description("Number of nodes declared in the source file after the mutation.")]
+        public int NodeCount { get; set; }
+
+        [Description("Number of edges declared in the source file after the mutation.")]
+        public int EdgeCount { get; set; }
+
+        [Description("Filtered graph and import diagnostics (errors and warnings only). Informational success diagnostics are omitted from the slim summary.")]
+        public List<ShaderGraphDiagnosticData>? Diagnostics { get; set; }
+    }
 }

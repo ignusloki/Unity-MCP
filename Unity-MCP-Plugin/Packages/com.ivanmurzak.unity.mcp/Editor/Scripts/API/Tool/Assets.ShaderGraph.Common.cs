@@ -130,6 +130,32 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return data;
         }
 
+        internal static ShaderGraphSummaryData BuildShaderGraphSummary(AssetObjectRef assetRef)
+        {
+            var assetPath = ResolveAssetPath(assetRef);
+            if (!IsShaderGraphAssetPath(assetPath))
+                throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
+
+            var asset = assetRef.FindAssetObject();
+            var shader = asset as Shader ?? AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+            var importer = AssetImporter.GetAtPath(assetPath);
+            var sourceInfo = ReadSourceInfo(assetPath);
+
+            var fullDiagnostics = BuildDiagnostics(assetPath, sourceInfo, importer, shader);
+            var filtered = fullDiagnostics
+                .Where(d => !string.Equals(d.Severity, "Info", StringComparison.Ordinal))
+                .ToList();
+
+            return new ShaderGraphSummaryData
+            {
+                ShaderResolved = shader != null,
+                HasErrors = shader != null && ShaderUtil.ShaderHasError(shader),
+                NodeCount = sourceInfo.NodeCount,
+                EdgeCount = sourceInfo.EdgeCount,
+                Diagnostics = filtered.Count == 0 ? null : filtered
+            };
+        }
+
         static void FillCompiledShaderData(
             ShaderGraphData data,
             Shader shader,

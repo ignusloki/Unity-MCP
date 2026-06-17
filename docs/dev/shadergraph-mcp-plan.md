@@ -400,6 +400,46 @@ Validation evidence:
 
 - `Codex_FlameTrial_NodeProbe.shadergraph`: throwaway live MCP probe under `Assets/Unity-MCP-Test/Trials/Flames/` created `uv` (default `UV0`) and `simpleNoise` (default Scale slot 500), cycled `uv.channel` through `UV1` and `UV3`, set `simpleNoise.scale=250` (slot Value=250 / Default=500), wired `UV.Out -> Add.A` and `Add.Out -> Simple Noise.UV`, and confirmed loud failure on invalid `uv.channel=UV9` (`Supported values: UV0, UV1, UV2, UV3`) and empty `simpleNoise` payload (`At least one supported node settings field must be provided`). Final state reported 13 nodes, 6 edges, `ShaderResolved=true`, `HasErrors=false`. The throwaway asset was deleted after validation.
 
+## Epic 8A: Slim Default Mutation Responses
+
+Status:
+
+- Slice 8A.1 in flight on `custom/shadergraph-mcp`.
+- Compile sanity check pending for slice 8A.1.
+- Live token-budget regression check pending (slice 8A.4).
+
+Purpose:
+
+- Close the per-call response-bloat blocker confirmed during the flame trial reconnaissance, where every mutation echoed the full graph snapshot (`Structure` + `Graph`) and pushed cumulative authoring cost to multi-million tokens for 25-node graphs.
+- Make slim, diff-shaped responses the default on every mutation tool while keeping the existing full snapshot one flag-flip away.
+- Leave read-only inspection tools (`assets-shadergraph-get-structure`, `assets-shadergraph-get-data`) unchanged.
+
+Required surface change:
+
+- New common `ShaderGraphSummaryData` payload with only `ShaderResolved`, `HasErrors`, `NodeCount`, `EdgeCount`, and a filtered diagnostics list (errors and warnings only, no `Severity:Info` "imported successfully" entries).
+- New optional `includeStructure` and `includeGraph` flags (default `false`) on every mutation tool, mirroring the existing `includeMessages` / `includeProperties` pattern.
+- New mutation result always returns: `Operation`, target ids (`NodeObjectId` / `PropertyObjectId` / `Edge` etc.), the existing diff (`Node` / `Property` / `ChangedFields` / `RemovedNodeCount` / `RemovedEdgeCount` / `RemovedEdge` / `RemovedEdges`), and the new `GraphSummary`. The legacy `Structure` and `Graph` blocks are populated only when the matching flag is set.
+- Read-only tools (`assets-shadergraph-get-structure`, `assets-shadergraph-get-data`, `assets-shadergraph-create`, `assets-shadergraph-validate-texture-workflow`) keep their current shape.
+
+Implementation plan:
+
+- Slice 8A.1: foundation — add `ShaderGraphSummaryData`, shared `BuildShaderGraphSummary` helper in `Assets.ShaderGraph.Common.cs`, the new `GraphSummary` slot on `ShaderGraphNodeMutationResultData`, and the new flag/shape pattern proven on `assets-shadergraph-add-node` plus one editor test. Establish the shape user-verifiably before propagation.
+- Slice 8A.2: propagate the pattern to every remaining mutation tool: `assets-shadergraph-add-property`, `assets-shadergraph-add-property-node`, `assets-shadergraph-update-property`, `assets-shadergraph-delete-property`, `assets-shadergraph-reorder-property`, `assets-shadergraph-create-category`, `assets-shadergraph-set-property-category`, `assets-shadergraph-update-node-settings`, `assets-shadergraph-update-node-position`, `assets-shadergraph-delete-node`, `assets-shadergraph-duplicate-node`, `assets-shadergraph-connect-edge`, `assets-shadergraph-disconnect-edge`, `assets-shadergraph-reconnect-edge`, `assets-shadergraph-reroute-output-slot`, `assets-shadergraph-set-settings`, `assets-shadergraph-set-blocks`. Update `AiSkillBody` documentation on each tool to describe the new flag and the slim default.
+- Slice 8A.3: add slim-shape editor tests for at least one tool per mutation family (node add, property add, edge connect, settings update, delete), retrofit existing tests that assert on `Structure` so they pass `includeStructure: true`, and add a `### Response Shape` subsection to the relevant groups in `docs/dev/shadergraph-mcp-capabilities.md`.
+- Slice 8A.4: live token-budget regression check against `Assets/Unity-MCP-Test/Trials/Flames/Flame.shadergraph` by authoring a 25-node flame graph in two passes (slim default, then `includeStructure:true` to mirror today). Capture cumulative response bytes for both passes and verify >80% reduction on the slim path. Record evidence here and file the follow-up batch mutation tool (`assets-shadergraph-batch`) plus optional server-side affected-node parsing under `docs/dev/futureDebt.MD`.
+
+Validation requirements:
+
+- Each slice must keep `dotnet build` of the local Unity 6 validation project at 0 errors and only pre-existing warnings.
+- Existing editor tests that previously asserted on full `Structure` content must keep their coverage, either by passing `includeStructure: true` or by switching to `GraphSummary` assertions where structure inspection was not the test's intent.
+- The slim-default path on a deliberately invalid input (e.g., `add-node` with an unknown node type) must still surface a clean, actionable error rather than a stack trace.
+- The full `get-structure` call must continue to return the complete snapshot unchanged.
+- Slice 8A.4 must demonstrate at least an 80% reduction in cumulative response bytes against the baseline path for the flame-trial sequence.
+
+Validation evidence:
+
+- Pending live MCP validation after slice 8A.4 completes. Update each row once the slice lands.
+
 ## Epic 8: Node Parameter Editing
 
 Purpose:
