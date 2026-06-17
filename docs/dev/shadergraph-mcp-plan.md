@@ -268,7 +268,7 @@ Validation evidence:
 Status:
 
 - Implemented in code on `custom/shadergraph-mcp`.
-- Compile sanity check passed in the local Unity 6 validation project with 0 warnings and 0 errors.
+- Compile sanity check passed in the local Unity 6 validation project with existing Unity/API warnings and 0 errors.
 - Live Unity Editor validation through the existing project-scoped MCP session passed on 2026-06-14.
 
 Purpose:
@@ -313,7 +313,7 @@ Validation evidence:
 Status:
 
 - Implemented in code on `custom/shadergraph-mcp`.
-- Compile sanity check passed in the local Unity 6 validation project on 2026-06-15 with 0 warnings and 0 errors.
+- Compile sanity check passed in the local Unity 6 validation project on 2026-06-15 with existing Unity/API warnings and 0 errors.
 - Structure readback, editor-test validation, and live MCP mutation validation passed on 2026-06-15.
 
 Purpose:
@@ -334,11 +334,14 @@ Implementation plan:
 
 - Slice 7D.1: add the six behavior-node families to `assets-shadergraph-add-node`, duplicate/delete/move flows, and public tool descriptions. Implemented.
 - Slice 7D.2: extend `assets-shadergraph-get-structure` to expose meaningful typed readback for serialized settings and stable slot topology taken from the original reference graph. Implemented.
-- Slice 7D.3: add typed `assets-shadergraph-update-node-settings` support for `comparisonType`, `normalFromHeight.outputSpace`, `blendMode`, and `swizzle.mask`; keep `sceneColor` and `remap` slot-driven and reject unsupported values loudly. Implemented.
+- Slice 7D.3: add typed `assets-shadergraph-update-node-settings` support for `comparisonType`, `normalFromHeight.outputSpace`, `blendMode`, and `swizzle.mask`; keep `sceneColor` slot-driven and reject unsupported values loudly. Implemented.
 - Slice 7D.4: validate safe swizzle-mask normalization and topology changes, including loud rejection of mixed `xyzw`/`rgba` notation. Implemented.
 - Slice 7D.5: add only the concrete extra edge compatibility required by the behavior path: `Vector3 -> NormalMaterialSlot` for flows such as `Normal From Height.Out -> Fragment NormalWS`. Implemented.
 - Slice 7D.6: add editor tests for create, inspect, duplicate, move, delete, wire, reimport, and diagnostics across the new behavior nodes. Implemented.
 - Slice 7D.7: inspect `RedirectNodeData` and keep it deferred as non-essential layout/readability data unless a future trial proves it is behavior-relevant. Implemented as documentation/positioning only.
+- Slice 7D.8: add the concrete dynamic-vector screen-position compatibility needed by the original graph: `Branch.Out -> Scene Color.UV`, `Branch.Out -> Scene Depth.UV`, and `Subtract.Out -> Scene Depth.UV`. Implemented.
+- Slice 7D.9: add the concrete scalar-to-vector2 compatibility needed by the original graph: `Distort Scale -> Tiling And Offset.Tiling` and `Noise Scale -> Tiling And Offset.Tiling`. Implemented.
+- Slice 7D.10: add concrete literal-default editing needed by the original graph: `Multiply.A/B`, including matrix-backed dynamic value slots such as `Multiply.B = 0.1`, and Remap `In`, `In Min Max`, and `Out Min Max`. Implemented.
 
 Validation requirements:
 
@@ -354,7 +357,48 @@ Validation evidence:
 - `Validation_AddNode_MinionsArtWaterBehavior.shadergraph`: editor test created the six new node families and exercised duplicate, move, and delete on `Blend`.
 - `Validation_UpdateNodeSettings_MinionsArtWaterBehavior.shadergraph`: editor test updated `comparisonType`, `normalFromHeight.outputSpace`, `blendMode`, and `swizzle.mask`, confirmed the `xz` mask rewired the node shape to `Vector3 -> Vector2`, and verified unsupported mixed notation fails loudly.
 - `Validation_MinionsArtWaterBehaviorPath.shadergraph`: editor test recreated the supported behavior path with `Scene Color`, `Swizzle`, `Remap`, `Blend`, `Normal From Height`, `Comparison`, Lit blocks, and `Normal From Height.Out -> Fragment NormalWS`, with final `ShaderResolved=true` and `HasErrors=false`.
+- `Validation_MinionsArtWaterDynamicScreenPositionEdges.shadergraph`: editor test directly covered the original dynamic-vector screen-position UV paths: `Branch.Out -> Scene Color.UV`, `Branch.Out -> Scene Depth.UV`, and `Subtract.Out -> Scene Depth.UV`, with final `ShaderResolved=true` and `HasErrors=false`.
+- `Validation_MinionsArtWaterScalarToTilingEdges.shadergraph`: editor test directly covered the original scalar expansion paths: `PropertyNode(Distort Scale).Distort Scale -> Tiling And Offset.Tiling` and `PropertyNode(Noise Scale).Noise Scale -> Tiling And Offset.Tiling`, with final `ShaderResolved=true` and `HasErrors=false`.
+- `Validation_MinionsArtWaterLiteralDefaults.shadergraph`: editor test directly covered `Multiply.B = 0.1` literal default readback and `Remap.In Min Max = (0, 1)` typed update/readback, with final `ShaderResolved=true` and `HasErrors=false`.
+- `Validation_DeleteMinionsArtWaterProperties.shadergraph`: editor test copied the recreated MinionsArt trial graph and deleted every blackboard property one by one, including `_GlobalEffectRT`, with a non-null mutation response for every delete and final structure readback containing zero properties.
 - `Codex_MinionsArt_NodeCoverage.shadergraph`: transient live MCP validation asset created in the local project-scoped Unity session on 2026-06-15; `Scene Color` add-node and `Swizzle.mask=xz` update/readback succeeded without diagnostics regressions.
+
+## Epic 7E: Flame Trial Node Gap
+
+Status:
+
+- Implemented in code on `custom/shadergraph-mcp`.
+- Compile sanity check passed in the local Unity 6 validation project on 2026-06-17 with existing Unity/API warnings and 0 errors.
+- Live Unity Editor validation through the existing project-scoped MCP session passed on 2026-06-17.
+
+Purpose:
+
+- Close the concrete node-coverage gap exposed by a common Unity flame shader trial that needs an explicit `UV` source node and the `Simple Noise` procedural node.
+- Promote both families out of the long-tail backlog because typical reference-driven flame, fire, and dissolve shader recreation needs them on the same path as `Add` and `Sample Texture 2D`.
+
+Required node families:
+
+- `uv` (`UV`, `UnityEditor.ShaderGraph.UVNode`)
+- `simpleNoise` (`Simple Noise`, `UnityEditor.ShaderGraph.NoiseNode`)
+
+Implementation plan:
+
+- Slice 7E.1: add `uv` and `simpleNoise` to the `assets-shadergraph-add-node` allowlist and public input descriptions. Implemented.
+- Slice 7E.2: expose structure readback for the new node families, including the UV `channel` enum and the Simple Noise `Scale` slot default. Implemented.
+- Slice 7E.3: add typed `assets-shadergraph-update-node-settings` support for `uv.channel` (`UV0`/`UV1`/`UV2`/`UV3`) and `simpleNoise.scale`; reject unknown UV channels loudly. Implemented.
+- Slice 7E.4: confirm duplicate, delete, and move flows resolve both nodes through the existing allowlist-driven path with no extra wiring. Implemented.
+- Slice 7E.5: add editor tests mirroring `gradientNoise`/`screenPosition` cases for add, settings update, structure readback, duplicate, delete, move, and an end-to-end flame-shader-style chain `UV -> Add -> Simple Noise -> Sample Texture 2D.UV`. Implemented in editor tests; live MCP validation pending; automated Unity test-run execution remains deferred to Epic 15.
+- Slice 7E.6: confirm `NoiseNode` does not expose a stable serialized hash/type enum in current Unity 6 / URP 17 and document that decision in the capabilities doc rather than expose an unsupported typed setting. Implemented.
+
+Validation requirements:
+
+- Each slice must create a graph through MCP, force reimport, return no ShaderGraph diagnostics errors, and verify the created node is discoverable through `assets-shadergraph-get-structure`.
+- The flame-trial validation graph must include `UV` (with each channel set through `update-node-settings`) and `Simple Noise` (with `scale` set through settings) wired through `UV -> Add -> Simple Noise -> Sample Texture 2D.UV`, final import reporting `ShaderResolved=true` and `HasErrors=false`.
+- Loud-failure check must pass: invalid `uv.channel` and invalid `simpleNoise.scale` payloads must return a clean error, not a stack trace.
+
+Validation evidence:
+
+- `Codex_FlameTrial_NodeProbe.shadergraph`: throwaway live MCP probe under `Assets/Unity-MCP-Test/Trials/Flames/` created `uv` (default `UV0`) and `simpleNoise` (default Scale slot 500), cycled `uv.channel` through `UV1` and `UV3`, set `simpleNoise.scale=250` (slot Value=250 / Default=500), wired `UV.Out -> Add.A` and `Add.Out -> Simple Noise.UV`, and confirmed loud failure on invalid `uv.channel=UV9` (`Supported values: UV0, UV1, UV2, UV3`) and empty `simpleNoise` payload (`At least one supported node settings field must be provided`). Final state reported 13 nodes, 6 edges, `ShaderResolved=true`, `HasErrors=false`. The throwaway asset was deleted after validation.
 
 ## Epic 8: Node Parameter Editing
 
@@ -369,7 +413,7 @@ Slices:
 - Slice 8.3: typed direct settings for `Branch`.
 - Slice 8.4: typed direct settings for `Split` and `Combine`.
 - Slice 8.5: typed direct settings for `Add`, `Subtract`, `Divide`, `Lerp`, and `One Minus`.
-- Slice 8.6: typed settings for `Multiply.multiplyType`.
+- Slice 8.6: typed settings for `Multiply.multiplyType` and Multiply input-slot literals.
 - Slice 8.7: document and validate the property-backed workaround for dynamic-vector-driven inputs.
 - Slice 8.8: future direct literal/default-slot mutation research.
 

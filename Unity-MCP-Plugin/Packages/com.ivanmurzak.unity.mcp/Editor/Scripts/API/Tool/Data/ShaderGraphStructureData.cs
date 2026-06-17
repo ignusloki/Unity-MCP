@@ -227,6 +227,9 @@ namespace AIGD
         [Description("Resolved Multiply settings when the node is a supported Multiply node.")]
         public ShaderGraphMultiplyNodeSettingsData? Multiply { get; set; }
 
+        [Description("Resolved Remap settings when the node is a supported Remap node.")]
+        public ShaderGraphRemapNodeSettingsData? Remap { get; set; }
+
         [Description("Resolved source-vector settings when the node exposes a coordinate-space selector.")]
         public ShaderGraphSpaceNodeSettingsData? SourceVector { get; set; }
 
@@ -238,6 +241,12 @@ namespace AIGD
 
         [Description("Resolved Gradient Noise settings when the node is a supported Gradient Noise node.")]
         public ShaderGraphGradientNoiseNodeSettingsData? GradientNoise { get; set; }
+
+        [Description("Resolved Simple Noise settings when the node is a supported Simple Noise node.")]
+        public ShaderGraphSimpleNoiseNodeSettingsData? SimpleNoise { get; set; }
+
+        [Description("Resolved UV settings when the node is a supported UV node.")]
+        public ShaderGraphUvNodeSettingsData? Uv { get; set; }
 
         [Description("Resolved Screen Position settings when the node is a supported Screen Position node.")]
         public ShaderGraphScreenPositionNodeSettingsData? ScreenPosition { get; set; }
@@ -292,6 +301,48 @@ namespace AIGD
 
         [Description("Formatted multiply type when recognized.")]
         public string? MultiplyType { get; set; }
+
+        [Description("Default value for the A input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? A { get; set; }
+
+        [Description("Default value for the B input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? B { get; set; }
+    }
+
+    public class ShaderGraphRemapNodeSettingsData
+    {
+        [Description("Default value for the In input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? Input { get; set; }
+
+        [Description("Default value for the In Min Max input slot when readable.")]
+        public ShaderGraphVector2SlotValueData? InMinMax { get; set; }
+
+        [Description("Default value for the Out Min Max input slot when readable.")]
+        public ShaderGraphVector2SlotValueData? OutMinMax { get; set; }
+    }
+
+    public class ShaderGraphVector2SlotValueData
+    {
+        [Description("X component.")]
+        public float? X { get; set; }
+
+        [Description("Y component.")]
+        public float? Y { get; set; }
+    }
+
+    public class ShaderGraphVector4SlotValueData
+    {
+        [Description("X component.")]
+        public float? X { get; set; }
+
+        [Description("Y component.")]
+        public float? Y { get; set; }
+
+        [Description("Z component.")]
+        public float? Z { get; set; }
+
+        [Description("W component.")]
+        public float? W { get; set; }
     }
 
     public class ShaderGraphSpaceNodeSettingsData
@@ -352,6 +403,21 @@ namespace AIGD
 
         [Description("Default value for the Scale input slot when readable.")]
         public float? Scale { get; set; }
+    }
+
+    public class ShaderGraphSimpleNoiseNodeSettingsData
+    {
+        [Description("Default value for the Scale input slot when readable.")]
+        public float? Scale { get; set; }
+    }
+
+    public class ShaderGraphUvNodeSettingsData
+    {
+        [Description("Serialized UV channel enum value.")]
+        public int? ChannelValue { get; set; }
+
+        [Description("Formatted UV channel when recognized.")]
+        public string? Channel { get; set; }
     }
 
     public class ShaderGraphScreenPositionNodeSettingsData

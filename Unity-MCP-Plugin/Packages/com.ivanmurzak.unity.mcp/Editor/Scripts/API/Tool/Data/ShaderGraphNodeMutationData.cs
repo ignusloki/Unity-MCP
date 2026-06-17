@@ -46,7 +46,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, screenPosition, sceneDepth, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, saturate, vector2, sine, cosine, negate.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, saturate, vector2, uv, sine, cosine, negate.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]
@@ -121,6 +121,9 @@ namespace AIGD
         [Description("Structured settings updates for a Multiply node.")]
         public ShaderGraphMultiplyNodeSettingsUpdateInput? Multiply { get; set; }
 
+        [Description("Structured settings updates for a Remap node.")]
+        public ShaderGraphRemapNodeSettingsUpdateInput? Remap { get; set; }
+
         [Description("Structured settings updates for a View Direction node.")]
         public ShaderGraphSpaceNodeSettingsUpdateInput? ViewDirection { get; set; }
 
@@ -138,6 +141,12 @@ namespace AIGD
 
         [Description("Structured settings updates for a Gradient Noise node.")]
         public ShaderGraphGradientNoiseNodeSettingsUpdateInput? GradientNoise { get; set; }
+
+        [Description("Structured settings updates for a Simple Noise node.")]
+        public ShaderGraphSimpleNoiseNodeSettingsUpdateInput? SimpleNoise { get; set; }
+
+        [Description("Structured settings updates for a UV node.")]
+        public ShaderGraphUvNodeSettingsUpdateInput? Uv { get; set; }
 
         [Description("Structured settings updates for a Screen Position node.")]
         public ShaderGraphScreenPositionNodeSettingsUpdateInput? ScreenPosition { get; set; }
@@ -299,6 +308,25 @@ namespace AIGD
     {
         [Description("Multiply mode. Supported values: vector, matrix, mixed.")]
         public string? MultiplyType { get; set; }
+
+        [Description("Default value for the A input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? A { get; set; }
+
+        [Description("Default value for the B input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? B { get; set; }
+    }
+
+    [Description("Structured settings updates for a Remap node.")]
+    public class ShaderGraphRemapNodeSettingsUpdateInput
+    {
+        [Description("Default value for the In input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
+
+        [Description("Default value for the In Min Max input slot.")]
+        public ShaderGraphVector2ValueUpdateInput? InMinMax { get; set; }
+
+        [Description("Default value for the Out Min Max input slot.")]
+        public ShaderGraphVector2ValueUpdateInput? OutMinMax { get; set; }
     }
 
     [Description("Structured settings updates for source-vector nodes with a space selector.")]
@@ -342,6 +370,20 @@ namespace AIGD
 
         [Description("Gradient Noise hash type. Supported values: deterministic, legacyMod.")]
         public string? HashType { get; set; }
+    }
+
+    [Description("Structured settings updates for a Simple Noise node.")]
+    public class ShaderGraphSimpleNoiseNodeSettingsUpdateInput
+    {
+        [Description("Default value for the Scale input slot.")]
+        public float? Scale { get; set; }
+    }
+
+    [Description("Structured settings updates for a UV node.")]
+    public class ShaderGraphUvNodeSettingsUpdateInput
+    {
+        [Description("UV channel selector. Supported values: UV0, UV1, UV2, UV3.")]
+        public string? Channel { get; set; }
     }
 
     [Description("Structured settings updates for a Screen Position node.")]

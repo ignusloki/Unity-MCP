@@ -216,6 +216,22 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {
+                    ApiName = "simpleNoise",
+                    DisplayName = "Simple Noise",
+                    TypeName = "UnityEditor.ShaderGraph.NoiseNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 112f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "uv",
+                    DisplayName = "UV",
+                    TypeName = "UnityEditor.ShaderGraph.UVNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 144f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
                     ApiName = "screenPosition",
                     DisplayName = "Screen Position",
                     TypeName = "UnityEditor.ShaderGraph.ScreenPositionNode",

@@ -46,11 +46,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `add`, `subtract`, `divide`: default `a` and `b` slot values\n" +
             "- `lerp`: default `a`, `b`, and `t` slot values\n" +
             "- `oneMinus`: default `input` slot value\n" +
-            "- `multiply`: `multiplyType`\n" +
+            "- `multiply`: `multiplyType`, default `a` and `b` slot values\n" +
+            "- `remap`: default `input`, `inMinMax`, and `outMinMax` slot values\n" +
             "- `viewDirection`, `viewVector`, `normalVector`: `space`\n" +
             "- `position`: `space` and `positionSource`\n" +
             "- `transform`: `inputSpace`, `outputSpace`, `transformType`, and `normalize`\n" +
             "- `gradientNoise`: default `scale` slot value and `hashType`\n" +
+            "- `simpleNoise`: default `scale` slot value\n" +
+            "- `uv`: `channel` (`UV0`, `UV1`, `UV2`, `UV3`)\n" +
             "- `screenPosition`: `mode` (`default` or `raw`)\n" +
             "- `sceneDepth`: `samplingMode` (`linear01`, `raw`, or `eye`)\n" +
             "- `comparison`: `comparisonType`\n" +
@@ -212,7 +215,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     ApplyOneMinusNodeSettings(document.Bindings, nodeObject, node.OneMinus, changedFields);
                     break;
                 case "UnityEditor.ShaderGraph.MultiplyNode":
-                    ApplyMultiplyNodeSettings(nodeObject, node.Multiply, changedFields);
+                    ApplyMultiplyNodeSettings(document.Bindings, nodeObject, node.Multiply, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.RemapNode":
+                    ApplyRemapNodeSettings(document.Bindings, nodeObject, node.Remap, changedFields);
                     break;
                 case "UnityEditor.ShaderGraph.ViewDirectionNode":
                     ApplySpaceNodeSettings(nodeObject, node.ViewDirection, "View Direction", "node.viewDirection", changedFields);
@@ -231,6 +237,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     break;
                 case "UnityEditor.ShaderGraph.GradientNoiseNode":
                     ApplyGradientNoiseNodeSettings(document.Bindings, nodeObject, node.GradientNoise, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.NoiseNode":
+                    ApplySimpleNoiseNodeSettings(document.Bindings, nodeObject, node.SimpleNoise, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.UVNode":
+                    ApplyUvNodeSettings(nodeObject, node.Uv, changedFields);
                     break;
                 case "UnityEditor.ShaderGraph.ScreenPositionNode":
                     ApplyScreenPositionNodeSettings(nodeObject, node.ScreenPosition, changedFields);
@@ -325,12 +337,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasLerpUpdates(node.Lerp)
                || HasOneMinusUpdates(node.OneMinus)
                || HasMultiplyUpdates(node.Multiply)
+               || HasRemapUpdates(node.Remap)
                || HasSpaceUpdates(node.ViewDirection)
                || HasSpaceUpdates(node.ViewVector)
                || HasSpaceUpdates(node.NormalVector)
                || HasPositionUpdates(node.Position)
                || HasTransformUpdates(node.Transform)
                || HasGradientNoiseUpdates(node.GradientNoise)
+               || HasSimpleNoiseUpdates(node.SimpleNoise)
+               || HasUvUpdates(node.Uv)
                || HasScreenPositionUpdates(node.ScreenPosition)
                || HasSceneDepthUpdates(node.SceneDepth)
                || HasComparisonUpdates(node.Comparison)
@@ -355,12 +370,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasLerpUpdates(node.Lerp)) count++;
             if (HasOneMinusUpdates(node.OneMinus)) count++;
             if (HasMultiplyUpdates(node.Multiply)) count++;
+            if (HasRemapUpdates(node.Remap)) count++;
             if (HasSpaceUpdates(node.ViewDirection)) count++;
             if (HasSpaceUpdates(node.ViewVector)) count++;
             if (HasSpaceUpdates(node.NormalVector)) count++;
             if (HasPositionUpdates(node.Position)) count++;
             if (HasTransformUpdates(node.Transform)) count++;
             if (HasGradientNoiseUpdates(node.GradientNoise)) count++;
+            if (HasSimpleNoiseUpdates(node.SimpleNoise)) count++;
+            if (HasUvUpdates(node.Uv)) count++;
             if (HasScreenPositionUpdates(node.ScreenPosition)) count++;
             if (HasSceneDepthUpdates(node.SceneDepth)) count++;
             if (HasComparisonUpdates(node.Comparison)) count++;
@@ -423,7 +441,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             => oneMinus != null && HasVector4Updates(oneMinus.Input);
 
         static bool HasMultiplyUpdates(ShaderGraphMultiplyNodeSettingsUpdateInput? multiply)
-            => multiply != null && !string.IsNullOrWhiteSpace(multiply.MultiplyType);
+            => multiply != null
+               && (!string.IsNullOrWhiteSpace(multiply.MultiplyType)
+                   || HasVector4Updates(multiply.A)
+                   || HasVector4Updates(multiply.B));
+
+        static bool HasRemapUpdates(ShaderGraphRemapNodeSettingsUpdateInput? remap)
+            => remap != null
+               && (HasVector4Updates(remap.Input)
+                   || HasVector2Updates(remap.InMinMax)
+                   || HasVector2Updates(remap.OutMinMax));
 
         static bool HasSpaceUpdates(ShaderGraphSpaceNodeSettingsUpdateInput? space)
             => space != null && !string.IsNullOrWhiteSpace(space.Space);
@@ -444,6 +471,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             => gradientNoise != null
                && (gradientNoise.Scale.HasValue
                    || !string.IsNullOrWhiteSpace(gradientNoise.HashType));
+
+        static bool HasSimpleNoiseUpdates(ShaderGraphSimpleNoiseNodeSettingsUpdateInput? simpleNoise)
+            => simpleNoise != null && simpleNoise.Scale.HasValue;
+
+        static bool HasUvUpdates(ShaderGraphUvNodeSettingsUpdateInput? uv)
+            => uv != null && !string.IsNullOrWhiteSpace(uv.Channel);
 
         static bool HasScreenPositionUpdates(ShaderGraphScreenPositionNodeSettingsUpdateInput? screenPosition)
             => screenPosition != null && !string.IsNullOrWhiteSpace(screenPosition.Mode);
@@ -796,6 +829,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         }
 
         static void ApplyMultiplyNodeSettings(
+            ShaderGraphReflectionBindings bindings,
             object nodeObject,
             ShaderGraphMultiplyNodeSettingsUpdateInput? multiply,
             List<string> changedFields)
@@ -808,6 +842,23 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 var multiplyType = ParseMultiplyType(multiply.MultiplyType!);
                 SetIntOrEnumField(nodeObject, "m_MultiplyType", multiplyType, "node.multiply.multiplyType", changedFields);
             }
+
+            SetSlotDynamicValue(bindings, nodeObject, "A", multiply.A, "node.multiply.a", changedFields);
+            SetSlotDynamicValue(bindings, nodeObject, "B", multiply.B, "node.multiply.b", changedFields);
+        }
+
+        static void ApplyRemapNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphRemapNodeSettingsUpdateInput? remap,
+            List<string> changedFields)
+        {
+            if (remap == null)
+                throw new InvalidOperationException("Remap nodes require a `remap` settings payload.");
+
+            SetSlotVector4(bindings, nodeObject, "In", remap.Input, "node.remap.input", changedFields);
+            SetSlotVector2(bindings, nodeObject, "In Min Max", remap.InMinMax, "node.remap.inMinMax", changedFields);
+            SetSlotVector2(bindings, nodeObject, "Out Min Max", remap.OutMinMax, "node.remap.outMinMax", changedFields);
         }
 
         static void ApplySpaceNodeSettings(
@@ -892,6 +943,35 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 gradientNoise.HashType,
                 "node.gradientNoise.hashType",
                 new[] { "deterministic", "legacyMod" },
+                changedFields);
+        }
+
+        static void ApplySimpleNoiseNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphSimpleNoiseNodeSettingsUpdateInput? simpleNoise,
+            List<string> changedFields)
+        {
+            if (simpleNoise == null)
+                throw new InvalidOperationException("Simple Noise nodes require a `simpleNoise` settings payload.");
+
+            SetSlotFloat(bindings, nodeObject, "Scale", simpleNoise.Scale, "node.simpleNoise.scale", changedFields);
+        }
+
+        static void ApplyUvNodeSettings(
+            object nodeObject,
+            ShaderGraphUvNodeSettingsUpdateInput? uv,
+            List<string> changedFields)
+        {
+            if (uv == null)
+                throw new InvalidOperationException("UV nodes require a `uv` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_OutputChannel",
+                uv.Channel,
+                "node.uv.channel",
+                new[] { "UV0", "UV1", "UV2", "UV3" },
                 changedFields);
         }
 
@@ -1205,6 +1285,55 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             }
         }
 
+        static void SetSlotDynamicValue(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            string slotDisplayName,
+            ShaderGraphVector4ValueUpdateInput? value,
+            string changedFieldPrefix,
+            List<string> changedFields)
+        {
+            if (!HasVector4Updates(value))
+                return;
+
+            var slotObject = ResolveRuntimeSlotObject(bindings, nodeObject, slotDisplayName);
+            if (!TryGetFieldValue(slotObject, "m_Value", out Matrix4x4 existingValue)
+                && !TryGetFieldValue(slotObject, "m_DefaultValue", out existingValue))
+            {
+                SetSlotVector4(bindings, nodeObject, slotDisplayName, value, changedFieldPrefix, changedFields);
+                return;
+            }
+
+            var updatedValue = existingValue;
+            if (value!.X.HasValue)
+                updatedValue.m00 = value.X.Value;
+            if (value.Y.HasValue)
+                updatedValue.m01 = value.Y.Value;
+            if (value.Z.HasValue)
+                updatedValue.m02 = value.Z.Value;
+            if (value.W.HasValue)
+                updatedValue.m03 = value.W.Value;
+
+            var changed = !Approximately(existingValue, updatedValue)
+                || !TryGetFieldValue(slotObject, "m_DefaultValue", out Matrix4x4 currentDefaultValue)
+                || !Approximately(currentDefaultValue, updatedValue);
+
+            if (changed)
+            {
+                SetMatrix4x4Field(slotObject, "m_Value", updatedValue);
+                SetMatrix4x4Field(slotObject, "m_DefaultValue", updatedValue);
+
+                if (value.X.HasValue)
+                    AddChangedField(changedFields, $"{changedFieldPrefix}.x");
+                if (value.Y.HasValue)
+                    AddChangedField(changedFields, $"{changedFieldPrefix}.y");
+                if (value.Z.HasValue)
+                    AddChangedField(changedFields, $"{changedFieldPrefix}.z");
+                if (value.W.HasValue)
+                    AddChangedField(changedFields, $"{changedFieldPrefix}.w");
+            }
+        }
+
         static void SetSlotFloat(
             ShaderGraphReflectionBindings bindings,
             object nodeObject,
@@ -1469,6 +1598,20 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return true;
         }
 
+        static bool SetMatrix4x4Field(object target, string fieldName, Matrix4x4 value)
+        {
+            var field = ResolveNodeInstanceField(target.GetType(), fieldName);
+            var currentValue = field.GetValue(target) is Matrix4x4 matrix
+                ? matrix
+                : default;
+
+            if (Approximately(currentValue, value))
+                return false;
+
+            field.SetValue(target, value);
+            return true;
+        }
+
         static bool SetFloatField(object target, string fieldName, float value)
         {
             var field = ResolveNodeInstanceField(target.GetType(), fieldName);
@@ -1718,6 +1861,24 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                && Math.Abs(left.y - right.y) <= 0.0001f
                && Math.Abs(left.z - right.z) <= 0.0001f
                && Math.Abs(left.w - right.w) <= 0.0001f;
+
+        static bool Approximately(Matrix4x4 left, Matrix4x4 right)
+            => Math.Abs(left.m00 - right.m00) <= 0.0001f
+               && Math.Abs(left.m01 - right.m01) <= 0.0001f
+               && Math.Abs(left.m02 - right.m02) <= 0.0001f
+               && Math.Abs(left.m03 - right.m03) <= 0.0001f
+               && Math.Abs(left.m10 - right.m10) <= 0.0001f
+               && Math.Abs(left.m11 - right.m11) <= 0.0001f
+               && Math.Abs(left.m12 - right.m12) <= 0.0001f
+               && Math.Abs(left.m13 - right.m13) <= 0.0001f
+               && Math.Abs(left.m20 - right.m20) <= 0.0001f
+               && Math.Abs(left.m21 - right.m21) <= 0.0001f
+               && Math.Abs(left.m22 - right.m22) <= 0.0001f
+               && Math.Abs(left.m23 - right.m23) <= 0.0001f
+               && Math.Abs(left.m30 - right.m30) <= 0.0001f
+               && Math.Abs(left.m31 - right.m31) <= 0.0001f
+               && Math.Abs(left.m32 - right.m32) <= 0.0001f
+               && Math.Abs(left.m33 - right.m33) <= 0.0001f;
 
         static object ParseNodeEnumValue(Type enumType, string value, string fieldPath)
         {

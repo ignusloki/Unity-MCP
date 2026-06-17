@@ -770,6 +770,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.MultiplyNode", StringComparison.Ordinal))
                 node.Multiply = ParseMultiplyNodeSettings(root);
 
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.RemapNode", StringComparison.Ordinal))
+                node.Remap = new ShaderGraphRemapNodeSettingsData();
+
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.ViewDirectionNode", StringComparison.Ordinal)
                 || string.Equals(node.Type, "UnityEditor.ShaderGraph.ViewVectorNode", StringComparison.Ordinal)
                 || string.Equals(node.Type, "UnityEditor.ShaderGraph.NormalVectorNode", StringComparison.Ordinal))
@@ -785,6 +788,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.GradientNoiseNode", StringComparison.Ordinal))
                 node.GradientNoise = ParseGradientNoiseNodeSettings(root);
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.NoiseNode", StringComparison.Ordinal))
+                node.SimpleNoise = new ShaderGraphSimpleNoiseNodeSettingsData();
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.UVNode", StringComparison.Ordinal))
+                node.Uv = ParseUvNodeSettings(root);
 
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.ScreenPositionNode", StringComparison.Ordinal))
                 node.ScreenPosition = ParseScreenPositionNodeSettings(root);
@@ -893,6 +902,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             };
         }
 
+        static ShaderGraphUvNodeSettingsData ParseUvNodeSettings(JsonElement root)
+        {
+            var channelValue = GetInt(root, "m_OutputChannel");
+
+            return new ShaderGraphUvNodeSettingsData
+            {
+                ChannelValue = channelValue,
+                Channel = FormatUvChannel(channelValue)
+            };
+        }
+
         static ShaderGraphScreenPositionNodeSettingsData ParseScreenPositionNodeSettings(JsonElement root)
         {
             var modeValue = GetInt(root, "m_ScreenSpaceType");
@@ -962,6 +982,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (node.GradientNoise != null)
                 node.GradientNoise.Scale = ParseSlotFloatValue(node, "Scale");
 
+            if (node.SimpleNoise != null)
+                node.SimpleNoise.Scale = ParseSlotFloatValue(node, "Scale");
+
             if (node.NormalFromHeight != null)
                 node.NormalFromHeight.Strength = ParseSlotFloatValue(node, "Strength");
 
@@ -969,6 +992,19 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 node.Vector2.X = ParseSlotFloatValue(node, "X");
                 node.Vector2.Y = ParseSlotFloatValue(node, "Y");
+            }
+
+            if (node.Multiply != null)
+            {
+                node.Multiply.A = ParseSlotVector4Value(node, "A");
+                node.Multiply.B = ParseSlotVector4Value(node, "B");
+            }
+
+            if (node.Remap != null)
+            {
+                node.Remap.Input = ParseSlotVector4Value(node, "In");
+                node.Remap.InMinMax = ParseSlotVector2Value(node, "In Min Max");
+                node.Remap.OutMinMax = ParseSlotVector2Value(node, "Out Min Max");
             }
         }
 
@@ -979,6 +1015,24 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 return null;
 
             return ParseScalarJson(slot.ValueJson) ?? ParseScalarJson(slot.DefaultValueJson);
+        }
+
+        static ShaderGraphVector2SlotValueData? ParseSlotVector2Value(ShaderGraphNodeDefinitionData node, string slotDisplayName)
+        {
+            var slot = node.Slots?.FirstOrDefault(s => string.Equals(s.DisplayName, slotDisplayName, StringComparison.Ordinal));
+            if (slot == null)
+                return null;
+
+            return ParseVector2Json(slot.ValueJson) ?? ParseVector2Json(slot.DefaultValueJson);
+        }
+
+        static ShaderGraphVector4SlotValueData? ParseSlotVector4Value(ShaderGraphNodeDefinitionData node, string slotDisplayName)
+        {
+            var slot = node.Slots?.FirstOrDefault(s => string.Equals(s.DisplayName, slotDisplayName, StringComparison.Ordinal));
+            if (slot == null)
+                return null;
+
+            return ParseVector4Json(slot.ValueJson) ?? ParseVector4Json(slot.DefaultValueJson);
         }
 
         static float? ParseScalarJson(string? json)
@@ -1003,6 +1057,67 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 return null;
             }
+        }
+
+        static ShaderGraphVector2SlotValueData? ParseVector2Json(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return null;
+
+            try
+            {
+                using var document = JsonDocument.Parse(json!);
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                    return null;
+
+                return new ShaderGraphVector2SlotValueData
+                {
+                    X = TryReadFloatComponent(document.RootElement, "x"),
+                    Y = TryReadFloatComponent(document.RootElement, "y")
+                };
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+
+        static ShaderGraphVector4SlotValueData? ParseVector4Json(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return null;
+
+            try
+            {
+                using var document = JsonDocument.Parse(json!);
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                    return null;
+
+                return new ShaderGraphVector4SlotValueData
+                {
+                    X = TryReadFloatComponent(document.RootElement, "x") ?? TryReadFloatComponent(document.RootElement, "e00"),
+                    Y = TryReadFloatComponent(document.RootElement, "y") ?? TryReadFloatComponent(document.RootElement, "e01"),
+                    Z = TryReadFloatComponent(document.RootElement, "z") ?? TryReadFloatComponent(document.RootElement, "e02"),
+                    W = TryReadFloatComponent(document.RootElement, "w") ?? TryReadFloatComponent(document.RootElement, "e03")
+                };
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+
+        static float? TryReadFloatComponent(JsonElement root, string componentName)
+        {
+            if (!root.TryGetProperty(componentName, out var component) || component.ValueKind != JsonValueKind.Number)
+                return null;
+
+            if (component.TryGetSingle(out var singleValue))
+                return singleValue;
+
+            return component.TryGetDouble(out var doubleValue)
+                ? (float)doubleValue
+                : null;
         }
 
         static ShaderGraphSlotDefinitionData ParseSlotDefinition(JsonElement root, string objectId)
@@ -1306,6 +1421,19 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 0 => "deterministic",
                 1 => "legacyMod",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatUvChannel(int? value)
+        {
+            return value switch
+            {
+                0 => "UV0",
+                1 => "UV1",
+                2 => "UV2",
+                3 => "UV3",
                 null => null,
                 _ => $"unknown({value})"
             };
