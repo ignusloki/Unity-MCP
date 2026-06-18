@@ -41,8 +41,11 @@ Validated workaround targets:
 Future work:
 
 - Improve direct literal/default-slot mutation so this workaround is no longer needed.
-- Expand direct `Multiply` input-slot literal editing beyond the current `multiplyType` support.
 - Investigate whether connected dynamic inputs should automatically clear or normalize incompatible literal fallback metadata before edge creation.
+
+Current exception:
+
+- `Multiply` now supports direct input-slot literal editing for `A` and `B`, including matrix-backed dynamic value slots used by Unity for scalar-like literals such as `Multiply.B = 0.1`.
 
 ### Texture Slot Assignment Boundaries
 
@@ -53,6 +56,20 @@ Connected texture inputs should continue to use the stable blackboard `texture2D
 Future work:
 
 - Revisit connected texture-slot workflows only if real graph recreation trials show this is materially blocking.
+
+### Delete-Property Transaction Boundary
+
+`assets-shadergraph-delete-property` is still a file-level mutation rather than a full multi-operation transaction. The mutation is guarded before writing, restores the original graph source if write/import finalization fails, and returns a valid mutation response even if post-delete structure or graph diagnostics readback fails.
+
+Current behavior:
+
+- Write/import failures restore the original graph source before throwing.
+- Post-delete readback failures are returned as warning diagnostics in the `graph.diagnostics` response.
+- Invalid delete requests still fail before mutation.
+
+Future work:
+
+- Add broader transaction support only if future multi-step blackboard operations need all-or-nothing semantics across several tool calls.
 
 ### URP Target And Subtarget Coverage
 
@@ -93,19 +110,28 @@ Current matrix already covers:
 
 - Exact slot-type matches.
 - Compatible UV/vector2 slot pairs.
+- Scalar expansion into vector2 inputs, such as `Float Property -> Tiling And Offset.Tiling`.
 - Vector2-resolved `DynamicVectorMaterialSlot -> UVMaterialSlot` paths such as `Add.Out -> Tiling And Offset.UV`.
 - Screen Position vector4 outputs into Shader Graph screen-position input slots, such as `ScreenPosition.Out -> SceneDepth.UV`.
+- Dynamic vector outputs into Shader Graph screen-position input slots, such as `Branch.Out -> Scene Color.UV`, `Branch.Out -> Scene Depth.UV`, and `Subtract.Out -> Scene Depth.UV`.
 - Compatible Vector3/Position slot pairs.
 - Compatible color/vector slot pairs when one endpoint is a ShaderGraph color slot, such as Color properties feeding Fragment Base Color.
 - Texture2D property outputs into Texture2D input slots.
 - Compatible dynamic numeric, vector, and color slot families, including cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
 - Safe explicit Vector3-to-UV authoring through `Vector3 -> Split -> Combine.RG -> UV`.
+- Direct `Vector4MaterialSlot -> UVMaterialSlot` edges via Unity's documented `.xy` truncation. Validated by the Flame reference shader trial; lets agents wire `Sample Texture 2D.RGBA -> Sample Texture 2D.UV` without a Split + Combine.RG narrowing pair.
 
 Accepted limitation:
 
 - Direct `Vector3 -> UV` edges are intentionally rejected. Use the explicit `Split` plus `Combine.RG` narrowing path when a source vector such as `View Vector` must feed a UV/vector2 input such as `Gradient Noise.UV`.
 - Unity Shader Graph documents vector promotion/truncation between vector ports, and `Gradient Noise.UV` is a `Vector 2` input while `View Vector.Out` is a `Vector 3` output. The explicit `Split -> Combine.RG` path is therefore semantically equivalent to dropping the third channel, but it is not topology-equivalent to a direct editor wire.
-- Before allowing direct `Vector3MaterialSlot -> UVMaterialSlot` writes, validate that Unity's serialized graph model imports and compiles that direct edge consistently across the supported Unity/ShaderGraph package versions. If validation passes, add typed compatibility tests for direct `Vector3 -> Vector2/UV`, `Vector4 -> Vector2`, and vector promotion cases; otherwise keep the explicit narrowing path and consider an MCP helper that auto-inserts the conversion nodes.
+- Before allowing direct `Vector3MaterialSlot -> UVMaterialSlot` writes, validate that Unity's serialized graph model imports and compiles that direct edge consistently across the supported Unity/ShaderGraph package versions. If validation passes, add typed compatibility tests for direct `Vector3 -> Vector2/UV` and vector promotion cases; otherwise keep the explicit narrowing path and consider an MCP helper that auto-inserts the conversion nodes.
+
+### Batch Mutation Tool
+
+The Flame trial confirmed that even with the Epic 8A slim-default response, per-call **count** still dominates the authoring cost for 25+ node graphs. Authoring the Flame reference shader required ~35 individual MCP round-trips.
+
+Future work tracked under [Epic 8B in the roadmap](shadergraph-mcp-plan.md): `assets-shadergraph-batch` tool taking an ordered list of typed operation envelopes, a `$ref` resolver so op N can reference ids created by op M (M < N), `stopOnError` semantics, and one consolidated `GraphSummary` evaluated after the whole batch.
 
 ### Graph Organization And Cleanup
 
@@ -158,7 +184,7 @@ Future work:
 
 ### Unity Test Runner Discovery
 
-A compile sanity check, `dotnet build Assembly-CSharp.csproj -v minimal`, passed in the local Unity 6 URP/ShaderGraph validation project with 0 warnings and 0 errors at the last checkpoint.
+A compile sanity check, `dotnet build Assembly-CSharp.csproj -v minimal`, passed in the local Unity 6 URP/ShaderGraph validation project with existing Unity/API warnings and 0 errors at the last checkpoint.
 
 Live project-scoped MCP validation for Epic 7A passed on 2026-06-14 through the already-open Unity Editor:
 

@@ -61,6 +61,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `blend`: `blendMode`\n" +
             "- `swizzle`: `mask`\n" +
             "- `vector2`: default `x` and `y` slot values\n" +
+            "- `smoothstep`: default `edge1`, `edge2`, and `input` slot values\n" +
             "- `sine`, `cosine`, `negate`: default `input` slot value\n\n" +
             "## Response shape\n\n" +
             "By default returns a slim diff: `Operation`, `NodeObjectId`, `NodeType`, `Node`, `ChangedFields`, and `GraphSummary`. " +
@@ -284,6 +285,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "UnityEditor.ShaderGraph.Vector2Node":
                     ApplyVector2NodeSettings(document.Bindings, nodeObject, node.Vector2, changedFields);
                     break;
+                case "UnityEditor.ShaderGraph.SmoothstepNode":
+                    ApplySmoothstepNodeSettings(document.Bindings, nodeObject, node.Smoothstep, changedFields);
+                    break;
                 case "UnityEditor.ShaderGraph.SineNode":
                     ApplyUnaryVectorNodeSettings(document.Bindings, nodeObject, node.Sine, "Sine", "node.sine", changedFields);
                     break;
@@ -379,6 +383,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasBlendUpdates(node.Blend)
                || HasSwizzleUpdates(node.Swizzle)
                || HasVector2NodeUpdates(node.Vector2)
+               || HasSmoothstepUpdates(node.Smoothstep)
                || HasUnaryVectorUpdates(node.Sine)
                || HasUnaryVectorUpdates(node.Cosine)
                || HasUnaryVectorUpdates(node.Negate);
@@ -412,6 +417,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasBlendUpdates(node.Blend)) count++;
             if (HasSwizzleUpdates(node.Swizzle)) count++;
             if (HasVector2NodeUpdates(node.Vector2)) count++;
+            if (HasSmoothstepUpdates(node.Smoothstep)) count++;
             if (HasUnaryVectorUpdates(node.Sine)) count++;
             if (HasUnaryVectorUpdates(node.Cosine)) count++;
             if (HasUnaryVectorUpdates(node.Negate)) count++;
@@ -524,6 +530,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
         static bool HasVector2NodeUpdates(ShaderGraphVector2NodeSettingsUpdateInput? vector2)
             => vector2 != null && (vector2.X.HasValue || vector2.Y.HasValue);
+
+        static bool HasSmoothstepUpdates(ShaderGraphSmoothstepNodeSettingsUpdateInput? smoothstep)
+            => smoothstep != null
+               && (HasVector4Updates(smoothstep.Edge1)
+                   || HasVector4Updates(smoothstep.Edge2)
+                   || HasVector4Updates(smoothstep.Input));
 
         static bool HasUnaryVectorUpdates(ShaderGraphUnaryVectorNodeSettingsUpdateInput? unary)
             => unary != null && HasVector4Updates(unary.Input);
@@ -1129,6 +1141,20 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             SetSlotFloat(bindings, nodeObject, "X", vector2.X, "node.vector2.x", changedFields);
             SetSlotFloat(bindings, nodeObject, "Y", vector2.Y, "node.vector2.y", changedFields);
+        }
+
+        static void ApplySmoothstepNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphSmoothstepNodeSettingsUpdateInput? smoothstep,
+            List<string> changedFields)
+        {
+            if (smoothstep == null)
+                throw new InvalidOperationException("Smoothstep nodes require a `smoothstep` settings payload.");
+
+            SetSlotVector4(bindings, nodeObject, "Edge1", smoothstep.Edge1, "node.smoothstep.edge1", changedFields);
+            SetSlotVector4(bindings, nodeObject, "Edge2", smoothstep.Edge2, "node.smoothstep.edge2", changedFields);
+            SetSlotVector4(bindings, nodeObject, "In", smoothstep.Input, "node.smoothstep.input", changedFields);
         }
 
         static void ApplyUnaryVectorNodeSettings(

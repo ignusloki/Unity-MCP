@@ -268,6 +268,9 @@ namespace AIGD
 
         [Description("Resolved Vector 2 settings when the node is a supported Vector 2 node.")]
         public ShaderGraphVector2NodeSettingsData? Vector2 { get; set; }
+
+        [Description("Resolved Smoothstep settings when the node is a supported Smoothstep node.")]
+        public ShaderGraphSmoothstepNodeSettingsData? Smoothstep { get; set; }
     }
 
     public class ShaderGraphSampleTexture2DNodeSettingsData
@@ -484,6 +487,18 @@ namespace AIGD
 
         [Description("Default value for the Y input slot when readable.")]
         public float? Y { get; set; }
+    }
+
+    public class ShaderGraphSmoothstepNodeSettingsData
+    {
+        [Description("Default value for the Edge1 input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? Edge1 { get; set; }
+
+        [Description("Default value for the Edge2 input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? Edge2 { get; set; }
+
+        [Description("Default value for the In input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? Input { get; set; }
     }
 
     public class ShaderGraphSlotDefinitionData

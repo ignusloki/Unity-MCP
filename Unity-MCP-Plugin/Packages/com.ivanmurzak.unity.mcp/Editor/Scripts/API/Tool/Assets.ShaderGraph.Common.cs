@@ -842,6 +842,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.Vector2Node", StringComparison.Ordinal))
                 node.Vector2 = new ShaderGraphVector2NodeSettingsData();
 
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.SmoothstepNode", StringComparison.Ordinal))
+                node.Smoothstep = new ShaderGraphSmoothstepNodeSettingsData();
+
             return node;
         }
 
@@ -1018,6 +1021,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 node.Vector2.X = ParseSlotFloatValue(node, "X");
                 node.Vector2.Y = ParseSlotFloatValue(node, "Y");
+            }
+
+            if (node.Smoothstep != null)
+            {
+                node.Smoothstep.Edge1 = ParseSlotVector4Value(node, "Edge1");
+                node.Smoothstep.Edge2 = ParseSlotVector4Value(node, "Edge2");
+                node.Smoothstep.Input = ParseSlotVector4Value(node, "In");
             }
 
             if (node.Multiply != null)

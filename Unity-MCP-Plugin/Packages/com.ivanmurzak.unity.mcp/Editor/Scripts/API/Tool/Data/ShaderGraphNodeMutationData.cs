@@ -169,6 +169,9 @@ namespace AIGD
         [Description("Structured settings updates for a Vector 2 node.")]
         public ShaderGraphVector2NodeSettingsUpdateInput? Vector2 { get; set; }
 
+        [Description("Structured settings updates for a Smoothstep node.")]
+        public ShaderGraphSmoothstepNodeSettingsUpdateInput? Smoothstep { get; set; }
+
         [Description("Structured settings updates for a Sine node.")]
         public ShaderGraphUnaryVectorNodeSettingsUpdateInput? Sine { get; set; }
 
@@ -436,6 +439,19 @@ namespace AIGD
 
         [Description("Default value for the Y input slot.")]
         public float? Y { get; set; }
+    }
+
+    [Description("Structured settings updates for a Smoothstep node.")]
+    public class ShaderGraphSmoothstepNodeSettingsUpdateInput
+    {
+        [Description("Default value for the Edge1 input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Edge1 { get; set; }
+
+        [Description("Default value for the Edge2 input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Edge2 { get; set; }
+
+        [Description("Default value for the In input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
     }
 
     [Description("Structured settings updates for unary vector nodes such as Sine, Cosine, and Negate.")]

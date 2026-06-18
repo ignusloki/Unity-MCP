@@ -391,6 +391,19 @@ Node lifecycle mutation results include normalized summary fields:
   - Supported `Vector 2` fields:
     - `x`
     - `y`
+  - Supported `Smoothstep` fields:
+    - `edge1.x`
+    - `edge1.y`
+    - `edge1.z`
+    - `edge1.w`
+    - `edge2.x`
+    - `edge2.y`
+    - `edge2.z`
+    - `edge2.w`
+    - `input.x`
+    - `input.y`
+    - `input.z`
+    - `input.w`
   - Supported `Sine`, `Cosine`, and `Negate` fields:
     - `input.x`
     - `input.y`
@@ -408,6 +421,7 @@ Node lifecycle mutation results include normalized summary fields:
   - Supports `ScreenPosition.Out` (`Vector4MaterialSlot`) into Shader Graph screen-position inputs such as `SceneDepth.UV` (`ScreenPositionMaterialSlot`).
   - Supports safe explicit Vector3-to-UV authoring through ShaderGraph narrowing nodes: `Vector3 -> Split -> Combine.RG -> UV`.
   - Direct `Vector3MaterialSlot -> UVMaterialSlot` edges remain intentionally rejected until Unity's serialized graph model is validated to allow that conversion safely without an explicit node.
+  - Supports direct `Vector4MaterialSlot -> UVMaterialSlot` edges via Unity's documented `.xy` truncation. Validated by the Flame reference shader trial against the Unity 6 / URP 17 baseline; lets agents wire `Sample Texture 2D.RGBA -> Sample Texture 2D.UV` without inserting a Split + Combine.RG narrowing pair.
   - Returns `removedEdge` when an incoming edge is replaced.
 - `assets-shadergraph-reconnect-edge`
   - Reconnects an exact existing edge to a new output endpoint, input endpoint, or both.

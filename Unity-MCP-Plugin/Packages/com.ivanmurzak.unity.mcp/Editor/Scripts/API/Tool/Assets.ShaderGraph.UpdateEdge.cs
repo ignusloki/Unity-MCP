@@ -106,6 +106,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports compatible color/vector slot pairs such as Color property outputs into Base Color\n" +
             "- supports compatible Texture2D property outputs and Texture2D input slots\n" +
             "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n" +
+            "- supports direct `Vector4 -> UV` edges via Unity's documented `.xy` truncation (no narrowing node needed)\n" +
             "- supports explicit vector narrowing workflows such as `Vector3 -> Split -> Combine(Vector2) -> UV`; direct Vector3-to-UV remains rejected unless Unity exposes a validated direct conversion\n" +
             "- supports guarded input-edge replacement when `replaceExistingInputConnection` is true\n\n" +
             "## Response shape\n\n" +
@@ -771,6 +772,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 return;
 
             if (IsDynamicVectorSlotType(outputType) && Vector2LikeSlotTypes.Contains(inputType))
+                return;
+
+            // Vector4 -> UV is supported directly via Unity's documented .xy truncation.
+            // Validated against the Flame reference shader trial.
+            if (string.Equals(outputType, "UnityEditor.ShaderGraph.Vector4MaterialSlot", StringComparison.Ordinal)
+                && string.Equals(inputType, "UnityEditor.ShaderGraph.UVMaterialSlot", StringComparison.Ordinal))
                 return;
 
             if (string.Equals(GetString(outputSlot.NodeObject, "m_Type"), "UnityEditor.ShaderGraph.ScreenPositionNode", StringComparison.Ordinal)

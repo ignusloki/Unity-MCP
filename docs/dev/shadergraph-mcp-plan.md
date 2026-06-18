@@ -440,6 +440,50 @@ Validation evidence:
 
 - Pending live MCP validation after slice 8A.4 completes. Update each row once the slice lands.
 
+## Epic 8B: Batch Mutation Tool
+
+Status:
+
+- Not started.
+- Identified during the 2026-06-17 Flame trial after Epic 8A slimmed per-call payloads but per-call **count** still dominated the authoring cost for non-trivial graphs.
+
+Purpose:
+
+- Add a single `assets-shadergraph-batch` tool that executes an ordered list of mutation operations against one Shader Graph asset in a single MCP round-trip.
+- Slash per-call overhead for medium-to-large graphs (Flame at 27 nodes already required ~35 calls; 50+ node graphs scale linearly under the current shape).
+- Make multi-step authoring expressible in one schema-checked envelope rather than chained round-trips, which also enables agents to reference newly created `ObjectId`s from later operations in the same batch without round-tripping the ids back.
+
+Required surface:
+
+- New tool `assets-shadergraph-batch` with inputs:
+  - `assetRef` — the target `.shadergraph`.
+  - `operations` — an ordered list of typed operation envelopes, one per existing mutation tool. The envelope is a discriminated union; each variant carries the same input DTO already used by the single-op tool: `addNode`, `addProperty`, `addPropertyNode`, `updateNodeSettings`, `updateProperty`, `connectEdge`, `disconnectEdge`, `reconnectEdge`, `deleteNode`, `deleteProperty`, `updateNodePosition`, `setBlocks`, `setSettings`, `setPropertyCategory`, `reorderProperty`, `createCategory`, `duplicateNode`.
+  - `stopOnError` — boolean, default `true`. When `false` the remaining ops still run after one fails, and each op carries its own per-op error in the response.
+  - `includeStructure` / `includeGraph` / `includeMessages` / `includeProperties` — evaluated **once after the batch**, not per operation. The slim per-op response stays the default.
+  - `$ref` resolver — a way for op N to reference an id materialised by op M (M < N). Suggested shape: `"$ref": "ops[2].NodeObjectId"` or `"$ref": "ops[2].Property.ObjectId"`. The resolver inspects the live in-batch response array.
+- Result shape:
+  - Per-op summary: `ChangedFields`, created `ObjectId`s, per-op error message (when `stopOnError=false`).
+  - One final `GraphSummary` after the whole batch has been imported.
+  - Optional `Structure` / `Graph` blocks once after the batch when their flag is set.
+
+Implementation plan:
+
+- Slice 8B.1: introduce the operation envelope DTO and discriminated union; implement a small dispatcher that invokes the existing internal helpers per op without touching the existing single-op tools.
+- Slice 8B.2: add `$ref` resolution against accumulated per-op results; restrict to fields actually exposed by the slim per-op response shape.
+- Slice 8B.3: add `stopOnError=false` partial-failure semantics: rollback rules for the failing op only, the rest persist, per-op errors flow into the consolidated response.
+- Slice 8B.4: collapse the post-batch Finalize/Reimport to a single re-import after the whole batch instead of per-op, and emit one consolidated `GraphSummary`.
+- Slice 8B.5: editor tests, capabilities doc `assets-shadergraph-batch` section, validation evidence by re-authoring the Flame trial in a single batch call and confirming the final scene still renders.
+
+Validation requirements:
+
+- Compile sanity check.
+- Editor tests for: ordered execution, `$ref` resolution across mixed op types, `stopOnError=true` aborts after the first failure, `stopOnError=false` runs the remainder, consolidated `GraphSummary` reflects the post-batch state.
+- Live MCP regression: re-author the Flame trial in a single batch call against `Assets/Unity-MCP-Test/Trials/Flames/Flame.shadergraph` and confirm round-trip count ≤ 3 (open, batch, validate).
+
+Validation evidence:
+
+- Pending; record once Slice 8B.5 lands.
+
 ## Epic 8: Node Parameter Editing
 
 Purpose:

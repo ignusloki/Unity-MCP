@@ -6501,6 +6501,119 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             }
         }
 
+        [Test]
+        public void ShaderGraph_UpdateNodeSettings_UpdatesSmoothstepEdgeAndInputSlots()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_Smoothstep.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var smoothstep = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "smoothstep", PositionX = -600f, PositionY = 0f });
+
+                var result = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = smoothstep.Node!.ObjectId,
+                        Smoothstep = new ShaderGraphSmoothstepNodeSettingsUpdateInput
+                        {
+                            Edge1 = new ShaderGraphVector4ValueUpdateInput { X = 0.25f, Y = 0.25f, Z = 0.25f, W = 0.25f },
+                            Edge2 = new ShaderGraphVector4ValueUpdateInput { X = 0.75f, Y = 0.75f, Z = 0.75f, W = 0.75f },
+                            Input = new ShaderGraphVector4ValueUpdateInput { X = 0.5f, Y = 0.5f, Z = 0.5f, W = 0.5f }
+                        }
+                    },
+                    includeGraph: true);
+
+                Assert.AreEqual("updateSettings", result.Operation);
+                Assert.IsTrue(result.ChangedFields!.Contains("node.smoothstep.edge1.x"));
+                Assert.IsTrue(result.ChangedFields.Contains("node.smoothstep.edge2.x"));
+                Assert.IsTrue(result.ChangedFields.Contains("node.smoothstep.input.x"));
+
+                Assert.IsNotNull(result.Node!.Smoothstep);
+                AssertSlotVector4(result.Node, "Edge1", 0.25f, 0.25f, 0.25f, 0.25f);
+                AssertSlotVector4(result.Node, "Edge2", 0.75f, 0.75f, 0.75f, 0.75f);
+                AssertSlotVector4(result.Node, "In", 0.5f, 0.5f, 0.5f, 0.5f);
+                Assert.AreEqual(0.25f, result.Node.Smoothstep!.Edge1!.X ?? 0f, 0.0001f);
+                Assert.AreEqual(0.75f, result.Node.Smoothstep.Edge2!.X ?? 0f, 0.0001f);
+                Assert.AreEqual(0.5f, result.Node.Smoothstep.Input!.X ?? 0f, 0.0001f);
+
+                Assert.IsTrue(result.Graph!.ShaderResolved, "Updating Smoothstep settings should keep the Shader Graph import valid.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Updating Smoothstep settings should not introduce import errors.");
+
+                var emptyPayload = Assert.Throws<ArgumentException>(() => tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = smoothstep.Node.ObjectId,
+                        Smoothstep = new ShaderGraphSmoothstepNodeSettingsUpdateInput()
+                    }));
+                StringAssert.Contains("At least one supported node settings field must be provided",
+                    emptyPayload!.Message);
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ConnectEdge_AllowsVector4OutputIntoUvInput()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ConnectEdge_Vector4ToUv.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var sourceSample = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "sampleTexture2D", PositionX = -800f, PositionY = -100f },
+                    includeStructure: true);
+                var downstreamSample = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "sampleTexture2D", PositionX = -400f, PositionY = -100f },
+                    includeStructure: true);
+
+                var sourceRgba = sourceSample.Node!.Slots!.First(s => s.DisplayName == "RGBA");
+                var downstreamUv = downstreamSample.Node!.Slots!.First(s => s.DisplayName == "UV");
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector4MaterialSlot", sourceRgba.Type,
+                    "Sample Texture 2D RGBA should be a Vector4MaterialSlot.");
+                Assert.AreEqual("UnityEditor.ShaderGraph.UVMaterialSlot", downstreamUv.Type,
+                    "Sample Texture 2D UV should be a UVMaterialSlot.");
+
+                var connect = tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = sourceSample.Node.ObjectId,
+                        OutputSlotObjectId = sourceRgba.ObjectId,
+                        InputNodeObjectId = downstreamSample.Node.ObjectId,
+                        InputSlotObjectId = downstreamUv.ObjectId
+                    },
+                    includeGraph: true);
+
+                Assert.IsNotNull(connect.Edge, "Edge connection should return a populated Edge diff.");
+                Assert.AreEqual(sourceSample.Node.ObjectId, connect.Edge!.OutputNodeId);
+                Assert.AreEqual(downstreamSample.Node.ObjectId, connect.Edge.InputNodeId);
+                Assert.IsTrue(connect.GraphSummary!.ShaderResolved, "Direct Vector4 -> UV should keep the Shader Graph valid.");
+                Assert.IsFalse(connect.GraphSummary.HasErrors, "Direct Vector4 -> UV should not introduce import errors.");
+                Assert.IsNotNull(connect.Graph);
+                Assert.IsFalse(connect.Graph!.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Direct Vector4 -> UV should not raise compile-time errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
         static string CreateShaderGraphAssetCopy(string fileName)
             => CreateShaderGraphAssetCopy(fileName, TemplateAssetPath);
 
