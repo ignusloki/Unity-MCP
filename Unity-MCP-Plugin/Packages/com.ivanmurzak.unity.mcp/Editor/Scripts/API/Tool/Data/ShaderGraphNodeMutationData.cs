@@ -46,7 +46,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, saturate, vector2, uv, sine, cosine, negate.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, invertColors, vector2, uv, sine, cosine, negate.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]
@@ -171,6 +171,9 @@ namespace AIGD
 
         [Description("Structured settings updates for a Smoothstep node.")]
         public ShaderGraphSmoothstepNodeSettingsUpdateInput? Smoothstep { get; set; }
+
+        [Description("Structured settings updates for an Invert Colors node.")]
+        public ShaderGraphInvertColorsNodeSettingsUpdateInput? InvertColors { get; set; }
 
         [Description("Structured settings updates for a Sine node.")]
         public ShaderGraphUnaryVectorNodeSettingsUpdateInput? Sine { get; set; }
@@ -452,6 +455,22 @@ namespace AIGD
 
         [Description("Default value for the In input slot.")]
         public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
+    }
+
+    [Description("Structured settings updates for an Invert Colors node.")]
+    public class ShaderGraphInvertColorsNodeSettingsUpdateInput
+    {
+        [Description("Whether the Red channel should be inverted.")]
+        public bool? Red { get; set; }
+
+        [Description("Whether the Green channel should be inverted.")]
+        public bool? Green { get; set; }
+
+        [Description("Whether the Blue channel should be inverted.")]
+        public bool? Blue { get; set; }
+
+        [Description("Unsupported in the current Unity Shader Graph package: InvertColorsNode.m_AlphaChannel is not serialized safely, so providing this value is rejected.")]
+        public bool? Alpha { get; set; }
     }
 
     [Description("Structured settings updates for unary vector nodes such as Sine, Cosine, and Negate.")]

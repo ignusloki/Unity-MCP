@@ -120,6 +120,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {
+                    ApiName = "fraction",
+                    DisplayName = "Fraction",
+                    TypeName = "UnityEditor.ShaderGraph.FractionNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
                     ApiName = "split",
                     DisplayName = "Split",
                     TypeName = "UnityEditor.ShaderGraph.SplitNode",
@@ -312,11 +320,27 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {
+                    ApiName = "step",
+                    DisplayName = "Step",
+                    TypeName = "UnityEditor.ShaderGraph.StepNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 96f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
                     ApiName = "saturate",
                     DisplayName = "Saturate",
                     TypeName = "UnityEditor.ShaderGraph.SaturateNode",
                     DefaultWidth = 208f,
                     DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "invertColors",
+                    DisplayName = "Invert Colors",
+                    TypeName = "UnityEditor.ShaderGraph.InvertColorsNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 160f
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {

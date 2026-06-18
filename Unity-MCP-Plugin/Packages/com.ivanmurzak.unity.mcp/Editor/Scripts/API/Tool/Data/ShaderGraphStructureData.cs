@@ -271,6 +271,9 @@ namespace AIGD
 
         [Description("Resolved Smoothstep settings when the node is a supported Smoothstep node.")]
         public ShaderGraphSmoothstepNodeSettingsData? Smoothstep { get; set; }
+
+        [Description("Resolved Invert Colors settings when the node is a supported Invert Colors node.")]
+        public ShaderGraphInvertColorsNodeSettingsData? InvertColors { get; set; }
     }
 
     public class ShaderGraphSampleTexture2DNodeSettingsData
@@ -499,6 +502,21 @@ namespace AIGD
 
         [Description("Default value for the In input slot when readable.")]
         public ShaderGraphVector4SlotValueData? Input { get; set; }
+    }
+
+    public class ShaderGraphInvertColorsNodeSettingsData
+    {
+        [Description("Whether the Red channel is inverted.")]
+        public bool? Red { get; set; }
+
+        [Description("Whether the Green channel is inverted.")]
+        public bool? Green { get; set; }
+
+        [Description("Whether the Blue channel is inverted.")]
+        public bool? Blue { get; set; }
+
+        [Description("Whether the Alpha channel is inverted, when Unity serializes it. Current Unity Shader Graph packages may leave this unavailable.")]
+        public bool? Alpha { get; set; }
     }
 
     public class ShaderGraphSlotDefinitionData

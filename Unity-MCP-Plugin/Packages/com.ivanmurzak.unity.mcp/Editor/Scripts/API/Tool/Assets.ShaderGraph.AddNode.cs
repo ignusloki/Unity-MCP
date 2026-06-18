@@ -32,7 +32,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         [AiSkillDescription("Add a safe allowlisted Shader Graph node, then re-import the graph and return the created node and diagnostics.")]
         [AiSkillBody("Add a safe allowlisted node to a '.shadergraph' asset.\n\n" +
             "Current ShaderGraph node support is intentionally explicit:\n" +
-            "- node types: `add`, `subtract`, `multiply`, `divide`, `lerp`, `oneMinus`, `split`, `combine`, `sampleTexture2D`, `tilingAndOffset`, `branch`, `viewDirection`, `viewVector`, `normalVector`, `position`, `object`, `transform`, `gradientNoise`, `simpleNoise`, `screenPosition`, `sceneDepth`, `sceneColor`, `comparison`, `normalFromHeight`, `blend`, `remap`, `swizzle`, `time`, `smoothstep`, `saturate`, `vector2`, `uv`, `sine`, `cosine`, `negate`\n" +
+            "- node types: `add`, `subtract`, `multiply`, `divide`, `lerp`, `oneMinus`, `fraction`, `split`, `combine`, `sampleTexture2D`, `tilingAndOffset`, `branch`, `viewDirection`, `viewVector`, `normalVector`, `position`, `object`, `transform`, `gradientNoise`, `simpleNoise`, `screenPosition`, `sceneDepth`, `sceneColor`, `comparison`, `normalFromHeight`, `blend`, `remap`, `swizzle`, `time`, `smoothstep`, `step`, `saturate`, `invertColors`, `vector2`, `uv`, `sine`, `cosine`, `negate`\n" +
             "- node creation only, no automatic edge wiring\n" +
             "- uses Unity's own Shader Graph graph APIs through reflection, then re-imports the asset\n\n" +
             "## Response shape\n\n" +

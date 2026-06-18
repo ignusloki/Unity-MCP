@@ -57,6 +57,14 @@ Future work:
 
 - Revisit connected texture-slot workflows only if real graph recreation trials show this is materially blocking.
 
+### Invert Colors Alpha Toggle
+
+`assets-shadergraph-update-node-settings` supports `Invert Colors` red, green, and blue channel toggles. The current Unity Shader Graph package exposes an `alphaChannel` inspector property, but the backing `InvertColorsNode.m_AlphaChannel` field is not serialized safely in the installed package source. MCP therefore rejects `invertColors.alpha` loudly instead of pretending the setting will persist.
+
+Future work:
+
+- Revisit `invertColors.alpha` only if a Unity package update marks the alpha backing field as serialized or a live trial proves a safe persisted path exists.
+
 ### Delete-Property Transaction Boundary
 
 `assets-shadergraph-delete-property` is still a file-level mutation rather than a full multi-operation transaction. The mutation is guarded before writing, restores the original graph source if write/import finalization fails, and returns a valid mutation response even if post-delete structure or graph diagnostics readback fails.

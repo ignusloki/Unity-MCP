@@ -62,6 +62,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `swizzle`: `mask`\n" +
             "- `vector2`: default `x` and `y` slot values\n" +
             "- `smoothstep`: default `edge1`, `edge2`, and `input` slot values\n" +
+            "- `invertColors`: `red`, `green`, and `blue` channel toggles; `alpha` is rejected because the current Unity Shader Graph package does not serialize it safely\n" +
             "- `sine`, `cosine`, `negate`: default `input` slot value\n\n" +
             "## Response shape\n\n" +
             "By default returns a slim diff: `Operation`, `NodeObjectId`, `NodeType`, `Node`, `ChangedFields`, and `GraphSummary`. " +
@@ -288,6 +289,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "UnityEditor.ShaderGraph.SmoothstepNode":
                     ApplySmoothstepNodeSettings(document.Bindings, nodeObject, node.Smoothstep, changedFields);
                     break;
+                case "UnityEditor.ShaderGraph.InvertColorsNode":
+                    ApplyInvertColorsNodeSettings(nodeObject, node.InvertColors, changedFields);
+                    break;
                 case "UnityEditor.ShaderGraph.SineNode":
                     ApplyUnaryVectorNodeSettings(document.Bindings, nodeObject, node.Sine, "Sine", "node.sine", changedFields);
                     break;
@@ -384,6 +388,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasSwizzleUpdates(node.Swizzle)
                || HasVector2NodeUpdates(node.Vector2)
                || HasSmoothstepUpdates(node.Smoothstep)
+               || HasInvertColorsUpdates(node.InvertColors)
                || HasUnaryVectorUpdates(node.Sine)
                || HasUnaryVectorUpdates(node.Cosine)
                || HasUnaryVectorUpdates(node.Negate);
@@ -418,6 +423,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasSwizzleUpdates(node.Swizzle)) count++;
             if (HasVector2NodeUpdates(node.Vector2)) count++;
             if (HasSmoothstepUpdates(node.Smoothstep)) count++;
+            if (HasInvertColorsUpdates(node.InvertColors)) count++;
             if (HasUnaryVectorUpdates(node.Sine)) count++;
             if (HasUnaryVectorUpdates(node.Cosine)) count++;
             if (HasUnaryVectorUpdates(node.Negate)) count++;
@@ -536,6 +542,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                && (HasVector4Updates(smoothstep.Edge1)
                    || HasVector4Updates(smoothstep.Edge2)
                    || HasVector4Updates(smoothstep.Input));
+
+        static bool HasInvertColorsUpdates(ShaderGraphInvertColorsNodeSettingsUpdateInput? invertColors)
+            => invertColors != null
+               && (invertColors.Red.HasValue
+                   || invertColors.Green.HasValue
+                   || invertColors.Blue.HasValue
+                   || invertColors.Alpha.HasValue);
 
         static bool HasUnaryVectorUpdates(ShaderGraphUnaryVectorNodeSettingsUpdateInput? unary)
             => unary != null && HasVector4Updates(unary.Input);
@@ -1155,6 +1168,25 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             SetSlotVector4(bindings, nodeObject, "Edge1", smoothstep.Edge1, "node.smoothstep.edge1", changedFields);
             SetSlotVector4(bindings, nodeObject, "Edge2", smoothstep.Edge2, "node.smoothstep.edge2", changedFields);
             SetSlotVector4(bindings, nodeObject, "In", smoothstep.Input, "node.smoothstep.input", changedFields);
+        }
+
+        static void ApplyInvertColorsNodeSettings(
+            object nodeObject,
+            ShaderGraphInvertColorsNodeSettingsUpdateInput? invertColors,
+            List<string> changedFields)
+        {
+            if (invertColors == null)
+                throw new InvalidOperationException("Invert Colors nodes require an `invertColors` settings payload.");
+
+            if (invertColors.Alpha.HasValue)
+            {
+                throw new ArgumentException(
+                    "invertColors.alpha is not safely writable in the current Unity Shader Graph package because UnityEditor.ShaderGraph.InvertColorsNode.m_AlphaChannel is not serialized. Red, green, and blue channel toggles are supported.");
+            }
+
+            SetBoolField(nodeObject, "m_RedChannel", invertColors.Red, "node.invertColors.red", changedFields);
+            SetBoolField(nodeObject, "m_GreenChannel", invertColors.Green, "node.invertColors.green", changedFields);
+            SetBoolField(nodeObject, "m_BlueChannel", invertColors.Blue, "node.invertColors.blue", changedFields);
         }
 
         static void ApplyUnaryVectorNodeSettings(
@@ -1822,6 +1854,30 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 return;
 
             property.SetValue(target, value);
+            AddChangedField(changedFields, changedFieldName);
+        }
+
+        static void SetBoolField(
+            object target,
+            string fieldName,
+            bool? value,
+            string changedFieldName,
+            List<string> changedFields)
+        {
+            if (!value.HasValue)
+                return;
+
+            var field = ResolveNodeInstanceField(target.GetType(), fieldName);
+            if (field.FieldType != typeof(bool))
+                throw new InvalidOperationException($"Field '{target.GetType().FullName}.{fieldName}' is not a bool.");
+
+            var currentValue = field.GetValue(target) is bool boolValue
+                ? boolValue
+                : (bool?)null;
+            if (currentValue == value.Value)
+                return;
+
+            field.SetValue(target, value.Value);
             AddChangedField(changedFields, changedFieldName);
         }
 

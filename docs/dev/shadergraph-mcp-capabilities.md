@@ -224,6 +224,7 @@ Node lifecycle mutation results include normalized summary fields:
     - `divide`
     - `lerp`
     - `oneMinus`
+    - `fraction` (`Fraction`)
     - `split`
     - `combine`
     - `sampleTexture2D`
@@ -248,7 +249,9 @@ Node lifecycle mutation results include normalized summary fields:
     - `swizzle` (`Swizzle`)
     - `time` (`Time`)
     - `smoothstep` (`Smoothstep`)
+    - `step` (`Step`)
     - `saturate` (`Saturate`)
+    - `invertColors` (`Invert Colors`)
     - `vector2` (`Vector 2`)
     - `sine` (`Sine`)
     - `cosine` (`Cosine`)
@@ -404,6 +407,11 @@ Node lifecycle mutation results include normalized summary fields:
     - `input.y`
     - `input.z`
     - `input.w`
+  - Supported `Invert Colors` fields:
+    - `red`
+    - `green`
+    - `blue`
+  - `Invert Colors.alpha` is intentionally rejected in the current Unity Shader Graph package because `UnityEditor.ShaderGraph.InvertColorsNode.m_AlphaChannel` is not serialized safely; readback reports it as unavailable.
   - Supported `Sine`, `Cosine`, and `Negate` fields:
     - `input.x`
     - `input.y`
@@ -500,6 +508,7 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
   - `Validation_MinionsArtWaterLiteralDefaults.shadergraph`: editor test covers `Multiply.B = 0.1` literal default readback through Unity's matrix-backed dynamic value slot and `Remap.In Min Max = (0, 1)` typed update/readback, with final `ShaderResolved=true` and `HasErrors=false`.
 - Epic 7E flame-trial node-gap validation through the already-open project-scoped MCP/editor session passed on 2026-06-17:
   - Throwaway `Codex_FlameTrial_NodeProbe.shadergraph` under `Assets/Unity-MCP-Test/Trials/Flames/`: created `uv` with default channel `UV0` and `simpleNoise` with default `Scale=500`, cycled `uv.channel` through `UV1` and `UV3`, applied `simpleNoise.scale=250`, wired `UV.Out -> Add.A` and `Add.Out -> Simple Noise.UV`, and verified loud failure on `uv.channel=UV9` and on an empty `simpleNoise` payload. Final state reported 13 nodes, 6 edges, `ShaderResolved=true`, `HasErrors=false`; the asset was deleted after validation.
+- Epic 7F dissolve-trial node-gap support adds `fraction`, `step`, and `invertColors`, plus typed readback/update for the serialized `Invert Colors` red/green/blue channel toggles. `invertColors.alpha` is rejected loudly because Unity does not serialize that field safely in the current package. Focused editor tests cover node lifecycle, red-only edge-glow settings, alpha rejection, and a minimal `Time -> Fraction -> Add -> Step -> Invert Colors -> Fragment Emission` path.
 - A Unity batch-mode editor test run was intentionally not performed while the project was already open in a Unity Editor instance.
 - A targeted MCP `tests-run` attempt for the new editor test was blocked by an unsaved open scene; Codex did not save editor scene state automatically.
 - A targeted MCP `tests-run` attempt for `ShaderGraph_WaterCorePath_CanBeWiredEndToEnd` did not discover the package editor test from the local validation project.

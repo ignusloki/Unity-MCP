@@ -845,6 +845,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.SmoothstepNode", StringComparison.Ordinal))
                 node.Smoothstep = new ShaderGraphSmoothstepNodeSettingsData();
 
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.InvertColorsNode", StringComparison.Ordinal))
+                node.InvertColors = ParseInvertColorsNodeSettings(root);
+
             return node;
         }
 
@@ -1003,6 +1006,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 Mask = GetString(root, "_maskInput"),
                 NormalizedMask = GetString(root, "convertedMask")
+            };
+        }
+
+        static ShaderGraphInvertColorsNodeSettingsData ParseInvertColorsNodeSettings(JsonElement root)
+        {
+            return new ShaderGraphInvertColorsNodeSettingsData
+            {
+                Red = GetBool(root, "m_RedChannel"),
+                Green = GetBool(root, "m_GreenChannel"),
+                Blue = GetBool(root, "m_BlueChannel"),
+                Alpha = GetBool(root, "m_AlphaChannel")
             };
         }
 

@@ -2039,6 +2039,138 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_AddNode_AddsDissolveTrialNodes()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode_DissolveTrial.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var nodesToCreate = new[]
+                {
+                    new
+                    {
+                        ApiName = "fraction",
+                        TypeName = "UnityEditor.ShaderGraph.FractionNode",
+                        DisplayName = "Fraction",
+                        SlotNames = new[] { "In", "Out" }
+                    },
+                    new
+                    {
+                        ApiName = "step",
+                        TypeName = "UnityEditor.ShaderGraph.StepNode",
+                        DisplayName = "Step",
+                        SlotNames = new[] { "Edge", "In", "Out" }
+                    },
+                    new
+                    {
+                        ApiName = "invertColors",
+                        TypeName = "UnityEditor.ShaderGraph.InvertColorsNode",
+                        DisplayName = "Invert Colors",
+                        SlotNames = new[] { "In", "Out" }
+                    }
+                };
+
+                ShaderGraphNodeMutationResultData? invertColorsResult = null;
+                for (var i = 0; i < nodesToCreate.Length; i++)
+                {
+                    var nodeToCreate = nodesToCreate[i];
+                    var result = tool.AddNode(
+                        new AssetObjectRef(shader),
+                        new ShaderGraphAddNodeInput
+                        {
+                            NodeType = nodeToCreate.ApiName,
+                            PositionX = -1020f + i * 220f,
+                            PositionY = 420f + i * 40f
+                        },
+                        includeGraph: i == nodesToCreate.Length - 1,
+                        includeMessages: i == nodesToCreate.Length - 1,
+                        includeProperties: i == nodesToCreate.Length - 1);
+
+                    Assert.AreEqual("add", result.Operation);
+                    Assert.IsTrue(result.ChangedFields!.Contains("node.added"));
+                    Assert.IsNotNull(result.Node);
+                    Assert.AreEqual(nodeToCreate.TypeName, result.Node!.Type);
+                    Assert.AreEqual(nodeToCreate.DisplayName, result.Node.Name);
+                    Assert.IsNotEmpty(result.Node.Slots, $"Expected '{nodeToCreate.DisplayName}' to expose slots.");
+                    foreach (var slotName in nodeToCreate.SlotNames)
+                    {
+                        Assert.IsTrue(result.Node.Slots!.Any(slot => slot.DisplayName == slotName),
+                            $"Expected '{nodeToCreate.DisplayName}' to expose slot '{slotName}'.");
+                    }
+
+                    if (nodeToCreate.ApiName == "invertColors")
+                        invertColorsResult = result;
+
+                    if (i == nodesToCreate.Length - 1)
+                    {
+                        Assert.IsNotNull(result.Graph);
+                        Assert.IsTrue(result.Graph!.ShaderResolved, "Adding dissolve-trial nodes should keep the Shader Graph import valid.");
+                        Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                            "Adding dissolve-trial nodes should not introduce import errors.");
+                    }
+                }
+
+                Assert.IsNotNull(invertColorsResult, "Expected Invert Colors to be created for lifecycle validation.");
+                var duplicateResult = tool.DuplicateNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDuplicateNodeInput
+                    {
+                        NodeObjectId = invertColorsResult!.Node!.ObjectId,
+                        PositionOffsetX = 64f,
+                        PositionOffsetY = 48f
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(duplicateResult.Node);
+                Assert.AreEqual("UnityEditor.ShaderGraph.InvertColorsNode", duplicateResult.Node!.Type);
+                Assert.AreNotEqual(invertColorsResult.Node.ObjectId, duplicateResult.Node.ObjectId);
+
+                var moveResult = tool.UpdateNodePosition(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodePositionInput
+                    {
+                        NodeObjectId = duplicateResult.Node.ObjectId,
+                        PositionX = -340f,
+                        PositionY = 520f
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual(-340f, moveResult.Node!.PositionX);
+                Assert.AreEqual(520f, moveResult.Node.PositionY);
+
+                var deleteResult = tool.DeleteNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDeleteNodeInput
+                    {
+                        NodeObjectId = duplicateResult.Node.ObjectId
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("delete", deleteResult.Operation);
+                Assert.IsFalse(deleteResult.Structure!.Nodes!.Any(node => node.ObjectId == duplicateResult.Node.ObjectId));
+                Assert.IsTrue(deleteResult.Graph!.ShaderResolved, "Deleting a duplicated dissolve-trial node should keep the Shader Graph import valid.");
+                Assert.IsFalse(deleteResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Deleting a duplicated dissolve-trial node should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_AddNode_AddsMinionsArtWaterBehaviorNodes()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode_MinionsArtWaterBehavior.shadergraph");
@@ -3149,6 +3281,68 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_UpdateNodeSettings_UpdatesDissolveTrialSettings()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_DissolveTrial.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var invertColors = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "invertColors", PositionX = -820f, PositionY = 260f });
+
+                var result = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = invertColors.Node!.ObjectId,
+                        InvertColors = new ShaderGraphInvertColorsNodeSettingsUpdateInput
+                        {
+                            Red = true,
+                            Green = false,
+                            Blue = false
+                        }
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsTrue(result.ChangedFields!.Contains("node.invertColors.red"));
+                Assert.IsNotNull(result.Node!.InvertColors);
+                Assert.IsTrue(result.Node.InvertColors!.Red ?? false, "Expected Red channel inversion to be enabled.");
+                Assert.IsFalse(result.Node.InvertColors.Green ?? true, "Expected Green channel inversion to be disabled.");
+                Assert.IsFalse(result.Node.InvertColors.Blue ?? true, "Expected Blue channel inversion to be disabled.");
+                Assert.IsNull(result.Node.InvertColors.Alpha,
+                    "Unity's current InvertColorsNode does not serialize m_AlphaChannel, so alpha readback should stay unavailable.");
+
+                var alphaException = Assert.Throws<ArgumentException>(() => tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = invertColors.Node.ObjectId,
+                        InvertColors = new ShaderGraphInvertColorsNodeSettingsUpdateInput
+                        {
+                            Alpha = true
+                        }
+                    }));
+                StringAssert.Contains("invertColors.alpha is not safely writable", alphaException!.Message);
+
+                Assert.IsNotNull(result.Graph);
+                Assert.IsTrue(result.Graph!.ShaderResolved, "Updating dissolve-trial node settings should keep the Shader Graph import valid.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Updating dissolve-trial node settings should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_UpdateNodeSettings_UpdatesMinionsArtWaterBehaviorSettings()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_MinionsArtWaterBehavior.shadergraph");
@@ -3692,6 +3886,104 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsTrue(finalConnectResult.Graph!.ShaderResolved, "Water-core validation graph should resolve to a compiled Shader.");
                 Assert.IsFalse(finalConnectResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
                     "Water-core validation graph should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_DissolveTrialPath_CanCreateThresholdAndEdgeGlowChain()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_DissolveTrialPath.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var time = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "time", PositionX = -1220f, PositionY = 80f });
+                var fraction = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "fraction", PositionX = -980f, PositionY = 80f });
+                var add = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "add", PositionX = -740f, PositionY = 80f });
+                var step = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "step", PositionX = -500f, PositionY = 80f });
+                var invertColors = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "invertColors", PositionX = -260f, PositionY = 80f });
+
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = add.Node!.ObjectId,
+                        Add = new ShaderGraphBinaryVectorNodeSettingsUpdateInput
+                        {
+                            B = new ShaderGraphVector4ValueUpdateInput { X = 0.025f, Y = 0.025f, Z = 0.025f, W = 0.025f }
+                        }
+                    });
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = invertColors.Node!.ObjectId,
+                        InvertColors = new ShaderGraphInvertColorsNodeSettingsUpdateInput
+                        {
+                            Red = true,
+                            Green = false,
+                            Blue = false
+                        }
+                    });
+
+                var structureBeforeWiring = tool.GetStructure(new AssetObjectRef(shader));
+                var nodesById = structureBeforeWiring.Nodes!.ToDictionary(node => node.ObjectId);
+                var timeNode = nodesById[time.Node!.ObjectId];
+                var fractionNode = nodesById[fraction.Node!.ObjectId];
+                var addNode = nodesById[add.Node.ObjectId];
+                var stepNode = nodesById[step.Node!.ObjectId];
+                var invertColorsNode = nodesById[invertColors.Node.ObjectId];
+                var emissionBlock = structureBeforeWiring.Nodes!
+                    .First(node => node.SerializedDescriptor == "SurfaceDescription.Emission");
+
+                ConnectSlots(tool, shader, timeNode, "Time", fractionNode, "In");
+                ConnectSlots(tool, shader, fractionNode, "Out", addNode, "A");
+                ConnectSlots(tool, shader, addNode, "Out", stepNode, "Edge");
+                ConnectSlots(tool, shader, stepNode, "Out", invertColorsNode, "In");
+                var finalConnectResult = ConnectSlots(
+                    tool,
+                    shader,
+                    invertColorsNode,
+                    "Out",
+                    emissionBlock,
+                    "Emission",
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true,
+                    replaceExistingInputConnection: true);
+
+                Assert.IsTrue(finalConnectResult.Structure!.Edges!.Any(edge =>
+                    edge.OutputNodeId == timeNode.ObjectId
+                    && edge.InputNodeId == fractionNode.ObjectId),
+                    "Expected Time.Time to feed Fraction.In.");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
+                    edge.OutputNodeId == fractionNode.ObjectId
+                    && edge.InputNodeId == addNode.ObjectId),
+                    "Expected Fraction.Out to feed Add.A.");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
+                    edge.OutputNodeId == addNode.ObjectId
+                    && edge.InputNodeId == stepNode.ObjectId),
+                    "Expected Add.Out to feed Step.Edge.");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
+                    edge.OutputNodeId == stepNode.ObjectId
+                    && edge.InputNodeId == invertColorsNode.ObjectId),
+                    "Expected Step.Out to feed Invert Colors.In.");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
+                    edge.OutputNodeId == invertColorsNode.ObjectId
+                    && edge.InputNodeId == emissionBlock.ObjectId),
+                    "Expected Invert Colors.Out to feed Fragment Emission.");
+
+                Assert.IsNotNull(finalConnectResult.Graph);
+                Assert.IsTrue(finalConnectResult.Graph!.ShaderResolved, "The dissolve-trial validation graph should resolve to a compiled Shader.");
+                Assert.IsFalse(finalConnectResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "The dissolve-trial validation graph should not introduce import errors.");
             }
             finally
             {

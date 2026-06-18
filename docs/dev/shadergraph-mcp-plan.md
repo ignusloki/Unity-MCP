@@ -400,6 +400,44 @@ Validation evidence:
 
 - `Codex_FlameTrial_NodeProbe.shadergraph`: throwaway live MCP probe under `Assets/Unity-MCP-Test/Trials/Flames/` created `uv` (default `UV0`) and `simpleNoise` (default Scale slot 500), cycled `uv.channel` through `UV1` and `UV3`, set `simpleNoise.scale=250` (slot Value=250 / Default=500), wired `UV.Out -> Add.A` and `Add.Out -> Simple Noise.UV`, and confirmed loud failure on invalid `uv.channel=UV9` (`Supported values: UV0, UV1, UV2, UV3`) and empty `simpleNoise` payload (`At least one supported node settings field must be provided`). Final state reported 13 nodes, 6 edges, `ShaderResolved=true`, `HasErrors=false`. The throwaway asset was deleted after validation.
 
+## Epic 7F: Dissolve Trial Node Gap
+
+Status:
+
+- Implemented in code on `custom/shadergraph-mcp`.
+- Compile sanity check passed in the local Unity 6 validation project on 2026-06-18 with existing Unity/API warnings and 0 errors.
+- Focused Unity Editor validation through the existing project-scoped MCP session passed on 2026-06-18.
+
+Purpose:
+
+- Close the concrete node-coverage gap reported by the dissolve shader trial in `Assets/Unity-MCP-Test/Trials/Dissolve/TRIAL_REPORT.md`.
+- Promote `Fraction`, `Step`, and `Invert Colors` out of deferred status because they are behavior-critical for a looping hard-threshold dissolve mask and edge-glow path.
+
+Required node families:
+
+- `fraction` (`Fraction`, `UnityEditor.ShaderGraph.FractionNode`)
+- `step` (`Step`, `UnityEditor.ShaderGraph.StepNode`)
+- `invertColors` (`Invert Colors`, `UnityEditor.ShaderGraph.InvertColorsNode`)
+
+Implementation plan:
+
+- Slice 7F.1: add `fraction`, `step`, and `invertColors` to the `assets-shadergraph-add-node` allowlist and public input descriptions. Implemented.
+- Slice 7F.2: expose structure readback for the serialized `Invert Colors` channel toggles (`red`, `green`, `blue`); `alpha` readback is unavailable because Unity does not serialize `m_AlphaChannel` safely in the current package. `Fraction` and `Step` remain slot-only nodes with generic slot readback. Implemented.
+- Slice 7F.3: add typed `assets-shadergraph-update-node-settings` support for `invertColors.red`, `invertColors.green`, and `invertColors.blue`; reject `invertColors.alpha` loudly. Implemented.
+- Slice 7F.4: add editor tests for add, inspect, duplicate, move, delete, typed `Invert Colors` update/readback, loud alpha rejection, and a minimal dissolve-style path `Time -> Fraction -> Add -> Step -> Invert Colors -> Fragment Emission`. Implemented in editor tests.
+
+Validation requirements:
+
+- `dotnet build Assembly-CSharp.csproj -v minimal` must pass with 0 errors.
+- Focused editor tests must validate `Validation_AddNode_DissolveTrial.shadergraph`, `Validation_UpdateNodeSettings_DissolveTrial.shadergraph`, and `Validation_DissolveTrialPath.shadergraph`.
+- Record the confirmed `Invert Colors.alpha` serialization limitation in `futureDebt.MD` and do not claim full four-channel parity until Unity exposes a safely persisted field.
+
+Validation evidence:
+
+- `Validation_AddNode_DissolveTrial.shadergraph`: editor test created `Fraction`, `Step`, and `Invert Colors`, verified expected slots, and exercised duplicate, move, and delete on `Invert Colors`.
+- `Validation_UpdateNodeSettings_DissolveTrial.shadergraph`: editor test set `Invert Colors.red=true`, confirmed green/blue disabled, confirmed alpha readback is unavailable in the current Unity package, and verified `invertColors.alpha` is rejected loudly.
+- `Validation_DissolveTrialPath.shadergraph`: editor test wired `Time.Time -> Fraction.In -> Add.A -> Step.Edge -> Invert Colors.In -> Fragment Emission`, with final `ShaderResolved=true` and no ShaderGraph diagnostic errors.
+
 ## Epic 8A: Slim Default Mutation Responses
 
 Status:
