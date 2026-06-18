@@ -43,7 +43,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `branch`: default `predicate`, `trueValue`, and `falseValue` slot values\n" +
             "- `split`: default `input` slot value\n" +
             "- `combine`: default `r`, `g`, `b`, `a` slot values\n" +
-            "- `add`, `subtract`, `divide`: default `a` and `b` slot values\n" +
+            "- `add`, `subtract`, `divide`, `power`: default `a` and `b` slot values\n" +
             "- `lerp`: default `a`, `b`, and `t` slot values\n" +
             "- `oneMinus`: default `input` slot value\n" +
             "- `multiply`: `multiplyType`, default `a` and `b` slot values\n" +
@@ -229,6 +229,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "UnityEditor.ShaderGraph.DivideNode":
                     ApplyBinaryVectorNodeSettings(document.Bindings, nodeObject, node.Divide, "node.divide", changedFields);
                     break;
+                case "UnityEditor.ShaderGraph.PowerNode":
+                    ApplyBinaryVectorNodeSettings(document.Bindings, nodeObject, node.Power, "node.power", changedFields);
+                    break;
                 case "UnityEditor.ShaderGraph.LerpNode":
                     ApplyLerpNodeSettings(document.Bindings, nodeObject, node.Lerp, changedFields);
                     break;
@@ -368,6 +371,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasBinaryVectorUpdates(node.Add)
                || HasBinaryVectorUpdates(node.Subtract)
                || HasBinaryVectorUpdates(node.Divide)
+               || HasBinaryVectorUpdates(node.Power)
                || HasLerpUpdates(node.Lerp)
                || HasOneMinusUpdates(node.OneMinus)
                || HasMultiplyUpdates(node.Multiply)
@@ -403,6 +407,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasBinaryVectorUpdates(node.Add)) count++;
             if (HasBinaryVectorUpdates(node.Subtract)) count++;
             if (HasBinaryVectorUpdates(node.Divide)) count++;
+            if (HasBinaryVectorUpdates(node.Power)) count++;
             if (HasLerpUpdates(node.Lerp)) count++;
             if (HasOneMinusUpdates(node.OneMinus)) count++;
             if (HasMultiplyUpdates(node.Multiply)) count++;

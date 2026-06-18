@@ -104,6 +104,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {
+                    ApiName = "power",
+                    DisplayName = "Power",
+                    TypeName = "UnityEditor.ShaderGraph.PowerNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 96f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
                     ApiName = "lerp",
                     DisplayName = "Lerp",
                     TypeName = "UnityEditor.ShaderGraph.LerpNode",

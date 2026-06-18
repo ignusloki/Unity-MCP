@@ -46,7 +46,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, invertColors, vector2, uv, sine, cosine, negate.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, invertColors, vector2, uv, sine, cosine, negate.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]
@@ -111,6 +111,9 @@ namespace AIGD
 
         [Description("Structured settings updates for a Divide node.")]
         public ShaderGraphBinaryVectorNodeSettingsUpdateInput? Divide { get; set; }
+
+        [Description("Structured settings updates for a Power node.")]
+        public ShaderGraphBinaryVectorNodeSettingsUpdateInput? Power { get; set; }
 
         [Description("Structured settings updates for a Lerp node.")]
         public ShaderGraphLerpNodeSettingsUpdateInput? Lerp { get; set; }

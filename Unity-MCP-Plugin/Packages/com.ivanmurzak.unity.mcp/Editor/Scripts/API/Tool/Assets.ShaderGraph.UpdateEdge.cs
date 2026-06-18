@@ -99,6 +99,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports exact slot-type matches\n" +
             "- supports compatible UV/vector2 slot pairs\n" +
             "- supports scalar outputs into Shader Graph vector2 inputs such as `Float Property -> Tiling And Offset.Tiling`\n" +
+            "- supports scalar `Vector1MaterialSlot` outputs broadcasting into Shader Graph UV inputs such as `Time.Time -> Simple Noise.UV`\n" +
             "- supports vector2-resolved `DynamicVectorMaterialSlot` outputs into Shader Graph UV inputs such as `Add.Out -> Tiling And Offset.UV`\n" +
             "- supports Screen Position vector4 output and dynamic vector outputs into Shader Graph screen-position UV inputs such as Scene Color UV and Scene Depth UV\n" +
             "- supports compatible Vector3/Position slot pairs\n" +
@@ -769,6 +770,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             if (string.Equals(outputType, "UnityEditor.ShaderGraph.Vector1MaterialSlot", StringComparison.Ordinal)
                 && Vector2ExpansionInputSlotTypes.Contains(inputType))
+                return;
+
+            // Scalar broadcast into UV inputs: Time.Time -> Simple Noise.UV uses (value, value) per
+            // Unity's documented scalar-to-vector promotion. Validated against the DistortionTV trial.
+            if (string.Equals(outputType, "UnityEditor.ShaderGraph.Vector1MaterialSlot", StringComparison.Ordinal)
+                && string.Equals(inputType, "UnityEditor.ShaderGraph.UVMaterialSlot", StringComparison.Ordinal))
                 return;
 
             if (IsDynamicVectorSlotType(outputType) && Vector2LikeSlotTypes.Contains(inputType))

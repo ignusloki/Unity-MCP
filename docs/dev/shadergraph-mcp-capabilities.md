@@ -222,6 +222,7 @@ Node lifecycle mutation results include normalized summary fields:
     - `subtract`
     - `multiply`
     - `divide`
+    - `power`
     - `lerp`
     - `oneMinus`
     - `fraction` (`Fraction`)
@@ -304,7 +305,7 @@ Node lifecycle mutation results include normalized summary fields:
     - `g`
     - `b`
     - `a`
-  - Supported `Add`, `Subtract`, and `Divide` fields:
+  - Supported `Add`, `Subtract`, `Divide`, and `Power` fields:
     - `a.x`
     - `a.y`
     - `a.z`
@@ -430,6 +431,7 @@ Node lifecycle mutation results include normalized summary fields:
   - Supports safe explicit Vector3-to-UV authoring through ShaderGraph narrowing nodes: `Vector3 -> Split -> Combine.RG -> UV`.
   - Direct `Vector3MaterialSlot -> UVMaterialSlot` edges remain intentionally rejected until Unity's serialized graph model is validated to allow that conversion safely without an explicit node.
   - Supports direct `Vector4MaterialSlot -> UVMaterialSlot` edges via Unity's documented `.xy` truncation. Validated by the Flame reference shader trial against the Unity 6 / URP 17 baseline; lets agents wire `Sample Texture 2D.RGBA -> Sample Texture 2D.UV` without inserting a Split + Combine.RG narrowing pair.
+  - Supports scalar `Vector1MaterialSlot -> UVMaterialSlot` edges via Unity's documented scalar-to-vector broadcast (e.g. `Time.Time -> Simple Noise.UV` resolves to `(t, t)`). Validated by the DistortionTV trial.
   - Returns `removedEdge` when an incoming edge is replaced.
 - `assets-shadergraph-reconnect-edge`
   - Reconnects an exact existing edge to a new output endpoint, input endpoint, or both.

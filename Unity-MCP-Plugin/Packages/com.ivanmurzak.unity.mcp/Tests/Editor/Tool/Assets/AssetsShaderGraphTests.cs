@@ -6855,6 +6855,109 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_AddNode_AddsPowerNodeWithBinaryVectorSettings()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode_Power.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var power = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "power", PositionX = -400f, PositionY = 0f },
+                    includeStructure: true);
+
+                Assert.AreEqual("add", power.Operation);
+                Assert.AreEqual("UnityEditor.ShaderGraph.PowerNode", power.Node!.Type);
+                Assert.AreEqual("Power", power.Node.Name);
+                Assert.IsTrue(power.Node.Slots!.Any(s => s.DisplayName == "A"));
+                Assert.IsTrue(power.Node.Slots.Any(s => s.DisplayName == "B"));
+                Assert.IsTrue(power.Node.Slots.Any(s => s.DisplayName == "Out"));
+
+                var settingsResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = power.Node.ObjectId,
+                        Power = new ShaderGraphBinaryVectorNodeSettingsUpdateInput
+                        {
+                            A = new ShaderGraphVector4ValueUpdateInput { X = 0.25f, Y = 0.25f, Z = 0.25f, W = 0.25f },
+                            B = new ShaderGraphVector4ValueUpdateInput { X = 3f, Y = 3f, Z = 3f, W = 3f }
+                        }
+                    },
+                    includeGraph: true);
+
+                Assert.AreEqual("updateSettings", settingsResult.Operation);
+                Assert.IsTrue(settingsResult.ChangedFields!.Contains("node.power.a.x"));
+                Assert.IsTrue(settingsResult.ChangedFields.Contains("node.power.b.x"));
+                AssertSlotVector4(settingsResult.Node!, "A", 0.25f, 0.25f, 0.25f, 0.25f);
+                AssertSlotVector4(settingsResult.Node!, "B", 3f, 3f, 3f, 3f);
+                Assert.IsTrue(settingsResult.Graph!.ShaderResolved, "Power node settings should keep the Shader Graph valid.");
+                Assert.IsFalse(settingsResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Power node settings should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ConnectEdge_AllowsVector1ScalarBroadcastIntoUvInput()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ConnectEdge_Vector1ToUv.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var time = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "time", PositionX = -900f, PositionY = -60f },
+                    includeStructure: true);
+                var simpleNoise = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "simpleNoise", PositionX = -500f, PositionY = -60f },
+                    includeStructure: true);
+
+                var timeOut = time.Node!.Slots!.First(s => s.DisplayName == "Time");
+                var noiseUv = simpleNoise.Node!.Slots!.First(s => s.DisplayName == "UV");
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector1MaterialSlot", timeOut.Type,
+                    "Time.Time should be a Vector1MaterialSlot scalar output.");
+                Assert.AreEqual("UnityEditor.ShaderGraph.UVMaterialSlot", noiseUv.Type,
+                    "Simple Noise UV should be a UVMaterialSlot input.");
+
+                var connect = tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = time.Node.ObjectId,
+                        OutputSlotObjectId = timeOut.ObjectId,
+                        InputNodeObjectId = simpleNoise.Node.ObjectId,
+                        InputSlotObjectId = noiseUv.ObjectId
+                    },
+                    includeGraph: true);
+
+                Assert.IsNotNull(connect.Edge, "Edge connection should return a populated Edge diff.");
+                Assert.AreEqual(time.Node.ObjectId, connect.Edge!.OutputNodeId);
+                Assert.AreEqual(simpleNoise.Node.ObjectId, connect.Edge.InputNodeId);
+                Assert.IsTrue(connect.GraphSummary!.ShaderResolved,
+                    "Scalar -> UV broadcast should keep the Shader Graph valid.");
+                Assert.IsFalse(connect.GraphSummary.HasErrors,
+                    "Scalar -> UV broadcast should not introduce import errors.");
+                Assert.IsFalse(connect.Graph!.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Scalar -> UV broadcast should not raise compile-time errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_ConnectEdge_AllowsVector4OutputIntoUvInput()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_ConnectEdge_Vector4ToUv.shadergraph");
