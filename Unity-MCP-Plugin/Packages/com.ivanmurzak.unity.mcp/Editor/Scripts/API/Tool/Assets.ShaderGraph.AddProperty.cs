@@ -39,20 +39,29 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `propertyType = texture2D`\n" +
             "- `propertyType = vector2`, `vector3`, or `vector4`\n" +
             "- `propertyType = boolean`\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Operation`, `PropertyObjectId`, `PropertyReferenceName`, `PropertyKind`, `Property`, `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n" +
             "- `property` — creation payload for the new property.\n" +
-            "- `includeMessages` — include shader compiler messages in returned graph data.\n" +
-            "- `includeProperties` — include compiled shader properties in returned graph data.\n\n" +
+            "- `includeStructure` — include the full read-only Structure block in the response. Default: false.\n" +
+            "- `includeGraph` — include the full post-import Graph block in the response. Default: false.\n" +
+            "- `includeMessages` — include shader compiler messages in returned graph data (only meaningful when includeGraph is true).\n" +
+            "- `includeProperties` — include compiled shader properties in returned graph data (only meaningful when includeGraph is true).\n\n" +
             "## Behavior\n\n" +
             "Creates a new blackboard property, updates the serialized property lists and category placement, re-imports the graph, and returns the created property snapshot plus post-import diagnostics.")]
         [Description("Add a new Shader Graph blackboard property and re-import the graph.")]
         public ShaderGraphPropertyMutationResultData AddProperty(
             AssetObjectRef assetRef,
             ShaderGraphAddPropertyInput property,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -67,6 +76,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => AddShaderGraphProperty(
                 assetRef,
                 property,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -74,6 +85,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static ShaderGraphPropertyMutationResultData AddShaderGraphProperty(
             AssetObjectRef assetRef,
             ShaderGraphAddPropertyInput property,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -149,12 +162,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 PropertyKind = createdProperty?.PropertyKind,
                 ChangedFields = new List<string> { "property.added" },
                 Property = createdProperty,
-                Structure = structure,
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? structure : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
 

@@ -214,7 +214,10 @@ namespace AIGD
         [Description("Settings snapshot after the mutation was applied.")]
         public ShaderGraphSettingsData? Settings { get; set; }
 
-        [Description("Post-import Shader Graph summary and diagnostics.")]
+        [Description("Compact post-import summary (always populated). Reports ShaderResolved, HasErrors, NodeCount, EdgeCount, plus filtered error/warning diagnostics.")]
+        public ShaderGraphSummaryData? GraphSummary { get; set; }
+
+        [Description("Post-import Shader Graph summary and diagnostics. Populated only when the request opts in with includeGraph=true. Use assets-shadergraph-get-data for the standalone read.")]
         public ShaderGraphData? Graph { get; set; }
 
         [Description("List of settings fields that actually changed.")]

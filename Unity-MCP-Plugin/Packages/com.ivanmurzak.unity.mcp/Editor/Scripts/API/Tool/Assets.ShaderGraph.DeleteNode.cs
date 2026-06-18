@@ -36,19 +36,28 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- uses Unity's own Shader Graph node-removal flow through reflection\n" +
             "- automatically removes connected edges as part of the graph mutation\n" +
             "- respects Unity's own `canDeleteNode` restrictions\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Operation`, `NodeObjectId`, `NodeType`, `Node` (the snapshot before removal), `ChangedFields`, `RemovedEdgeCount`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block after delete, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n" +
             "- `node` — serialized node id to delete.\n" +
-            "- `includeMessages` — include shader compiler messages in returned graph data.\n" +
-            "- `includeProperties` — include compiled shader properties in returned graph data.\n\n" +
+            "- `includeStructure` — include the full read-only Structure block in the response. Default: false.\n" +
+            "- `includeGraph` — include the full post-import Graph block in the response. Default: false.\n" +
+            "- `includeMessages` — include shader compiler messages in returned graph data (only meaningful when includeGraph is true).\n" +
+            "- `includeProperties` — include compiled shader properties in returned graph data (only meaningful when includeGraph is true).\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect the target node id and current graph wiring.")]
         [Description("Delete an existing Shader Graph node and re-import the graph.")]
         public ShaderGraphNodeMutationResultData DeleteNode(
             AssetObjectRef assetRef,
             ShaderGraphDeleteNodeInput node,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -63,6 +72,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => DeleteShaderGraphNode(
                 assetRef,
                 node,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -70,6 +81,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static ShaderGraphNodeMutationResultData DeleteShaderGraphNode(
             AssetObjectRef assetRef,
             ShaderGraphDeleteNodeInput node,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -125,12 +138,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 ChangedFields = changedFields,
                 Node = deletedNode,
                 RemovedEdgeCount = removedEdgeCount,
-                Structure = structureAfterDelete,
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? structureAfterDelete : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
     }

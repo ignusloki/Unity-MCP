@@ -42,17 +42,23 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "  - `universalTarget.additionalMotionVectors` = `none` | `timeBased` | `custom`\n" +
             "  - `universalTarget.allowMaterialOverride`, `alphaClip`, `castShadows`, `receiveShadows`, `disableTint`, `alembicMotionVectors`, `supportsLodCrossFade`, `supportVfx`\n" +
             "  - `universalTarget.customEditorGui` string value, or an empty string to clear it\n" +
-            "- `includeMessages` — include shader compiler messages in the returned graph data.\n" +
-            "- `includeProperties` — include compiled shader properties in the returned graph data.\n\n" +
+            "- `includeGraph` — include the full post-import Graph block in the returned mutation result. Default: false.\n" +
+            "- `includeMessages` — include shader compiler messages in the returned graph data (only meaningful when includeGraph is true).\n" +
+            "- `includeProperties` — include compiled shader properties in the returned graph data (only meaningful when includeGraph is true).\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Settings` (snapshot of mutated fields), `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeGraph: true` to also receive the full post-import `Graph` block. This tool does not return Structure (settings mutations do not change graph topology).\n\n" +
             "## Behavior\n\n" +
             "Applies only explicitly provided fields, writes the updated '.shadergraph' source, forces re-import, and returns both the updated settings snapshot and post-import Shader Graph diagnostics.")]
         [Description("Set a narrow allowlist of Shader Graph settings and re-import the graph.")]
         public ShaderGraphSettingsMutationResultData SetSettings(
             AssetObjectRef assetRef,
             ShaderGraphSettingsUpdateInput settings,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -67,6 +73,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => UpdateShaderGraphSettings(
                 assetRef,
                 settings,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }

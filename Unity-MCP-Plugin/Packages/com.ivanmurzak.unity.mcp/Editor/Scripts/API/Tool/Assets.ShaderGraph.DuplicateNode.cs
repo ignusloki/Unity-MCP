@@ -40,14 +40,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- preserves node settings and blackboard property references\n" +
             "- does not copy any edges; use edge tools separately to wire the duplicate\n" +
             "- defaults to placing the duplicate 40 units down/right from the source unless explicit position values are supplied\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Operation`, `NodeObjectId`, `NodeType`, `Node`, `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect the target node id and current graph layout.")]
         [Description("Duplicate a supported Shader Graph node without copying edges and re-import the graph.")]
         public ShaderGraphNodeMutationResultData DuplicateNode(
             AssetObjectRef assetRef,
             ShaderGraphDuplicateNodeInput node,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -62,6 +69,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => DuplicateShaderGraphNode(
                 assetRef,
                 node,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -69,6 +78,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static ShaderGraphNodeMutationResultData DuplicateShaderGraphNode(
             AssetObjectRef assetRef,
             ShaderGraphDuplicateNodeInput node,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -161,12 +172,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 NodeType = duplicatedNode.Type,
                 ChangedFields = changedFields,
                 Node = duplicatedNode,
-                Structure = structure,
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? structure : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
 

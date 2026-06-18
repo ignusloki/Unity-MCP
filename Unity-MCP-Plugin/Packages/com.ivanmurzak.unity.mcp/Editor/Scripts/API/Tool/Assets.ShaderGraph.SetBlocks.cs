@@ -61,14 +61,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `blocks.allowRemovingConnectedBlocks` — when true, remove connected block edges while removing blocks.\n\n" +
             "Supported vertex blocks: `position`, `normal`, `tangent`, `motionVector`.\n" +
             "Supported fragment blocks: `baseColor`, `normalTS`, `normalOS`, `normalWS`, `bentNormal`, `metallic`, `specular`, `smoothness`, `occlusion`, `emission`, `alpha`, `alphaClipThreshold`, `coatMask`, `coatSmoothness`, `normalAlpha`, `maosAlpha`.\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Operation`, `Context`, `BlockDescriptors`, `CreatedBlockNodeIds`, `RemovedBlockNodeIds`, `RemovedEdgeCount`, `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
             "Use `assets-shadergraph-get-structure` after mutation to inspect the created block node ids and slots before wiring edges.")]
         [Description("Set the ordered built-in Shader Graph block stack for one context and re-import the graph.")]
         public ShaderGraphBlockMutationResultData SetBlocks(
             AssetObjectRef assetRef,
             ShaderGraphSetBlocksInput blocks,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -83,6 +90,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => SetShaderGraphBlocks(
                 assetRef,
                 blocks,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -90,6 +99,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static ShaderGraphBlockMutationResultData SetShaderGraphBlocks(
             AssetObjectRef assetRef,
             ShaderGraphSetBlocksInput blocks,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -207,12 +218,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 RemovedBlockNodeIds = removedBlockNodeIds,
                 RemovedEdgeCount = removedEdgeCount,
                 ChangedFields = changedFields,
-                Structure = structure,
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? structure : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
 

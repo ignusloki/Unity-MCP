@@ -276,6 +276,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             SupportVfx = true
                         }
                     },
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -352,6 +353,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             "alphaClipThreshold"
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -424,6 +427,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             "bentNormal"
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -478,6 +483,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         TextureDefaultType = "black",
                         TextureUseTilingAndOffset = true
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -525,6 +532,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PropertyReferenceName = "_BaseMap",
                         TextureAssetPath = textureAssetPath
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -543,6 +552,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PropertyReferenceName = "_BaseMap",
                         TextureAssetPath = string.Empty
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -579,6 +590,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         OverrideReferenceName = "_TintColor",
                         ColorHex = "#FF7A00CC"
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -596,6 +609,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         TextureIsHdr = true,
                         TextureModifiable = false
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -703,6 +718,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PropertyReferenceName = "_UseRim",
                         BooleanValue = true
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -783,6 +800,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         OverrideReferenceName = "_AccentColor",
                         ColorHex = "#44CC88FF"
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -795,6 +814,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         OverrideReferenceName = "_GlowStrength",
                         FloatValue = 0.75f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -953,6 +974,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         OverrideReferenceName = "_UseDetail",
                         BooleanValue = true
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1091,6 +1114,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     {
                         PropertyReferenceName = "_DeleteTexture"
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1161,6 +1186,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         {
                             PropertyObjectId = propertyToDelete.ObjectId
                         },
+                        includeStructure: true,
+                        includeGraph: true,
                         includeMessages: true,
                         includeProperties: true);
 
@@ -1239,6 +1266,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PropertyReferenceName = "_ReorderThird",
                         CategoryIndex = 0
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1336,6 +1365,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         CategoryName = "Auto Created",
                         CategoryIndex = 1
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1483,6 +1514,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -720f,
                         PositionY = 160f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1494,6 +1527,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -720f,
                         PositionY = 260f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1505,6 +1540,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -720f,
                         PositionY = 360f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1516,6 +1553,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -720f,
                         PositionY = 460f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1527,6 +1566,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -720f,
                         PositionY = 560f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1538,6 +1579,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -720f,
                         PositionY = 660f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1549,6 +1592,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -720f,
                         PositionY = 760f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1660,6 +1705,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -960f,
                         PositionY = 40f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1788,6 +1835,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionOffsetX = 88f,
                         PositionOffsetY = 44f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1805,6 +1854,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -320f,
                         PositionY = 480f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1817,6 +1868,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     {
                         NodeObjectId = duplicateResult.Node.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1937,6 +1990,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionOffsetX = 72f,
                         PositionOffsetY = 36f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1952,6 +2007,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -260f,
                         PositionY = 620f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -1964,6 +2021,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     {
                         NodeObjectId = duplicateResult.Node.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2083,6 +2142,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionOffsetX = 84f,
                         PositionOffsetY = 48f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2098,6 +2159,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -320f,
                         PositionY = 920f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2110,6 +2173,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     {
                         NodeObjectId = duplicateResult.Node.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2177,6 +2242,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionOffsetX = 64f,
                         PositionOffsetY = 48f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2268,6 +2335,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     {
                         NodeObjectId = baseColorNode.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2354,6 +2423,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             MipSamplingMode = "gradient"
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2411,6 +2482,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -640f,
                         PositionY = 40f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2426,6 +2499,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             TextureSlotDefaultType = "red"
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2457,6 +2532,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             TextureSlotDefaultType = "black"
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2665,6 +2742,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             Offset = new ShaderGraphVector2ValueUpdateInput { X = 0.25f, Y = 0.75f }
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2680,6 +2759,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             FalseValue = new ShaderGraphVector4ValueUpdateInput { X = 0.1f, Y = 0.2f, Z = 0.3f, W = 0.4f }
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2767,6 +2848,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             Input = new ShaderGraphVector4ValueUpdateInput { X = 0.2f, Y = 0.4f, Z = 0.6f, W = 0.8f }
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2830,6 +2913,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             MultiplyType = "matrix"
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -2956,6 +3041,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             Input = new ShaderGraphVector4ValueUpdateInput { X = -0.1f, Y = -0.2f, Z = -0.3f, W = -0.4f }
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -3029,6 +3116,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             Y = -0.25f
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -3102,6 +3191,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         NodeObjectId = swizzle.Node!.ObjectId,
                         Swizzle = new ShaderGraphSwizzleNodeSettingsUpdateInput { Mask = "xz" }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -3282,6 +3373,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             RenderFace = "back"
                         }
                     },
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -3374,6 +3466,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     "Outline Color",
                     baseColorBlock,
                     "Base Color",
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true,
                     replaceExistingInputConnection: true);
@@ -3438,6 +3532,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             "bentNormal"
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -3566,6 +3662,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     "Out",
                     alphaBlock,
                     "Alpha",
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true,
                     replaceExistingInputConnection: true);
@@ -3623,6 +3721,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             "normalWS"
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -3822,6 +3922,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     "Out",
                     alphaBlock,
                     "Alpha",
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true,
                     replaceExistingInputConnection: true);
@@ -3926,6 +4028,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     "Out",
                     subtractSceneDepthNode,
                     "UV",
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -4025,6 +4129,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     "Noise Scale",
                     noiseTilingNode,
                     "Tiling",
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -4088,6 +4194,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             OutMinMax = new ShaderGraphVector2ValueUpdateInput { X = -1f, Y = 1f }
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -4192,6 +4300,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -240f,
                         PositionY = 120f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -4203,6 +4313,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -240f,
                         PositionY = 220f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -4324,6 +4436,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         InputNodeObjectId = multiplyNode.ObjectId,
                         InputSlotObjectId = multiplyInputB.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -4336,6 +4450,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         InputNodeObjectId = multiplyNode.ObjectId,
                         InputSlotObjectId = multiplyInputB.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -4430,6 +4546,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         NewOutputNodeObjectId = accentNodeResult.Node.ObjectId,
                         NewOutputSlotObjectId = accentOutput.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -4508,6 +4626,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         NewInputNodeObjectId = emissionBlock.ObjectId,
                         NewInputSlotObjectId = emissionInput.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -4602,6 +4722,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         NewOutputNodeObjectId = detailNodeResult.Node.ObjectId,
                         NewOutputSlotObjectId = detailOutput.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -4762,6 +4884,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         NewOutputNodeObjectId = addNode.ObjectId,
                         NewOutputSlotObjectId = addOutput.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -4897,6 +5021,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         NewOutputNodeObjectId = accentNodeResult.Node.ObjectId,
                         NewOutputSlotObjectId = accentOutput.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -5121,6 +5247,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         NewOutputNodeObjectId = addNode.ObjectId,
                         NewOutputSlotObjectId = addOutput.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -5271,6 +5399,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         InputSlotObjectId = multiplyInputB.ObjectId,
                         ReplaceExistingInputConnection = true
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -5367,6 +5497,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         InputSlotObjectId = sampleTextureInput.ObjectId,
                         ReplaceExistingInputConnection = true
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -5523,6 +5655,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         InputNodeObjectId = tilingNode.ObjectId,
                         InputSlotObjectId = tilingUvInput.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -5535,6 +5669,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         InputNodeObjectId = sampleTextureNode.ObjectId,
                         InputSlotObjectId = sampleUvInput.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -5671,6 +5807,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         InputNodeObjectId = tilingNode.ObjectId,
                         InputSlotObjectId = tilingUvInput.ObjectId
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -5810,6 +5948,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PropertyReferenceName = "_BaseMap",
                         TextureAssetPath = blackboardTexturePath
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -5821,6 +5961,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         PositionX = -720f,
                         PositionY = -80f
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -5835,6 +5977,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             TextureSlotDefaultType = "red"
                         }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -6269,6 +6413,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         NodeObjectId = simpleNoise.Node!.ObjectId,
                         SimpleNoise = new ShaderGraphSimpleNoiseNodeSettingsUpdateInput { Scale = 42.5f }
                     },
+                    includeStructure: true,
+                    includeGraph: true,
                     includeMessages: true,
                     includeProperties: true);
 
@@ -6565,6 +6711,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             string outputSlotName,
             ShaderGraphNodeDefinitionData inputNode,
             string inputSlotName,
+            bool includeStructure = false,
+            bool includeGraph = false,
             bool includeMessages = false,
             bool includeProperties = false,
             bool replaceExistingInputConnection = false)
@@ -6582,6 +6730,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     InputSlotObjectId = inputSlot.ObjectId,
                     ReplaceExistingInputConnection = replaceExistingInputConnection
                 },
+                includeStructure: includeStructure,
+                includeGraph: includeGraph,
                 includeMessages: includeMessages,
                 includeProperties: includeProperties);
         }

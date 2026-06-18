@@ -45,6 +45,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "UnityEditor.ShaderGraph.UVMaterialSlot"
         };
 
+        static readonly HashSet<string> Vector2ExpansionInputSlotTypes = new(StringComparer.Ordinal)
+        {
+            "UnityEditor.ShaderGraph.Vector2MaterialSlot"
+        };
+
         static readonly HashSet<string> ScreenPositionInputSlotTypes = new(StringComparer.Ordinal)
         {
             "UnityEditor.ShaderGraph.ScreenPositionMaterialSlot"
@@ -93,8 +98,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- requires the input slot to be currently unconnected unless `replaceExistingInputConnection` is true\n" +
             "- supports exact slot-type matches\n" +
             "- supports compatible UV/vector2 slot pairs\n" +
+            "- supports scalar outputs into Shader Graph vector2 inputs such as `Float Property -> Tiling And Offset.Tiling`\n" +
             "- supports vector2-resolved `DynamicVectorMaterialSlot` outputs into Shader Graph UV inputs such as `Add.Out -> Tiling And Offset.UV`\n" +
-            "- supports Screen Position vector4 output into Shader Graph screen-position UV inputs such as Scene Depth UV\n" +
+            "- supports Screen Position vector4 output and dynamic vector outputs into Shader Graph screen-position UV inputs such as Scene Color UV and Scene Depth UV\n" +
             "- supports compatible Vector3/Position slot pairs\n" +
             "- supports Vector3 outputs into Shader Graph normal inputs such as `Normal From Height.Out -> Fragment NormalWS`\n" +
             "- supports compatible color/vector slot pairs such as Color property outputs into Base Color\n" +
@@ -102,14 +108,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n" +
             "- supports explicit vector narrowing workflows such as `Vector3 -> Split -> Combine(Vector2) -> UV`; direct Vector3-to-UV remains rejected unless Unity exposes a validated direct conversion\n" +
             "- supports guarded input-edge replacement when `replaceExistingInputConnection` is true\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Edge`, `RemovedEdge` / `RemovedEdges` when applicable, `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect node ids, slot ids, and slot types.")]
         [Description("Connect two existing Shader Graph slots and re-import the graph.")]
         public ShaderGraphEdgeMutationResultData ConnectEdge(
             AssetObjectRef assetRef,
             ShaderGraphConnectEdgeInput edge,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -124,6 +137,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => ConnectShaderGraphEdge(
                 assetRef,
                 edge,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -138,14 +153,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "Current support is intentionally narrow and safe:\n" +
             "- selection by node object id plus slot object id\n" +
             "- requires the exact edge to exist before removal\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Edge`, `RemovedEdge`, `RemovedEdges`, `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect node ids and slot ids.")]
         [Description("Disconnect an existing Shader Graph edge and re-import the graph.")]
         public ShaderGraphEdgeMutationResultData DisconnectEdge(
             AssetObjectRef assetRef,
             ShaderGraphDisconnectEdgeInput edge,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -160,6 +182,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => DisconnectShaderGraphEdge(
                 assetRef,
                 edge,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -177,14 +201,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- at least one side must change\n" +
             "- compatibility is validated before the new edge is written\n" +
             "- if the new target input is already occupied, set `replaceExistingInputConnection` to true to replace it explicitly\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Edge`, `RemovedEdge` / `RemovedEdges` when applicable, `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect node ids, slot ids, and current edges.")]
         [Description("Reconnect an existing Shader Graph edge to a new endpoint and re-import the graph.")]
         public ShaderGraphEdgeMutationResultData ReconnectEdge(
             AssetObjectRef assetRef,
             ShaderGraphReconnectEdgeInput edge,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -199,6 +230,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => ReconnectShaderGraphEdge(
                 assetRef,
                 edge,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -216,14 +249,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- at least one outgoing edge must exist\n" +
             "- every downstream input is compatibility-checked before any write is persisted\n" +
             "- unrelated incoming edges on downstream inputs are never overwritten\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Edges`, `RemovedEdges`, `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect node ids, slot ids, and current edges.")]
         [Description("Reroute every outgoing Shader Graph edge from one output slot to another compatible output slot and re-import the graph.")]
         public ShaderGraphEdgeMutationResultData RerouteOutputSlot(
             AssetObjectRef assetRef,
             ShaderGraphRerouteOutputSlotInput edge,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -238,6 +278,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => RerouteShaderGraphOutputSlot(
                 assetRef,
                 edge,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -245,6 +287,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static ShaderGraphEdgeMutationResultData ConnectShaderGraphEdge(
             AssetObjectRef assetRef,
             ShaderGraphConnectEdgeInput edge,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -308,18 +352,23 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 Edge = CreateEdgeDefinition(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId),
                 RemovedEdge = removedEdge,
                 RemovedEdges = removedEdges.Count == 0 ? null : removedEdges,
-                Structure = BuildShaderGraphStructureData(graphRef),
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? BuildShaderGraphStructureData(graphRef) : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
 
         static ShaderGraphEdgeMutationResultData DisconnectShaderGraphEdge(
             AssetObjectRef assetRef,
             ShaderGraphDisconnectEdgeInput edge,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -355,18 +404,23 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 Edge = removedEdge,
                 RemovedEdge = removedEdge,
                 RemovedEdges = new List<ShaderGraphEdgeDefinitionData> { removedEdge },
-                Structure = BuildShaderGraphStructureData(graphRef),
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? BuildShaderGraphStructureData(graphRef) : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
 
         static ShaderGraphEdgeMutationResultData ReconnectShaderGraphEdge(
             AssetObjectRef assetRef,
             ShaderGraphReconnectEdgeInput edge,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -461,18 +515,23 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 Edge = CreateEdgeDefinition(newOutputSlot.NodeObjectId, newOutputSlot.SlotId, newInputSlot.NodeObjectId, newInputSlot.SlotId),
                 RemovedEdge = removedEdge,
                 RemovedEdges = removedEdges,
-                Structure = BuildShaderGraphStructureData(graphRef),
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? BuildShaderGraphStructureData(graphRef) : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
 
         static ShaderGraphEdgeMutationResultData RerouteShaderGraphOutputSlot(
             AssetObjectRef assetRef,
             ShaderGraphRerouteOutputSlotInput edge,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -590,12 +649,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 Edges = connectedEdges,
                 RemovedEdge = removedEdges[0],
                 RemovedEdges = removedEdges,
-                Structure = BuildShaderGraphStructureData(graphRef),
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? BuildShaderGraphStructureData(graphRef) : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
 
@@ -704,6 +766,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (Vector2LikeSlotTypes.Contains(outputType) && Vector2LikeSlotTypes.Contains(inputType))
                 return;
 
+            if (string.Equals(outputType, "UnityEditor.ShaderGraph.Vector1MaterialSlot", StringComparison.Ordinal)
+                && Vector2ExpansionInputSlotTypes.Contains(inputType))
+                return;
+
             if (IsDynamicVectorSlotType(outputType) && Vector2LikeSlotTypes.Contains(inputType))
                 return;
 
@@ -713,6 +779,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 return;
             }
+
+            if (IsDynamicVectorSlotType(outputType) && ScreenPositionInputSlotTypes.Contains(inputType))
+                return;
 
             if (Vector3LikeSlotTypes.Contains(outputType) && Vector3LikeSlotTypes.Contains(inputType))
                 return;

@@ -57,6 +57,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         internal static ShaderGraphSettingsMutationResultData UpdateShaderGraphSettings(
             AssetObjectRef assetRef,
             ShaderGraphSettingsUpdateInput settings,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -102,11 +103,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 ChangedFields = changedFields,
                 Settings = BuildShaderGraphSettingsData(graphRef),
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
 

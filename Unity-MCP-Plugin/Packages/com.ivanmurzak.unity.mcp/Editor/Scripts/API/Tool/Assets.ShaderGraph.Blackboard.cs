@@ -12,11 +12,13 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using AIGD;
 using com.IvanMurzak.McpPlugin;
 using com.IvanMurzak.ReflectorNet.Utils;
+using UnityEditor;
 
 namespace com.IvanMurzak.Unity.MCP.Editor.API
 {
@@ -40,14 +42,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- removes PropertyNode instances that reference the deleted property\n" +
             "- removes edges connected to those removed PropertyNodes\n" +
             "- does not remove unrelated nodes or properties\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Operation`, `PropertyObjectId`, `PropertyReferenceName`, `PropertyKind`, `Property` (the snapshot before removal), `RemovedNodeCount`, `RemovedEdgeCount`, `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
             "Use `assets-shadergraph-get-structure` first to inspect property ids and references.")]
         [Description("Delete an existing Shader Graph blackboard property and clean up dependent PropertyNodes.")]
         public ShaderGraphPropertyMutationResultData DeleteProperty(
             AssetObjectRef assetRef,
             ShaderGraphDeletePropertyInput property,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -62,6 +71,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => DeleteShaderGraphProperty(
                 assetRef,
                 property,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -73,14 +84,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Reorder an existing Shader Graph blackboard property inside a category, then re-import the graph and return diagnostics.")]
         [AiSkillBody("Reorder a blackboard property inside a Shader Graph category.\n\n" +
-            "If no category selector is supplied, the current category containing the property is used. Supplying a category selector can also move the property into that category at the requested index.")]
+            "If no category selector is supplied, the current category containing the property is used. Supplying a category selector can also move the property into that category at the requested index.\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Operation`, `PropertyObjectId`, `PropertyReferenceName`, `PropertyKind`, `Property`, `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.")]
         [Description("Reorder an existing Shader Graph blackboard property inside a category.")]
         public ShaderGraphPropertyMutationResultData ReorderProperty(
             AssetObjectRef assetRef,
             ShaderGraphReorderPropertyInput property,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -95,6 +113,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => ReorderShaderGraphProperty(
                 assetRef,
                 property,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -106,14 +126,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Create a Shader Graph blackboard category, then re-import the graph and return diagnostics.")]
         [AiSkillBody("Create a blackboard category in a '.shadergraph' asset.\n\n" +
-            "Category names must be unique. The default category is represented by an empty name and is created automatically when needed by property tools.")]
+            "Category names must be unique. The default category is represented by an empty name and is created automatically when needed by property tools.\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Operation`, `CategoryObjectId`, `CategoryName`, `Category`, `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.")]
         [Description("Create a Shader Graph blackboard category.")]
         public ShaderGraphCategoryMutationResultData CreateCategory(
             AssetObjectRef assetRef,
             ShaderGraphCreateCategoryInput category,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -128,6 +155,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => CreateShaderGraphCategory(
                 assetRef,
                 category,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -139,14 +168,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Move a Shader Graph blackboard property into a target category, optionally creating that category, then re-import the graph and return diagnostics.")]
         [AiSkillBody("Move a property into a Shader Graph blackboard category.\n\n" +
-            "The target category can be selected by object id or display name. When `createCategoryIfMissing` is true, a missing category name is created before the move.")]
+            "The target category can be selected by object id or display name. When `createCategoryIfMissing` is true, a missing category name is created before the move.\n\n" +
+            "## Response shape\n\n" +
+            "By default returns a slim diff: `Operation`, `PropertyObjectId`, `PropertyReferenceName`, `PropertyKind`, `Property`, `ChangedFields`, and `GraphSummary`. " +
+            "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.")]
         [Description("Move a Shader Graph blackboard property into a category.")]
         public ShaderGraphPropertyMutationResultData SetPropertyCategory(
             AssetObjectRef assetRef,
             ShaderGraphSetPropertyCategoryInput property,
-            [Description("Include shader compiler messages in the returned graph data. Default: false")]
+            [Description("Include the full read-only Structure block in the returned mutation result. Default: false")]
+            bool? includeStructure = false,
+            [Description("Include the full post-import Graph block in the returned mutation result. Default: false")]
+            bool? includeGraph = false,
+            [Description("Include shader compiler messages in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeMessages = false,
-            [Description("Include compiled shader properties in the returned graph data. Default: false")]
+            [Description("Include compiled shader properties in the returned graph data. Only meaningful when includeGraph is true. Default: false")]
             bool? includeProperties = false)
         {
             if (assetRef == null)
@@ -161,6 +197,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return MainThread.Instance.Run(() => SetShaderGraphPropertyCategory(
                 assetRef,
                 property,
+                includeStructure: includeStructure ?? false,
+                includeGraph: includeGraph ?? false,
                 includeMessages: includeMessages ?? false,
                 includeProperties: includeProperties ?? false));
         }
@@ -168,11 +206,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static ShaderGraphPropertyMutationResultData DeleteShaderGraphProperty(
             AssetObjectRef assetRef,
             ShaderGraphDeletePropertyInput property,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
             var assetPath = ResolveShaderGraphAssetPath(assetRef);
             var document = LoadMutableDocument(assetPath);
+            var originalSourceText = File.ReadAllText(document.FullPath);
             var propertyObjects = GetRootPropertyObjects(document);
             var propertyObject = ResolvePropertyObject(property.PropertyObjectId, property.PropertyReferenceName, propertyObjects);
             var propertyObjectId = GetRequiredObjectId(propertyObject, "property");
@@ -214,10 +255,150 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             RemoveObjectById(document, propertyObjectId);
 
-            WriteMutableDocument(document);
-            FinalizeShaderGraphMutation(assetPath);
+            WriteAndFinalizeDeletePropertyMutation(document, originalSourceText);
 
-            var structure = BuildShaderGraphStructureData(graphRef);
+            return BuildDeletePropertyMutationResult(
+                assetPath,
+                graphRef,
+                deletedProperty,
+                propertyObjectId,
+                removedNodeIds.Count,
+                removedEdgeCount,
+                BuildDeletePropertyChangedFields(removedNodeIds.Count, removedEdgeCount),
+                includeStructure,
+                includeGraph,
+                includeMessages,
+                includeProperties);
+        }
+
+        static void WriteAndFinalizeDeletePropertyMutation(ShaderGraphMutableDocument document, string originalSourceText)
+        {
+            try
+            {
+                WriteMutableDocument(document);
+                FinalizeShaderGraphMutation(document.AssetPath);
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    File.WriteAllText(document.FullPath, originalSourceText);
+                    AssetDatabase.ImportAsset(document.AssetPath, ImportAssetOptions.ForceSynchronousImport);
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                }
+                catch (Exception rollbackEx)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to delete Shader Graph property, and rollback also failed. Delete failure: {ex.Message}. Rollback failure: {rollbackEx.Message}",
+                        ex);
+                }
+
+                throw new InvalidOperationException(
+                    $"Failed to delete Shader Graph property. The original graph source was restored after the mutation failure: {ex.Message}",
+                    ex);
+            }
+        }
+
+        static ShaderGraphPropertyMutationResultData BuildDeletePropertyMutationResult(
+            string assetPath,
+            AssetObjectRef graphRef,
+            ShaderGraphPropertyDefinitionData? deletedProperty,
+            string propertyObjectId,
+            int removedNodeCount,
+            int removedEdgeCount,
+            List<string> changedFields,
+            bool includeStructure,
+            bool includeGraph,
+            bool includeMessages,
+            bool includeProperties)
+        {
+            ShaderGraphSummaryData? summary = null;
+            ShaderGraphStructureData? structure = null;
+            ShaderGraphData? graph = null;
+            var responseDiagnostics = new List<ShaderGraphDiagnosticData>();
+
+            try
+            {
+                summary = BuildShaderGraphSummary(graphRef);
+            }
+            catch (Exception ex)
+            {
+                responseDiagnostics.Add(new ShaderGraphDiagnosticData
+                {
+                    Code = "ShaderGraph.DeleteProperty.SummaryReadbackFailed",
+                    Severity = "Warning",
+                    Message = $"Property was deleted, but post-delete summary readback failed: {ex.Message}",
+                    Hint = "Call assets-shadergraph-get-data after Unity finishes importing the graph."
+                });
+            }
+
+            if (includeStructure)
+            {
+                try
+                {
+                    structure = BuildShaderGraphStructureData(graphRef);
+                }
+                catch (Exception ex)
+                {
+                    responseDiagnostics.Add(new ShaderGraphDiagnosticData
+                    {
+                        Code = "ShaderGraph.DeleteProperty.StructureReadbackFailed",
+                        Severity = "Warning",
+                        Message = $"Property was deleted, but post-delete structure readback failed: {ex.Message}",
+                        Hint = "Call assets-shadergraph-get-structure after Unity finishes importing the graph."
+                    });
+                }
+            }
+
+            if (includeGraph)
+            {
+                try
+                {
+                    graph = BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true);
+                }
+                catch (Exception ex)
+                {
+                    responseDiagnostics.Add(new ShaderGraphDiagnosticData
+                    {
+                        Code = "ShaderGraph.DeleteProperty.GraphReadbackFailed",
+                        Severity = "Warning",
+                        Message = $"Property was deleted, but post-delete graph diagnostics readback failed: {ex.Message}",
+                        Hint = "Call assets-shadergraph-get-data after Unity finishes importing the graph."
+                    });
+                }
+
+                graph ??= new ShaderGraphData
+                {
+                    Reference = graphRef,
+                    AssetPath = assetPath,
+                    SourceFileExtension = ".shadergraph",
+                    SourceParsed = false,
+                    ShaderResolved = false,
+                    IsSupported = false,
+                    HasErrors = false
+                };
+            }
+
+            if (responseDiagnostics.Count > 0)
+            {
+                if (summary != null)
+                {
+                    summary.Diagnostics ??= new List<ShaderGraphDiagnosticData>();
+                    summary.Diagnostics.AddRange(responseDiagnostics);
+                }
+
+                if (graph != null)
+                {
+                    graph.Diagnostics ??= new List<ShaderGraphDiagnosticData>();
+                    graph.Diagnostics.AddRange(responseDiagnostics);
+                }
+            }
+
             return new ShaderGraphPropertyMutationResultData
             {
                 Operation = "delete",
@@ -225,21 +406,20 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 PropertyReferenceName = deletedProperty?.EffectiveReferenceName,
                 PropertyKind = deletedProperty?.PropertyKind,
                 Property = deletedProperty,
-                RemovedNodeCount = removedNodeIds.Count,
+                RemovedNodeCount = removedNodeCount,
                 RemovedEdgeCount = removedEdgeCount,
-                ChangedFields = BuildDeletePropertyChangedFields(removedNodeIds.Count, removedEdgeCount),
+                ChangedFields = changedFields,
+                GraphSummary = summary,
                 Structure = structure,
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                Graph = graph
             };
         }
 
         static ShaderGraphPropertyMutationResultData ReorderShaderGraphProperty(
             AssetObjectRef assetRef,
             ShaderGraphReorderPropertyInput property,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -272,6 +452,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 propertyObjectId,
                 operation: "reorder",
                 changedFields: new List<string> { "property.reordered", "property.categoryIndex" },
+                includeStructure,
+                includeGraph,
                 includeMessages,
                 includeProperties);
         }
@@ -279,6 +461,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static ShaderGraphCategoryMutationResultData CreateShaderGraphCategory(
             AssetObjectRef assetRef,
             ShaderGraphCreateCategoryInput category,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -306,18 +490,23 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 CategoryName = createdCategory?.Name ?? categoryName,
                 Category = createdCategory,
                 ChangedFields = new List<string> { "category.added" },
-                Structure = structure,
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? structure : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
 
         static ShaderGraphPropertyMutationResultData SetShaderGraphPropertyCategory(
             AssetObjectRef assetRef,
             ShaderGraphSetPropertyCategoryInput property,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -343,6 +532,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 propertyObjectId,
                 operation: "setCategory",
                 changedFields: new List<string> { "property.category", "property.categoryIndex" },
+                includeStructure,
+                includeGraph,
                 includeMessages,
                 includeProperties);
         }
@@ -613,6 +804,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             string propertyObjectId,
             string operation,
             List<string> changedFields,
+            bool includeStructure,
+            bool includeGraph,
             bool includeMessages,
             bool includeProperties)
         {
@@ -629,12 +822,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 PropertyKind = updatedProperty?.PropertyKind,
                 Property = updatedProperty,
                 ChangedFields = changedFields,
-                Structure = structure,
-                Graph = BuildShaderGraphData(
-                    graphRef,
-                    includeMessages: includeMessages,
-                    includeProperties: includeProperties,
-                    includeDiagnostics: true)
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? structure : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
             };
         }
     }
