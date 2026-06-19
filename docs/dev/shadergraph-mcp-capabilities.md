@@ -41,7 +41,7 @@ Enabling or disabling that row toggles the ShaderGraph tool set as one group.
 ## Recommended Authoring Flow
 
 1. Use `assets-shadergraph-find`, `assets-shadergraph-create`, or `assets-shadergraph-get-data` to select or create the graph.
-2. Use `assets-shadergraph-get-structure` and `assets-shadergraph-get-settings` before mutation.
+2. Use `assets-shadergraph-get-structure` and `assets-shadergraph-get-settings` before mutation. When the graph is large and you only need counts or a subset (a few nodes, only the blackboard, only edges touching a node), prefer `assets-shadergraph-query-structure`.
 3. Configure root graph settings, URP target settings, and block stacks where needed.
 4. Create or update blackboard properties for reusable values and project texture assets.
 5. Add, duplicate, move, delete, and configure supported nodes.
@@ -60,6 +60,10 @@ Enabling or disabling that row toggles the ShaderGraph tool set as one group.
 - `assets-shadergraph-get-structure`
   - Reads serialized properties, blackboard categories, nodes, slots, edges, and active targets from the graph source.
   - Property readback includes category object id, category name, and category index when available.
+- `assets-shadergraph-query-structure`
+  - Filtered, token-cheap read of the same graph source. Always returns a `Stats` counts summary; optional filters project a subset of the full structure.
+  - Filters: `statsOnly`, `propertiesOnly`, `nodeObjectIds`, `nodeTypeSubstrings`, `nodeDisplayNames`, `includeSlots`, `includeNodeSettings`, `includeEdges`, `edgesTouchingNodeIds`, `includeTargets`.
+  - Prefer this over `assets-shadergraph-get-structure` whenever you only need counts, just the blackboard, or a handful of nodes/edges. Use `get-structure` when the full graph view is required.
 - `assets-shadergraph-get-settings`
   - Reads graph root settings and supported target settings from the graph source.
 
@@ -463,6 +467,7 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - `assets-shadergraph-find`
 - `assets-shadergraph-get-data`
 - `assets-shadergraph-get-structure`
+- `assets-shadergraph-query-structure`
 - `assets-shadergraph-get-settings`
 - `assets-shadergraph-create`
 - `assets-shadergraph-create-material`

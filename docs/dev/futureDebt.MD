@@ -59,19 +59,23 @@ Remaining debt:
 
 ### Filtered Graph Read API
 
-Full `assets-shadergraph-get-structure` calls are too expensive for medium graphs.
+**v1 landed** on `custom/shadergraph-mcp`. The `assets-shadergraph-query-structure` tool ships with:
 
-Needed read surfaces:
+- A `Stats` summary (node/edge/property/category/target counts and parse status) returned on every call.
+- `StatsOnly` shortcut for the cheapest possible probe.
+- `PropertiesOnly` shortcut for blackboard-only inspection.
+- Node filters: `NodeObjectIds`, `NodeTypeSubstrings`, `NodeDisplayNames` (any-match across the three).
+- Per-node projection toggles: `IncludeSlots` (default true) and `IncludeNodeSettings` (default true) for trimming heavy per-node payloads.
+- Edge filters: `IncludeEdges` (default true) and `EdgesTouchingNodeIds` for scoping to a node set.
+- Target/context toggle: `IncludeTargets` (default true) for skipping `Targets`, `VertexContext`, and `FragmentContext`.
 
-- Get nodes by ids.
-- Get nodes by type/name.
-- Get slots for selected nodes only.
-- Get edges touching selected nodes.
-- Get properties only.
-- Get blocks/targets/settings only.
-- Get graph statistics and diagnostics only.
+`assets-shadergraph-get-structure` stays unchanged for callers that need the full graph.
 
-Agents should not need to fetch the entire serialized structure just to continue wiring a known graph.
+**v2 follow-up debt**:
+
+- Operate on a single in-memory parse instead of re-reading the file per query (currently each query rebuilds the full structure before projecting). Acceptable for now because the read tool is called rarely compared to per-edge mutations.
+- Add a `Diagnostics` projection mode (graph diagnostics + parse error in isolation) once Epic 8A's compact-response work introduces a stable diagnostics-only payload.
+- Add a settings-only / targets-only filter pair to cover the trimmed "blocks/targets/settings only" need without forcing callers to use `get-settings`.
 
 ### Stable Agent-Friendly References
 
