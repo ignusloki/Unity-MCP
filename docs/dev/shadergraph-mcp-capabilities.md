@@ -198,6 +198,16 @@ Blackboard property mutation results include normalized summary fields:
 - `assets-shadergraph-create-category`
   - Creates a Shader Graph blackboard category.
   - Category names must be unique.
+- `assets-shadergraph-delete-category`
+  - Deletes a Shader Graph blackboard category selected by `CategoryObjectId` or `CategoryName`.
+  - The default category (empty name) is refused — it auto-recreates on every property add.
+  - Non-empty categories are refused unless `ReassignPropertiesToDefault=true`, in which case every property inside the category is moved to the default category before deletion.
+  - Returns the new category-mutation result fields `RemovedCategoryCount`, `RemovedCategoryNames`, and `ReassignedPropertyCount`.
+- `assets-shadergraph-prune-empty-categories`
+  - Sweeps the graph and deletes every non-default category whose property list is empty.
+  - Skips the default category (empty name) even when empty.
+  - Skips re-importing the asset when nothing was removed (fast no-op).
+  - Returns `RemovedCategoryCount` and `RemovedCategoryNames`; `CategoryObjectId` / `CategoryName` are null because the operation is multi-category.
 - `assets-shadergraph-set-property-category`
   - Moves a property into a target category selected by object id or name.
   - Can create a missing category by name when `createCategoryIfMissing` is true.
@@ -486,6 +496,8 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - `assets-shadergraph-delete-property`
 - `assets-shadergraph-reorder-property`
 - `assets-shadergraph-create-category`
+- `assets-shadergraph-delete-category`
+- `assets-shadergraph-prune-empty-categories`
 - `assets-shadergraph-set-property-category`
 - `assets-shadergraph-add-property-node`
 - `assets-shadergraph-add-node`

@@ -272,5 +272,14 @@ namespace AIGD
 
         [Description("List of category fields that actually changed.")]
         public List<string>? ChangedFields { get; set; }
+
+        [Description("Number of categories deleted by this call. Populated for delete-category (always 1 on success) and prune-empty-categories (zero or more).")]
+        public int? RemovedCategoryCount { get; set; }
+
+        [Description("Display names of the categories deleted by this call. Populated for delete-category and prune-empty-categories.")]
+        public List<string>? RemovedCategoryNames { get; set; }
+
+        [Description("Number of blackboard properties that were reassigned to the default category as part of a delete-category call with ReassignPropertiesToDefault=true.")]
+        public int? ReassignedPropertyCount { get; set; }
     }
 }

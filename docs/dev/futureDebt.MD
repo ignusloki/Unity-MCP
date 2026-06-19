@@ -115,13 +115,13 @@ Future work:
 
 ### Blackboard Category Cleanup
 
-The MCP can create and move categories, but it does not expose category deletion or pruning.
+**v1 landed** on `custom/shadergraph-mcp`. `assets-shadergraph-delete-category` deletes a named or id-selected category (refuses the default category, refuses non-empty categories unless `ReassignPropertiesToDefault=true`). `assets-shadergraph-prune-empty-categories` sweeps and deletes every empty non-default category, and skips the AssetDatabase import entirely when nothing is removed.
 
-Future work:
+**v2 follow-up debt**:
 
-- Delete empty categories.
-- Prune category property ids that no longer resolve.
-- Repair the default category without preserving stale metadata from cloned templates.
+- Prune category property ids that no longer resolve (stale references to deleted properties), not just empty-list categories.
+- Repair the default category in cloned templates that ship with stale child references inherited from the source template.
+- Expose a single "blackboard repair" tool that bundles delete-empty + reassign-orphans + repair-default into one call for clone-then-customize workflows.
 
 ### Idempotent Edge Creation
 
