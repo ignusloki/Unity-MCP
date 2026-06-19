@@ -125,13 +125,12 @@ Future work:
 
 ### Idempotent Edge Creation
 
-During trials, attempting to create an already-existing edge produced a hard error. This is correct for strict mutation, but inefficient for agent workflows where a resumed run may not know exactly which edges were already created.
+**v1 landed** on `custom/shadergraph-mcp`. `ShaderGraphConnectEdgeInput.AllowExisting` is honoured by both the single-op `assets-shadergraph-connect-edge` tool and the batch tool's `connectEdge` op. When true and the requested edge already exists, the executor short-circuits before the JSON write + AssetDatabase import, returns the existing edge with `ChangedFields=["edge.alreadyExists"]` and `AlreadyExisted=true`. Incompatible slot pairings and conflicting input connections still fail loudly.
 
-Future work:
+**v2 follow-up debt**:
 
-- Add an optional `AllowExisting` or `Idempotent` flag.
-- Return the existing edge as a no-op diff when the requested edge already exists.
-- Still fail loudly for incompatible edges or conflicting existing input connections unless replacement is requested.
+- Apply the same idempotent treatment to `assets-shadergraph-add-node` (skip when an equivalent node already exists at the requested type + position) and `assets-shadergraph-add-property` (skip when a property with the same effective reference name already exists). Both want a careful "what counts as equivalent" rule; defer until a trial requires them.
+- Mirror `AllowExisting` on `assets-shadergraph-reconnect-edge` and `assets-shadergraph-reroute-output-slot` for the same resume-friendly semantics.
 
 ### Dynamic Default-Slot Editing
 

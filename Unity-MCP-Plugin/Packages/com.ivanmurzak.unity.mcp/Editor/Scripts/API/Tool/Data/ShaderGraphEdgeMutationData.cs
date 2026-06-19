@@ -37,6 +37,9 @@ namespace AIGD
 
         [Description("When true, automatically disconnect the current incoming edge on the target input slot before creating the new edge. Default: false")]
         public bool? ReplaceExistingInputConnection { get; set; }
+
+        [Description("When true, treat an already-existing identical edge as a successful no-op instead of throwing. The result reports AlreadyExisted=true, ChangedFields=[\"edge.alreadyExists\"], and no asset import is triggered. Incompatible slot pairings and conflicting input connections still fail loudly. Default: false")]
+        public bool? AllowExisting { get; set; }
     }
 
     [Description("Structured input for disconnecting an existing Shader Graph edge.")]
@@ -128,5 +131,8 @@ namespace AIGD
 
         [Description("List of edge fields that actually changed.")]
         public List<string>? ChangedFields { get; set; }
+
+        [Description("True when the requested edge was already present and the call was treated as an idempotent no-op (AllowExisting=true on ConnectEdge). Asset was not re-imported in that case.")]
+        public bool AlreadyExisted { get; set; }
     }
 }

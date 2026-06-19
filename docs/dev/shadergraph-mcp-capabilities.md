@@ -442,6 +442,7 @@ Node lifecycle mutation results include normalized summary fields:
   - Supports the same slot compatibility matrix as `assets-shadergraph-connect-edge`.
   - Rejects no-op reconnects.
   - Can replace another incoming edge on the new target input when `replaceExistingInputConnection` is true.
+  - Connect supports idempotent semantics: when `allowExisting` is true and the exact requested edge already exists, the call succeeds as a no-op without re-importing the asset. The result reports `AlreadyExisted=true` and `ChangedFields=["edge.alreadyExists"]`. Incompatible pairings and conflicting input connections still fail loudly. The flag is honoured both through the single-op `assets-shadergraph-connect-edge` tool and through the batch tool's `connectEdge` operation.
 - `assets-shadergraph-reroute-output-slot`
   - Moves every outgoing edge from one output slot to another compatible output slot.
   - Preflights every downstream input before any write is persisted.

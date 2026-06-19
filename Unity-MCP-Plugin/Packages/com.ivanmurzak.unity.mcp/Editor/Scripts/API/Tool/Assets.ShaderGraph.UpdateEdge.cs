@@ -109,7 +109,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n" +
             "- supports direct `Vector4 -> UV` edges via Unity's documented `.xy` truncation (no narrowing node needed)\n" +
             "- supports explicit vector narrowing workflows such as `Vector3 -> Split -> Combine(Vector2) -> UV`; direct Vector3-to-UV remains rejected unless Unity exposes a validated direct conversion\n" +
-            "- supports guarded input-edge replacement when `replaceExistingInputConnection` is true\n\n" +
+            "- supports guarded input-edge replacement when `replaceExistingInputConnection` is true\n" +
+            "- supports idempotent connect when `allowExisting` is true: if the exact requested edge already exists, the call succeeds as a no-op (no asset import, `ChangedFields=[\"edge.alreadyExists\"]`, `AlreadyExisted=true`). Incompatible pairings and conflicting input connections still fail loudly\n\n" +
             "## Response shape\n\n" +
             "By default returns a slim diff: `Edge`, `RemovedEdge` / `RemovedEdges` when applicable, `ChangedFields`, and `GraphSummary`. " +
             "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
@@ -308,6 +309,26 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             var edgesArray = EnsureEdgeArray(document.Root);
             if (FindEdgeIndex(edgesArray, outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId) >= 0)
             {
+                if (edge.AllowExisting == true)
+                {
+                    var graphRefIdempotent = new AssetObjectRef(assetPath);
+                    return new ShaderGraphEdgeMutationResultData
+                    {
+                        ChangedFields = new List<string> { "edge.alreadyExists" },
+                        Edge = CreateEdgeDefinition(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId),
+                        AlreadyExisted = true,
+                        GraphSummary = BuildShaderGraphSummary(graphRefIdempotent),
+                        Structure = includeStructure ? BuildShaderGraphStructureData(graphRefIdempotent) : null,
+                        Graph = includeGraph
+                            ? BuildShaderGraphData(
+                                graphRefIdempotent,
+                                includeMessages: includeMessages,
+                                includeProperties: includeProperties,
+                                includeDiagnostics: true)
+                            : null
+                    };
+                }
+
                 throw new InvalidOperationException(
                     $"The requested edge already exists: {outputSlot.NodeObjectId}:{outputSlot.SlotId} -> {inputSlot.NodeObjectId}:{inputSlot.SlotId}.");
             }
