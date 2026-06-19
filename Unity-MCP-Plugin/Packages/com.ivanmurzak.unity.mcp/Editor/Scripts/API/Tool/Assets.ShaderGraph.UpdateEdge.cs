@@ -94,7 +94,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         [AiSkillDescription("Connect two existing Shader Graph slots, then re-import the graph and return the connected edge and diagnostics.")]
         [AiSkillBody("Connect an existing output slot to an existing input slot inside a '.shadergraph' asset.\n\n" +
             "Current support is intentionally narrow and safe:\n" +
-            "- selection by node object id plus slot object id\n" +
+            "- selection by node object id plus slot object id, or by reference: pass `OutputSlot`/`InputSlot` carrying `Node` (Alias/DisplayName/ObjectId) + `DisplayName` (the slot name) — the resolver looks up the serialized ids for you, removing the need to round-trip through `get-structure`\n" +
             "- requires the input slot to be currently unconnected unless `replaceExistingInputConnection` is true\n" +
             "- supports exact slot-type matches\n" +
             "- supports compatible UV/vector2 slot pairs\n" +
@@ -299,6 +299,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
             var document = LoadMutableDocument(assetPath);
+            ApplyConnectEdgeSlotRefs(edge, new AssetObjectRef(assetPath));
             var outputSlot = ResolveNodeSlot(document, edge.OutputNodeObjectId, edge.OutputSlotObjectId, expectedSlotType: 1);
             var inputSlot = ResolveNodeSlot(document, edge.InputNodeObjectId, edge.InputSlotObjectId, expectedSlotType: 0);
 
@@ -1024,6 +1025,35 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 return (int)doubleValue;
 
             return null;
+        }
+
+        // Slice 1 helper: when the caller supplied SlotRefs (Node alias/display + slot display name)
+        // instead of the legacy *NodeObjectId / *SlotObjectId pair, resolve them against the current
+        // structure and write the resolved object ids back into the input DTO. The downstream JSON
+        // mutator then continues unchanged.
+        static void ApplyConnectEdgeSlotRefs(
+            ShaderGraphConnectEdgeInput edge,
+            AssetObjectRef graphRef,
+            ShaderGraphAliasBag? aliases = null)
+        {
+            if (edge.OutputSlot == null && edge.InputSlot == null)
+                return;
+
+            var structure = BuildShaderGraphStructureData(graphRef);
+
+            if (edge.OutputSlot != null)
+            {
+                var resolved = ResolveSlotRef(edge.OutputSlot, structure, aliases, "edge.outputSlot");
+                edge.OutputNodeObjectId = resolved.NodeObjectId;
+                edge.OutputSlotObjectId = resolved.SlotObjectId;
+            }
+
+            if (edge.InputSlot != null)
+            {
+                var resolved = ResolveSlotRef(edge.InputSlot, structure, aliases, "edge.inputSlot");
+                edge.InputNodeObjectId = resolved.NodeObjectId;
+                edge.InputSlotObjectId = resolved.SlotObjectId;
+            }
         }
     }
 }

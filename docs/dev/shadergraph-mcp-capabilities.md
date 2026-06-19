@@ -423,7 +423,7 @@ Node lifecycle mutation results include normalized summary fields:
 ### Edge Mutation
 
 - `assets-shadergraph-connect-edge`
-  - Connects compatible existing graph slots by `nodeObjectId` plus `slotObjectId`.
+  - Connects compatible existing graph slots by `nodeObjectId` plus `slotObjectId`, **or** by reference: `OutputSlot` / `InputSlot` carrying `Node` (Alias / DisplayName / ObjectId) plus the slot `DisplayName`. The resolver looks up the serialized ids from the current structure, removing the per-edge `get-structure` round-trip. When both forms are supplied, the reference form takes precedence.
   - Requires the input slot to be unconnected unless `replaceExistingInputConnection` is true.
   - Supports exact slot-type matches, compatible UV/vector2 pairs, scalar expansion into vector2 inputs such as `Float Property -> Tiling And Offset.Tiling`, vector2-resolved `DynamicVectorMaterialSlot -> UVMaterialSlot` paths such as `Add.Out -> Tiling And Offset.UV`, dynamic vector outputs into Shader Graph screen-position inputs such as `Branch.Out -> Scene Color.UV` and `Subtract.Out -> Scene Depth.UV`, compatible Vector3/Position pairs, `Vector3 -> NormalMaterialSlot` paths such as `Normal From Height.Out -> Fragment NormalWS`, Texture2D property outputs into Texture2D input slots, compatible dynamic numeric/vector/color slot families, and cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
   - Supports compatible color/vector slot pairs when one endpoint is a ShaderGraph color slot, such as `Vector4MaterialSlot -> ColorRGBMaterialSlot` for Color properties feeding Fragment Base Color.
@@ -444,6 +444,17 @@ Node lifecycle mutation results include normalized summary fields:
   - Refuses to overwrite unrelated incoming edges or create duplicate edges.
 - `assets-shadergraph-disconnect-edge`
   - Removes an existing edge selected by output node and slot plus input node and slot.
+
+### Batch Mutation
+
+- `assets-shadergraph-batch`
+  - Applies an ordered list of mutation operations to one `.shadergraph` asset in a single MCP call. Reduces per-op MCP round-trips and lets later operations reference earlier ones by batch-local alias.
+  - Supported operation kinds (Slice 8B.1 surface): `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`.
+  - Each `addNode` / `addProperty` / `addPropertyNode` envelope accepts an optional `Alias`. Later ops can pass that string in the `NodeObjectId` / `PropertyObjectId` field (or, for `connectEdge`, inside `OutputSlot.Node.Alias` / `InputSlot.Node.Alias`) and the resolver swaps it for the real serialized id.
+  - `connectEdge` supports the new reference shape from Slice 8B.1 directly: `OutputSlot` / `InputSlot` carry a `Node` selector (`Alias` / `DisplayName` / `ObjectId`) plus the slot `DisplayName`. The resolver consults the live structure plus the batch alias bag.
+  - `stopOnError` (default `true`): on first op failure the asset is snapshot-rolled back to its pre-batch content and the failure is surfaced with the failing op's index. `stopOnError=false` persists whatever succeeded and reports per-op errors.
+  - Returns one consolidated `ShaderGraphBatchResultData`: per-op summary (operation tag, ObjectId, ChangedFields, error), an alias-to-id map, and a single post-batch `GraphSummary`. No per-op `Structure` / `Graph` echo.
+  - Performance note (v1): each op currently delegates to its single-op helper, so the v1 batch still pays N AssetDatabase imports. The main win is round-trip count (N → 1) and the alias resolver that removes per-op `get-structure` lookups. A v2 follow-up will share a single in-memory `GraphData` to collapse to 1 import per batch.
 
 ## Current Extensions Window Group
 
@@ -475,6 +486,7 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - `assets-shadergraph-reconnect-edge`
 - `assets-shadergraph-reroute-output-slot`
 - `assets-shadergraph-disconnect-edge`
+- `assets-shadergraph-batch`
 
 ## Validation State
 

@@ -27,30 +27,20 @@ Do not keep re-listing fixed trial gaps as future work unless a regression is fo
 
 ### Batch ShaderGraph Mutation Tool
 
-The next major improvement should be a batch mutation API. The tool should accept an ordered list of operations, apply them in one edit session, import once, and return one compact result.
+**v1 landed** on `custom/shadergraph-mcp`. The `assets-shadergraph-batch` tool ships with:
 
-Required operation coverage:
+- Operation coverage: `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`.
+- Batch-local aliases on `addNode` / `addProperty` / `addPropertyNode`. Aliases stay in scope for the rest of the batch; later ops swap them into the existing `*ObjectId` selector fields.
+- `ConnectEdge` accepts the reference form: `OutputSlot` / `InputSlot` carry `Node` (Alias / DisplayName / ObjectId) plus the slot `DisplayName`. The resolver consults the live structure plus the batch alias bag, removing the need for a separate `get-structure` lookup.
+- `stopOnError` (default `true`). On the first failure the `.shadergraph` file is snapshot-rolled back to its pre-batch content and the failure is surfaced with the failing op's index. `stopOnError=false` persists whatever succeeded and reports per-op errors.
+- One consolidated `ShaderGraphBatchResultData` response: per-op summaries (operation tag, ObjectId, ChangedFields, error), an alias-to-id map, and a single post-batch `GraphSummary`. No per-op `Structure` / `Graph` echo.
 
-- Add node.
-- Delete node.
-- Move node.
-- Update node settings.
-- Add/update/delete property.
-- Add property node.
-- Connect/disconnect/reconnect edge.
-- Set blocks.
-- Set supported graph/target settings.
+**v2 follow-up debt** (the actual per-edge import cost):
 
-Required workflow features:
-
-- Temporary IDs so later operations can reference nodes, slots, properties, and edges created earlier in the same batch.
-- `$ref` resolution by operation alias, node alias, slot display name, property reference name, or existing serialized object id.
-- `stopOnError` behavior.
-- Optional `continueOnAlreadyExists` behavior for idempotent edge creation.
-- One final import/validation pass unless an operation requires an earlier import.
-- One final `GraphSummary`, diagnostics list, and compact mutation diff.
-
-This is the highest-value item before continuing larger reference graph trials.
+- Share a single in-memory `GraphData` across the batch so the batch performs **one** AssetDatabase import instead of N. The v1 batch still pays N imports because each op delegates to its single-op helper, which loads + saves + imports on its own.
+- Extend the batch to the remaining operation kinds called for in trials: `setBlocks`, `setSettings`, `disconnectEdge`, `reconnectEdge`, `duplicateNode`, `setPropertyCategory`, `reorderProperty`, `createCategory`.
+- Add `continueOnAlreadyExists` flag for idempotent edge creation (also lands in P1's idempotent-edge work).
+- Extend alias coverage so `addPropertyNode` can take a `PropertyRef` (Alias / ReferenceName) instead of requiring `PropertyObjectId`.
 
 ### Compact Responses By Default
 

@@ -482,7 +482,9 @@ Validation evidence:
 
 Status:
 
-- Not started.
+- Slice 8B.1 (alias foundation + batch tool, v1) landed in code on `custom/shadergraph-mcp`. `ShaderGraphNodeRef`, `ShaderGraphSlotRef`, `ShaderGraphPropertyRef` DTOs and a resolver are in place. `assets-shadergraph-connect-edge` now accepts the reference form so callers can identify slots by `Node` (Alias / DisplayName / ObjectId) + slot `DisplayName` instead of two serialized object ids. The reference form is additive — object-ID callers continue working unchanged.
+- `assets-shadergraph-batch` accepts an ordered list of operations (`addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`), executes them in order against the live asset, registers per-op aliases for downstream use, and returns one consolidated result with per-op summaries and a single post-batch `GraphSummary`. `stopOnError=true` (default) snapshot-rolls the file back on any failure.
+- v1 caveat: the batch still delegates each op to its single-op helper, so the v1 import count equals the op count. The main token win comes from collapsing N MCP round-trips to 1 plus removing per-op `get-structure` lookups through aliases. v2 (shared in-memory `GraphData`) will cut the import count to 1.
 - Identified during the 2026-06-17 Flame trial after Epic 8A slimmed per-call payloads but per-call **count** still dominated the authoring cost for non-trivial graphs.
 
 Purpose:

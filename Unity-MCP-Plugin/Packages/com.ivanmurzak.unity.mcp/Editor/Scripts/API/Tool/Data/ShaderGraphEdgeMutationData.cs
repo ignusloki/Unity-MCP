@@ -17,17 +17,23 @@ namespace AIGD
     [Description("Structured input for connecting two existing Shader Graph slots.")]
     public class ShaderGraphConnectEdgeInput
     {
-        [Description("Serialized object id of the output node.")]
+        [Description("Serialized object id of the output node. Ignored when OutputSlot is provided.")]
         public string? OutputNodeObjectId { get; set; }
 
-        [Description("Serialized object id of the output slot attached to outputNodeObjectId.")]
+        [Description("Serialized object id of the output slot attached to outputNodeObjectId. Ignored when OutputSlot is provided.")]
         public string? OutputSlotObjectId { get; set; }
 
-        [Description("Serialized object id of the input node.")]
+        [Description("Serialized object id of the input node. Ignored when InputSlot is provided.")]
         public string? InputNodeObjectId { get; set; }
 
-        [Description("Serialized object id of the input slot attached to inputNodeObjectId.")]
+        [Description("Serialized object id of the input slot attached to inputNodeObjectId. Ignored when InputSlot is provided.")]
         public string? InputSlotObjectId { get; set; }
+
+        [Description("Reference-based selector for the output slot. Lets callers identify the slot by node Alias/DisplayName + slot DisplayName instead of two serialized object ids. Takes precedence over OutputNodeObjectId / OutputSlotObjectId.")]
+        public ShaderGraphSlotRef? OutputSlot { get; set; }
+
+        [Description("Reference-based selector for the input slot. Lets callers identify the slot by node Alias/DisplayName + slot DisplayName instead of two serialized object ids. Takes precedence over InputNodeObjectId / InputSlotObjectId.")]
+        public ShaderGraphSlotRef? InputSlot { get; set; }
 
         [Description("When true, automatically disconnect the current incoming edge on the target input slot before creating the new edge. Default: false")]
         public bool? ReplaceExistingInputConnection { get; set; }
