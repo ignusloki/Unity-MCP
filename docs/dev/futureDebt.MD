@@ -49,12 +49,12 @@ Mutation tools should default to compact responses.
 Current good behavior:
 
 - Mutation tools can return created/changed object ids, changed fields, affected edge, and `GraphSummary` without returning the full graph.
+- `assets-shadergraph-batch` now exposes the `ShaderGraphResponseMode` enum (`Summary` / `Diff` / `Selection` / `Full`). `Diff` skips `GraphSummary`, `Selection` projects only the touched nodes (+ touching edges) via the QueryStructure projection, `Full` mirrors a post-batch `get-structure` call.
 
 Remaining debt:
 
-- Avoid accidental full graph payloads unless explicitly requested.
-- Keep `includeStructure`, `includeGraph`, and `includeProperties` defaulted to false for mutation tools.
-- Add explicit response modes such as `summary`, `diff`, `selection`, and `full`.
+- Wire `ShaderGraphResponseMode` into the 17 single-op mutation tools so callers no longer need to combine `includeStructure` / `includeGraph` / `includeMessages` / `includeProperties` flags by hand. This is intentionally deferred because the change touches every mutation tool's signature, the dispatcher helpers, and every existing editor test that pins those flags. Plan: introduce a shared `ShaderGraphMutationOptions` input DTO that owns the response mode (and folds in the legacy flags for back-compat), then migrate tools one batch at a time.
+- Avoid accidental full graph payloads unless explicitly requested. Keep `includeStructure`, `includeGraph`, and `includeProperties` defaulted to false for the single-op tools until they migrate to the new enum.
 - Return only the requested node/property/edge subset when detail is needed.
 
 ### Filtered Graph Read API

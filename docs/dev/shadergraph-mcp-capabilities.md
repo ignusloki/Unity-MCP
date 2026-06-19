@@ -457,7 +457,12 @@ Node lifecycle mutation results include normalized summary fields:
   - Each `addNode` / `addProperty` / `addPropertyNode` envelope accepts an optional `Alias`. Later ops can pass that string in the `NodeObjectId` / `PropertyObjectId` field (or, for `connectEdge`, inside `OutputSlot.Node.Alias` / `InputSlot.Node.Alias`) and the resolver swaps it for the real serialized id.
   - `connectEdge` supports the new reference shape from Slice 8B.1 directly: `OutputSlot` / `InputSlot` carry a `Node` selector (`Alias` / `DisplayName` / `ObjectId`) plus the slot `DisplayName`. The resolver consults the live structure plus the batch alias bag.
   - `stopOnError` (default `true`): on first op failure the asset is snapshot-rolled back to its pre-batch content and the failure is surfaced with the failing op's index. `stopOnError=false` persists whatever succeeded and reports per-op errors.
-  - Returns one consolidated `ShaderGraphBatchResultData`: per-op summary (operation tag, ObjectId, ChangedFields, error), an alias-to-id map, and a single post-batch `GraphSummary`. No per-op `Structure` / `Graph` echo.
+  - `responseMode` (default `Summary`) selects the post-batch view returned to the caller:
+    - `Summary` — per-op summaries plus one consolidated `GraphSummary`.
+    - `Diff` — per-op `ChangedFields` + `ObjectId` only. No `GraphSummary`, no structure echo. Cheapest payload.
+    - `Selection` — per-op summaries plus a `Selection` projection scoped to the nodes touched by this batch (same shape as `assets-shadergraph-query-structure`, with `EdgesTouchingNodeIds` set to the touched id set).
+    - `Full` — per-op summaries plus the full read-only `Structure` block (equivalent to calling `assets-shadergraph-get-structure` after the batch).
+  - Returns one consolidated `ShaderGraphBatchResultData`: per-op summaries (operation tag, ObjectId, ChangedFields, error), the alias-to-id map, and the post-batch view selected by `responseMode`.
   - Performance note (v1): each op currently delegates to its single-op helper, so the v1 batch still pays N AssetDatabase imports. The main win is round-trip count (N → 1) and the alias resolver that removes per-op `get-structure` lookups. A v2 follow-up will share a single in-memory `GraphData` to collapse to 1 import per batch.
 
 ## Current Extensions Window Group

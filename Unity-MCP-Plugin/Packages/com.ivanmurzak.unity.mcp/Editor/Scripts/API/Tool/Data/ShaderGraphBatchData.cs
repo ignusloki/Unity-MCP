@@ -22,6 +22,9 @@ namespace AIGD
 
         [Description("When true, abort the batch on the first operation failure and roll the .shadergraph file back to its pre-batch content. When false, persist whatever succeeded and surface per-op errors in the response. Default: true.")]
         public bool? StopOnError { get; set; }
+
+        [Description("Controls how much post-batch detail the response carries. Default: Summary. See ShaderGraphResponseMode for the per-mode contract.")]
+        public ShaderGraphResponseMode? ResponseMode { get; set; }
     }
 
     [Description("One operation in a Shader Graph batch. Set Kind plus exactly one matching payload. Reflection-tier ops (AddNode, UpdateNodeSettings, DeleteNode) execute in Phase 1; JSON-tier ops (AddProperty, UpdateProperty, AddPropertyNode, ConnectEdge, UpdateNodePosition, DeleteProperty) execute in Phase 2.")]
@@ -78,6 +81,15 @@ namespace AIGD
 
         [Description("True when the batch ran every supplied op without error; false when one or more ops failed (or were skipped due to stopOnError=true).")]
         public bool Success { get; set; }
+
+        [Description("The response mode that produced this result. Echoed so the caller can confirm the contract that was applied.")]
+        public ShaderGraphResponseMode ResponseMode { get; set; }
+
+        [Description("Selection projection of the post-batch graph scoped to the nodes touched by this batch. Populated only when ResponseMode = Selection. Uses the same shape as assets-shadergraph-query-structure.")]
+        public ShaderGraphQueryStructureData? Selection { get; set; }
+
+        [Description("Full read-only post-batch graph structure. Populated only when ResponseMode = Full. Equivalent to calling assets-shadergraph-get-structure after the batch.")]
+        public ShaderGraphStructureData? Structure { get; set; }
     }
 
     [Description("Per-operation result entry inside a Shader Graph batch response.")]

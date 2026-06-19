@@ -51,7 +51,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "## Atomicity\n\n" +
             "When `stopOnError=true` (default) the batch snapshots the `.shadergraph` file before running. If any op throws, the snapshot is restored, the asset is re-imported, and the failure is surfaced with the failing op's index. `stopOnError=false` persists whatever succeeded and surfaces per-op errors for the rest of the batch.\n\n" +
             "## Response\n\n" +
-            "Returns one consolidated `ShaderGraphBatchResultData` carrying per-op summaries (operation tag, ObjectId, ChangedFields, error), the alias map, and a single post-batch `GraphSummary`.")]
+            "Returns one consolidated `ShaderGraphBatchResultData` carrying per-op summaries (operation tag, ObjectId, ChangedFields, error), the alias map, and a post-batch view scoped by `ResponseMode`:\n\n" +
+            "- `Summary` (default) — per-op summaries plus one post-batch `GraphSummary`.\n" +
+            "- `Diff` — per-op `ChangedFields` + `ObjectId` only. No `GraphSummary`, no structure echo. Cheapest payload.\n" +
+            "- `Selection` — per-op summaries plus a `Selection` projection scoped to the nodes touched by this batch (same shape as `assets-shadergraph-query-structure`).\n" +
+            "- `Full` — per-op summaries plus the full read-only `Structure` block (equivalent to calling `assets-shadergraph-get-structure` after the batch).")]
         [Description("Apply an ordered list of Shader Graph mutation operations in one MCP call.")]
         public ShaderGraphBatchResultData Batch(
             AssetObjectRef assetRef,
@@ -146,15 +150,60 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             }
 
             var graphRef = new AssetObjectRef(assetPath);
-            return new ShaderGraphBatchResultData
+            var responseMode = batch.ResponseMode ?? ShaderGraphResponseMode.Summary;
+
+            var batchResult = new ShaderGraphBatchResultData
             {
                 Operations = results,
-                GraphSummary = BuildShaderGraphSummary(graphRef),
                 AliasMap = aliases.Nodes.Concat(aliases.Properties)
                     .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal),
                 CompletedOperationCount = completed,
-                Success = !anyFailure
+                Success = !anyFailure,
+                ResponseMode = responseMode
             };
+
+            ApplyBatchResponseMode(batchResult, graphRef, responseMode, results);
+            return batchResult;
+        }
+
+        static void ApplyBatchResponseMode(
+            ShaderGraphBatchResultData batchResult,
+            AssetObjectRef graphRef,
+            ShaderGraphResponseMode mode,
+            List<ShaderGraphBatchOperationResultData> results)
+        {
+            if (mode == ShaderGraphResponseMode.Diff)
+                return;
+
+            batchResult.GraphSummary = BuildShaderGraphSummary(graphRef);
+
+            if (mode == ShaderGraphResponseMode.Summary)
+                return;
+
+            var fullStructure = BuildShaderGraphStructureData(graphRef);
+
+            if (mode == ShaderGraphResponseMode.Full)
+            {
+                batchResult.Structure = fullStructure;
+                return;
+            }
+
+            if (mode == ShaderGraphResponseMode.Selection)
+            {
+                var touchedIds = results
+                    .Where(r => r.Success && !string.IsNullOrEmpty(r.ObjectId))
+                    .Select(r => r.ObjectId!)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+
+                var query = new ShaderGraphQueryStructureInput
+                {
+                    NodeObjectIds = touchedIds,
+                    EdgesTouchingNodeIds = touchedIds,
+                    IncludeTargets = false
+                };
+                batchResult.Selection = ProjectQueryStructure(fullStructure, query);
+            }
         }
 
         static void ExecuteBatchOperation(
