@@ -1067,6 +1067,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 var resolved = ResolveSlotRef(edge.OutputSlot, structure, aliases, "edge.outputSlot");
                 edge.OutputNodeObjectId = resolved.NodeObjectId;
                 edge.OutputSlotObjectId = resolved.SlotObjectId;
+                edge.OutputSlot = null;
             }
 
             if (edge.InputSlot != null)
@@ -1074,6 +1075,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 var resolved = ResolveSlotRef(edge.InputSlot, structure, aliases, "edge.inputSlot");
                 edge.InputNodeObjectId = resolved.NodeObjectId;
                 edge.InputSlotObjectId = resolved.SlotObjectId;
+                edge.InputSlot = null;
             }
         }
     }
