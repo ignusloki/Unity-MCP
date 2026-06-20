@@ -17,11 +17,14 @@ namespace AIGD
     [Description("Structured input for updating an existing Shader Graph blackboard property.")]
     public class ShaderGraphPropertyUpdateInput
     {
-        [Description("Serialized object id of the property to update. Optional if propertyReferenceName is provided.")]
+        [Description("Serialized object id of the property to update. Ignored when Property is provided. The batch tool also accepts a batch-local alias here (bare or '@alias' prefixed).")]
         public string? PropertyObjectId { get; set; }
 
-        [Description("Effective property reference name to update, such as '_BaseColor'. Optional if propertyObjectId is provided.")]
+        [Description("Effective property reference name to update, such as '_BaseColor'. Optional if propertyObjectId or Property is provided.")]
         public string? PropertyReferenceName { get; set; }
+
+        [Description("Reference-based selector for the property to update. Lets batch callers identify the property by Alias (assigned to a prior addProperty op), ReferenceName, or DisplayName instead of a serialized object id. Takes precedence over PropertyObjectId / PropertyReferenceName.")]
+        public ShaderGraphPropertyRef? Property { get; set; }
 
         [Description("New display name for the property.")]
         public string? DisplayName { get; set; }

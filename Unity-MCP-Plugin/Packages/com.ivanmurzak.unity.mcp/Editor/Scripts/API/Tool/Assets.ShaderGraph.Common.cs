@@ -845,6 +845,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.SmoothstepNode", StringComparison.Ordinal))
                 node.Smoothstep = new ShaderGraphSmoothstepNodeSettingsData();
 
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.StepNode", StringComparison.Ordinal))
+                node.Step = new ShaderGraphStepNodeSettingsData();
+
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.InvertColorsNode", StringComparison.Ordinal))
                 node.InvertColors = ParseInvertColorsNodeSettings(root);
 
@@ -1042,6 +1045,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 node.Smoothstep.Edge1 = ParseSlotVector4Value(node, "Edge1");
                 node.Smoothstep.Edge2 = ParseSlotVector4Value(node, "Edge2");
                 node.Smoothstep.Input = ParseSlotVector4Value(node, "In");
+            }
+
+            if (node.Step != null)
+            {
+                node.Step.Edge = ParseSlotVector4Value(node, "Edge");
+                node.Step.Input = ParseSlotVector4Value(node, "In");
             }
 
             if (node.Multiply != null)

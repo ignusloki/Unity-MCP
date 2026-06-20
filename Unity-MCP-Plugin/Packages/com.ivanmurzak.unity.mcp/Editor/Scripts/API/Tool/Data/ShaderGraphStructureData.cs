@@ -272,6 +272,9 @@ namespace AIGD
         [Description("Resolved Smoothstep settings when the node is a supported Smoothstep node.")]
         public ShaderGraphSmoothstepNodeSettingsData? Smoothstep { get; set; }
 
+        [Description("Resolved Step settings when the node is a supported Step node.")]
+        public ShaderGraphStepNodeSettingsData? Step { get; set; }
+
         [Description("Resolved Invert Colors settings when the node is a supported Invert Colors node.")]
         public ShaderGraphInvertColorsNodeSettingsData? InvertColors { get; set; }
     }
@@ -499,6 +502,15 @@ namespace AIGD
 
         [Description("Default value for the Edge2 input slot when readable.")]
         public ShaderGraphVector4SlotValueData? Edge2 { get; set; }
+
+        [Description("Default value for the In input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? Input { get; set; }
+    }
+
+    public class ShaderGraphStepNodeSettingsData
+    {
+        [Description("Default value for the Edge input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? Edge { get; set; }
 
         [Description("Default value for the In input slot when readable.")]
         public ShaderGraphVector4SlotValueData? Input { get; set; }

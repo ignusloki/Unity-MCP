@@ -292,6 +292,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "UnityEditor.ShaderGraph.SmoothstepNode":
                     ApplySmoothstepNodeSettings(document.Bindings, nodeObject, node.Smoothstep, changedFields);
                     break;
+                case "UnityEditor.ShaderGraph.StepNode":
+                    ApplyStepNodeSettings(document.Bindings, nodeObject, node.Step, changedFields);
+                    break;
                 case "UnityEditor.ShaderGraph.InvertColorsNode":
                     ApplyInvertColorsNodeSettings(nodeObject, node.InvertColors, changedFields);
                     break;
@@ -392,6 +395,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasSwizzleUpdates(node.Swizzle)
                || HasVector2NodeUpdates(node.Vector2)
                || HasSmoothstepUpdates(node.Smoothstep)
+               || HasStepUpdates(node.Step)
                || HasInvertColorsUpdates(node.InvertColors)
                || HasUnaryVectorUpdates(node.Sine)
                || HasUnaryVectorUpdates(node.Cosine)
@@ -428,6 +432,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasSwizzleUpdates(node.Swizzle)) count++;
             if (HasVector2NodeUpdates(node.Vector2)) count++;
             if (HasSmoothstepUpdates(node.Smoothstep)) count++;
+            if (HasStepUpdates(node.Step)) count++;
             if (HasInvertColorsUpdates(node.InvertColors)) count++;
             if (HasUnaryVectorUpdates(node.Sine)) count++;
             if (HasUnaryVectorUpdates(node.Cosine)) count++;
@@ -547,6 +552,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                && (HasVector4Updates(smoothstep.Edge1)
                    || HasVector4Updates(smoothstep.Edge2)
                    || HasVector4Updates(smoothstep.Input));
+
+        static bool HasStepUpdates(ShaderGraphStepNodeSettingsUpdateInput? step)
+            => step != null
+               && (HasVector4Updates(step.Edge)
+                   || HasVector4Updates(step.Input));
 
         static bool HasInvertColorsUpdates(ShaderGraphInvertColorsNodeSettingsUpdateInput? invertColors)
             => invertColors != null
@@ -1173,6 +1183,19 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             SetSlotVector4(bindings, nodeObject, "Edge1", smoothstep.Edge1, "node.smoothstep.edge1", changedFields);
             SetSlotVector4(bindings, nodeObject, "Edge2", smoothstep.Edge2, "node.smoothstep.edge2", changedFields);
             SetSlotVector4(bindings, nodeObject, "In", smoothstep.Input, "node.smoothstep.input", changedFields);
+        }
+
+        static void ApplyStepNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphStepNodeSettingsUpdateInput? step,
+            List<string> changedFields)
+        {
+            if (step == null)
+                throw new InvalidOperationException("Step nodes require a `step` settings payload.");
+
+            SetSlotVector4(bindings, nodeObject, "Edge", step.Edge, "node.step.edge", changedFields);
+            SetSlotVector4(bindings, nodeObject, "In", step.Input, "node.step.input", changedFields);
         }
 
         static void ApplyInvertColorsNodeSettings(

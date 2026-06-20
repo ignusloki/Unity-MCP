@@ -423,6 +423,15 @@ Node lifecycle mutation results include normalized summary fields:
     - `input.y`
     - `input.z`
     - `input.w`
+  - Supported `Step` fields:
+    - `edge.x`
+    - `edge.y`
+    - `edge.z`
+    - `edge.w`
+    - `input.x`
+    - `input.y`
+    - `input.z`
+    - `input.w`
   - Supported `Invert Colors` fields:
     - `red`
     - `green`
@@ -469,7 +478,9 @@ Node lifecycle mutation results include normalized summary fields:
   - Supported operation kinds (Slice 8B.1 surface): `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`.
   - Each `addNode` / `addProperty` / `addPropertyNode` envelope accepts an optional `Alias`. Later ops can pass that string in the `NodeObjectId` / `PropertyObjectId` field (or, for `connectEdge`, inside `OutputSlot.Node.Alias` / `InputSlot.Node.Alias`) and the resolver swaps it for the real serialized id.
   - `connectEdge` supports the new reference shape from Slice 8B.1 directly: `OutputSlot` / `InputSlot` carry a `Node` selector (`Alias` / `DisplayName` / `ObjectId`) plus the slot `DisplayName`. The resolver consults the live structure plus the batch alias bag.
-  - `stopOnError` (default `true`): on first op failure the asset is snapshot-rolled back to its pre-batch content and the failure is surfaced with the failing op's index. `stopOnError=false` persists whatever succeeded and reports per-op errors.
+  - `stopOnError` (default `true`): on first op failure the asset is snapshot-rolled back to its pre-batch content, the file mtime is bumped, and `FinalizeShaderGraphMutation` (re-import + ShaderGraph window reload) runs so the importer drops its cached `GraphData`. The failure exception explicitly reports `Asset rolled back to pre-batch content; retries are safe.` so callers can retry the same batch immediately. `stopOnError=false` persists whatever succeeded and reports per-op errors.
+  - Supported operation kinds: `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`, `setSettings`, `setBlocks`. `setSettings` and `setBlocks` were folded into the batch after the Dissolve-4 trial so that a complete graph (graph settings + URP target + block stack + nodes + edges + blackboard) can be authored in a single MCP round-trip.
+  - `updateNodeSettings`, `updateProperty`, and `addPropertyNode` accept reference-based selectors (`Node` / `Property`) inside the batch envelope, so an addNode-then-updateNodeSettings sequence in the same batch can refer to the new node by its alias instead of round-tripping through the alias map. The resolver also accepts the `@alias` prefix on the legacy `NodeObjectId` / `PropertyObjectId` string fields for convenience.
   - `responseMode` (default `Summary`) selects the post-batch view returned to the caller:
     - `Summary` — per-op summaries plus one consolidated `GraphSummary`.
     - `Diff` — per-op `ChangedFields` + `ObjectId` only. No `GraphSummary`, no structure echo. Cheapest payload.

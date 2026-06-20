@@ -32,16 +32,18 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         )]
         [AiSkillDescription("Apply an ordered list of Shader Graph mutation operations against one '.shadergraph' asset in a single MCP call. Reduces per-op round-trips and supports batch-local aliases.")]
         [AiSkillBody("Apply an ordered list of Shader Graph mutation operations to a '.shadergraph' asset in one MCP round-trip.\n\n" +
-            "Supported operation kinds (Slice 1 of Epic 8B):\n" +
+            "Supported operation kinds:\n" +
             "- `addNode`\n" +
-            "- `updateNodeSettings`\n" +
+            "- `updateNodeSettings` (accepts a `Node` selector: Alias / DisplayName / ObjectId)\n" +
             "- `deleteNode`\n" +
             "- `addProperty`\n" +
-            "- `updateProperty`\n" +
+            "- `updateProperty` (accepts a `Property` selector: Alias / ReferenceName / DisplayName / ObjectId)\n" +
             "- `deleteProperty`\n" +
-            "- `addPropertyNode`\n" +
+            "- `addPropertyNode` (accepts a `Property` selector)\n" +
             "- `connectEdge`\n" +
-            "- `updateNodePosition`\n\n" +
+            "- `updateNodePosition`\n" +
+            "- `setSettings`\n" +
+            "- `setBlocks`\n\n" +
             "## Aliases\n\n" +
             "Each `addNode`, `addProperty`, and `addPropertyNode` envelope accepts an optional `Alias`. Aliases are batch-local and let later ops reference the newly created object without serialized ids:\n\n" +
             "- `ConnectEdge.OutputSlot.Node.Alias = \"noise\"` matches an earlier `addNode` envelope with `Alias=\"noise\"`.\n" +
@@ -137,15 +139,29 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             if (anyFailure && stopOnError && firstFailure != null)
             {
-                File.WriteAllBytes(fullPath, snapshot);
-                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-                com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+                string rollbackNote;
+                try
+                {
+                    File.WriteAllBytes(fullPath, snapshot);
+                    // Bump mtime so Unity's importer treats the restored content as a fresh write.
+                    // Without this, the importer can short-circuit on equal mtime and keep its cached
+                    // GraphData, which surfaces as "property already exists" on a clean retry.
+                    File.SetLastWriteTimeUtc(fullPath, DateTime.UtcNow);
+                    // FinalizeShaderGraphMutation drops the importer's in-memory GraphData and
+                    // reloads any open ShaderGraph window against the restored bytes.
+                    FinalizeShaderGraphMutation(assetPath);
+                    rollbackNote = "Asset rolled back to pre-batch content; retries are safe.";
+                }
+                catch (Exception rollbackEx)
+                {
+                    rollbackNote =
+                        $"WARNING: rollback failed to fully restore '{assetPath}': {rollbackEx.GetType().Name}: {rollbackEx.Message}. " +
+                        $"The on-disk snapshot was written, but Unity may still hold stale state — close and reopen the asset before retrying.";
+                }
 
                 throw new InvalidOperationException(
                     $"Shader Graph batch aborted at op[{firstFailureIndex}] ({operations[firstFailureIndex].Kind}). " +
-                    $"Asset rolled back to pre-batch content. Underlying error: {firstFailure.Message}",
+                    $"{rollbackNote} Underlying error: {firstFailure.Message}",
                     firstFailure);
             }
 
@@ -242,9 +258,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "updatenodeposition":
                     RunBatchUpdateNodePosition(assetRef, op, aliases, result);
                     break;
+                case "setsettings":
+                    RunBatchSetSettings(assetRef, op, result);
+                    break;
+                case "setblocks":
+                    RunBatchSetBlocks(assetRef, op, result);
+                    break;
                 default:
                     throw new ArgumentException(
-                        $"Unsupported batch operation kind '{op.Kind}'. Supported values: addNode, updateNodeSettings, deleteNode, addProperty, updateProperty, deleteProperty, addPropertyNode, connectEdge, updateNodePosition.");
+                        $"Unsupported batch operation kind '{op.Kind}'. Supported values: addNode, updateNodeSettings, deleteNode, addProperty, updateProperty, deleteProperty, addPropertyNode, connectEdge, updateNodePosition, setSettings, setBlocks.");
             }
         }
 
@@ -403,13 +425,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (op.AddPropertyNode == null)
                 throw new ArgumentException("op.AddPropertyNode payload is required for kind=addPropertyNode.");
 
-            // If the caller passed an alias but no PropertyObjectId / PropertyReferenceName, accept the
-            // alias as a way to identify the property created earlier in this batch.
+            ResolveAddPropertyNodeTarget(op.AddPropertyNode, assetRef, aliases);
+
             if (string.IsNullOrWhiteSpace(op.AddPropertyNode.PropertyObjectId)
                 && string.IsNullOrWhiteSpace(op.AddPropertyNode.PropertyReferenceName))
             {
                 throw new ArgumentException(
-                    "addPropertyNode requires PropertyObjectId or PropertyReferenceName. Batch alias-by-property is a follow-up; reuse the alias map from the batch response to convert an alias to an ObjectId.");
+                    "addPropertyNode requires PropertyObjectId, PropertyReferenceName, or a Property selector (Alias / ReferenceName / DisplayName / ObjectId).");
             }
 
             var addResult = AddShaderGraphPropertyNode(
@@ -476,6 +498,47 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             result.ChangedFields = moveResult.ChangedFields;
         }
 
+        static void RunBatchSetSettings(
+            AssetObjectRef assetRef,
+            ShaderGraphBatchOperationInput op,
+            ShaderGraphBatchOperationResultData result)
+        {
+            if (op.SetSettings == null)
+                throw new ArgumentException("op.SetSettings payload is required for kind=setSettings.");
+
+            var settingsResult = UpdateShaderGraphSettings(
+                assetRef,
+                op.SetSettings,
+                includeGraph: false,
+                includeMessages: false,
+                includeProperties: false);
+
+            result.Operation = "setSettings";
+            result.ObjectId = null;
+            result.ChangedFields = settingsResult.ChangedFields;
+        }
+
+        static void RunBatchSetBlocks(
+            AssetObjectRef assetRef,
+            ShaderGraphBatchOperationInput op,
+            ShaderGraphBatchOperationResultData result)
+        {
+            if (op.SetBlocks == null)
+                throw new ArgumentException("op.SetBlocks payload is required for kind=setBlocks.");
+
+            var blocksResult = SetShaderGraphBlocks(
+                assetRef,
+                op.SetBlocks,
+                includeStructure: false,
+                includeGraph: false,
+                includeMessages: false,
+                includeProperties: false);
+
+            result.Operation = "setBlocks";
+            result.ObjectId = null;
+            result.ChangedFields = blocksResult.ChangedFields;
+        }
+
         // ---- Resolution helpers ----
         //
         // Each existing single-op DTO has a *ObjectId selector field. For the batch we accept
@@ -487,7 +550,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ShaderGraphUpdateNodeSettingsInput settings,
             AssetObjectRef assetRef,
             ShaderGraphAliasBag aliases)
-            => settings.NodeObjectId = ResolveNodeIdOrAlias(settings.NodeObjectId, aliases);
+        {
+            if (settings.Node != null)
+            {
+                var structure = BuildShaderGraphStructureData(assetRef);
+                settings.NodeObjectId = ResolveNodeObjectId(settings.Node, structure, aliases, "updateNodeSettings.node");
+                settings.Node = null;
+                return;
+            }
+            settings.NodeObjectId = ResolveNodeIdOrAlias(settings.NodeObjectId, aliases);
+        }
 
         static void ResolveDeleteNodeTarget(
             ShaderGraphDeleteNodeInput input,
@@ -505,7 +577,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ShaderGraphPropertyUpdateInput input,
             AssetObjectRef assetRef,
             ShaderGraphAliasBag aliases)
-            => input.PropertyObjectId = ResolvePropertyIdOrAlias(input.PropertyObjectId, aliases);
+        {
+            if (input.Property != null)
+            {
+                var structure = BuildShaderGraphStructureData(assetRef);
+                input.PropertyObjectId = ResolvePropertyObjectId(input.Property, structure, aliases, "updateProperty.property");
+                input.Property = null;
+                return;
+            }
+            input.PropertyObjectId = ResolvePropertyIdOrAlias(input.PropertyObjectId, aliases);
+        }
 
         static void ResolveDeletePropertyTarget(
             ShaderGraphDeletePropertyInput input,
@@ -513,12 +594,27 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ShaderGraphAliasBag aliases)
             => input.PropertyObjectId = ResolvePropertyIdOrAlias(input.PropertyObjectId, aliases);
 
+        static void ResolveAddPropertyNodeTarget(
+            ShaderGraphAddPropertyNodeInput input,
+            AssetObjectRef assetRef,
+            ShaderGraphAliasBag aliases)
+        {
+            if (input.Property != null)
+            {
+                var structure = BuildShaderGraphStructureData(assetRef);
+                input.PropertyObjectId = ResolvePropertyObjectId(input.Property, structure, aliases, "addPropertyNode.property");
+                input.Property = null;
+                return;
+            }
+            input.PropertyObjectId = ResolvePropertyIdOrAlias(input.PropertyObjectId, aliases);
+        }
+
         static string? ResolveNodeIdOrAlias(string? value, ShaderGraphAliasBag aliases)
         {
             if (string.IsNullOrWhiteSpace(value))
                 return value;
 
-            var trimmed = value!.Trim();
+            var trimmed = StripAliasPrefix(value!.Trim());
             return aliases.Nodes.TryGetValue(trimmed, out var resolved) ? resolved : trimmed;
         }
 
@@ -527,8 +623,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.IsNullOrWhiteSpace(value))
                 return value;
 
-            var trimmed = value!.Trim();
+            var trimmed = StripAliasPrefix(value!.Trim());
             return aliases.Properties.TryGetValue(trimmed, out var resolved) ? resolved : trimmed;
         }
+
+        // Accept either a bare alias ("noise") or the agent-friendly "@noise" form. Both resolve
+        // against the in-batch alias bag; non-aliased strings fall through untouched.
+        static string StripAliasPrefix(string value)
+            => value.StartsWith("@", StringComparison.Ordinal) ? value.Substring(1) : value;
     }
 }

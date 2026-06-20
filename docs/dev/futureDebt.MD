@@ -27,20 +27,19 @@ Do not keep re-listing fixed trial gaps as future work unless a regression is fo
 
 ### Batch ShaderGraph Mutation Tool
 
-**v1 landed** on `custom/shadergraph-mcp`. The `assets-shadergraph-batch` tool ships with:
+**v1 + Dissolve-4 follow-ups landed** on `custom/shadergraph-mcp`. The `assets-shadergraph-batch` tool ships with:
 
-- Operation coverage: `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`.
-- Batch-local aliases on `addNode` / `addProperty` / `addPropertyNode`. Aliases stay in scope for the rest of the batch; later ops swap them into the existing `*ObjectId` selector fields.
+- Operation coverage: `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`, `setSettings`, `setBlocks`.
+- Batch-local aliases on `addNode` / `addProperty` / `addPropertyNode`. Aliases stay in scope for the rest of the batch and resolve via either the `Node` / `Property` reference envelopes on `updateNodeSettings` / `updateProperty` / `addPropertyNode`, or as bare / `@alias` strings in the existing `*ObjectId` fields.
 - `ConnectEdge` accepts the reference form: `OutputSlot` / `InputSlot` carry `Node` (Alias / DisplayName / ObjectId) plus the slot `DisplayName`. The resolver consults the live structure plus the batch alias bag, removing the need for a separate `get-structure` lookup.
-- `stopOnError` (default `true`). On the first failure the `.shadergraph` file is snapshot-rolled back to its pre-batch content and the failure is surfaced with the failing op's index. `stopOnError=false` persists whatever succeeded and reports per-op errors.
+- `stopOnError` (default `true`). On the first failure the `.shadergraph` file is snapshot-rolled back, the file mtime is bumped, and `FinalizeShaderGraphMutation` (re-import + ShaderGraph window reload) runs so the importer drops its cached `GraphData`. The thrown error explicitly states `Asset rolled back to pre-batch content; retries are safe.` so callers can re-run the same batch immediately. `stopOnError=false` persists whatever succeeded and reports per-op errors.
 - One consolidated `ShaderGraphBatchResultData` response: per-op summaries (operation tag, ObjectId, ChangedFields, error), an alias-to-id map, and a single post-batch `GraphSummary`. No per-op `Structure` / `Graph` echo.
 
 **v2 follow-up debt** (the actual per-edge import cost):
 
 - Share a single in-memory `GraphData` across the batch so the batch performs **one** AssetDatabase import instead of N. The v1 batch still pays N imports because each op delegates to its single-op helper, which loads + saves + imports on its own.
-- Extend the batch to the remaining operation kinds called for in trials: `setBlocks`, `setSettings`, `disconnectEdge`, `reconnectEdge`, `duplicateNode`, `setPropertyCategory`, `reorderProperty`, `createCategory`.
-- Add `continueOnAlreadyExists` flag for idempotent edge creation (also lands in P1's idempotent-edge work).
-- Extend alias coverage so `addPropertyNode` can take a `PropertyRef` (Alias / ReferenceName) instead of requiring `PropertyObjectId`.
+- Extend the batch to the remaining single-op mutations not yet covered: `disconnectEdge`, `reconnectEdge`, `duplicateNode`, `setPropertyCategory`, `reorderProperty`, `createCategory`, `deleteCategory`, `pruneEmptyCategories`.
+- Add `continueOnAlreadyExists` flag for idempotent edge creation (already lands in P1's idempotent-edge work via `AllowExisting`; mirroring it on `reconnect-edge` and `reroute-output-slot` is the open work).
 
 ### Compact Responses By Default
 
@@ -79,15 +78,17 @@ Remaining debt:
 
 ### Stable Agent-Friendly References
 
-Agents currently have to preserve many serialized object ids across calls. That is brittle and token-heavy.
+**v1 landed** on `custom/shadergraph-mcp`. The batch tool's alias system covers the trial use cases:
 
-Future API should support:
+- Node aliases assigned at creation time on `addNode` / `addProperty` / `addPropertyNode`.
+- Property lookup by reference name on the existing `*PropertyReferenceName` fields.
+- Slot lookup by display name on `connectEdge` (`OutputSlot` / `InputSlot.DisplayName` with parent `Node` envelope).
+- Edge creation using aliases instead of serialized ids on `connectEdge`.
+- Batch-local alias resolution on every node/property-touching op via the `Node` / `Property` reference envelopes or the legacy `*ObjectId` strings (which now accept bare or `@alias` forms).
 
-- Node aliases assigned at creation time.
-- Property lookup by reference name.
-- Slot lookup by display name plus slot direction.
-- Edge creation using aliases instead of serialized ids.
-- Batch-local alias resolution.
+**v2 follow-up debt**:
+
+- Cross-session aliases: today aliases die at the end of the batch. A trial might want to attach human-readable handles persisted in the graph (sticky-note-style) and resolve them across batches. Requires a stable serialized field and a careful "agent renamed it" story.
 - Optional persisted comments/labels only when graph organization is requested.
 
 ### Import Strategy

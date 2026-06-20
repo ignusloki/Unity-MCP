@@ -30,11 +30,14 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted node to an existing Shader Graph.")]
     public class ShaderGraphAddPropertyNodeInput
     {
-        [Description("Serialized object id of the blackboard property to expose as a node. Optional if propertyReferenceName is provided.")]
+        [Description("Serialized object id of the blackboard property to expose as a node. Optional if PropertyReferenceName or Property is provided. The batch tool also accepts a batch-local property alias here (bare or '@alias' prefixed).")]
         public string? PropertyObjectId { get; set; }
 
-        [Description("Effective property reference name to expose as a node, such as '_BaseColor'. Optional if propertyObjectId is provided.")]
+        [Description("Effective property reference name to expose as a node, such as '_BaseColor'. Optional if propertyObjectId or Property is provided.")]
         public string? PropertyReferenceName { get; set; }
+
+        [Description("Reference-based selector for the property to expose. Lets batch callers identify the property by Alias (assigned to a prior addProperty op), ReferenceName, or DisplayName instead of a serialized object id. Takes precedence over PropertyObjectId / PropertyReferenceName.")]
+        public ShaderGraphPropertyRef? Property { get; set; }
 
         [Description("Serialized X position for the new Property node. Default: 0.")]
         public float? PositionX { get; set; }
@@ -85,8 +88,11 @@ namespace AIGD
     [Description("Structured input for updating supported serialized settings on an existing Shader Graph node.")]
     public class ShaderGraphUpdateNodeSettingsInput
     {
-        [Description("Serialized object id of the node to update.")]
+        [Description("Serialized object id of the node to update. Ignored when Node is provided. The batch tool also accepts a batch-local alias here (bare or '@alias' prefixed).")]
         public string? NodeObjectId { get; set; }
+
+        [Description("Reference-based selector for the node to update. Lets batch callers identify the node by Alias (assigned to a prior addNode op) or DisplayName instead of a serialized object id. Takes precedence over NodeObjectId.")]
+        public ShaderGraphNodeRef? Node { get; set; }
 
         [Description("Structured settings updates for a Sample Texture 2D node.")]
         public ShaderGraphSampleTexture2DNodeSettingsUpdateInput? SampleTexture2D { get; set; }
@@ -174,6 +180,9 @@ namespace AIGD
 
         [Description("Structured settings updates for a Smoothstep node.")]
         public ShaderGraphSmoothstepNodeSettingsUpdateInput? Smoothstep { get; set; }
+
+        [Description("Structured settings updates for a Step node.")]
+        public ShaderGraphStepNodeSettingsUpdateInput? Step { get; set; }
 
         [Description("Structured settings updates for an Invert Colors node.")]
         public ShaderGraphInvertColorsNodeSettingsUpdateInput? InvertColors { get; set; }
@@ -455,6 +464,16 @@ namespace AIGD
 
         [Description("Default value for the Edge2 input slot.")]
         public ShaderGraphVector4ValueUpdateInput? Edge2 { get; set; }
+
+        [Description("Default value for the In input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
+    }
+
+    [Description("Structured settings updates for a Step node.")]
+    public class ShaderGraphStepNodeSettingsUpdateInput
+    {
+        [Description("Default value for the Edge input slot. Threshold the Input is compared against.")]
+        public ShaderGraphVector4ValueUpdateInput? Edge { get; set; }
 
         [Description("Default value for the In input slot.")]
         public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
