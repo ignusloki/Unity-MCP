@@ -71,6 +71,7 @@ Enabling or disabling that row toggles the ShaderGraph tool set as one group.
 
 - `assets-shadergraph-create`
   - Creates a new `.shadergraph` asset by cloning a known-good template.
+  - `useCleanUrpTemplate` shortcut points the create at the MCP-owned clean URP-only blank fixture (`Packages/com.ivanmurzak.unity.mcp/Editor/Templates/Unlit URP Clean.shadergraph`): URP target only, 6 block-stack nodes, no inherited blackboard properties or categories, no HDTarget scaffolding. Prefer this for strict URP recreation trials. `templateAssetPath` still overrides when both are provided.
 - `assets-shadergraph-create-material`
   - Creates a `.mat` asset from the compiled shader resolved from a Shader Graph asset.
 - `assets-shadergraph-create-from-style-recipe`
@@ -453,6 +454,7 @@ Node lifecycle mutation results include normalized summary fields:
   - Rejects no-op reconnects.
   - Can replace another incoming edge on the new target input when `replaceExistingInputConnection` is true.
   - Connect supports idempotent semantics: when `allowExisting` is true and the exact requested edge already exists, the call succeeds as a no-op without re-importing the asset. The result reports `AlreadyExisted=true` and `ChangedFields=["edge.alreadyExists"]`. Incompatible pairings and conflicting input connections still fail loudly. The flag is honoured both through the single-op `assets-shadergraph-connect-edge` tool and through the batch tool's `connectEdge` operation.
+  - Connect supports auto-narrowing Vector3 → UV when `autoNarrowVector3ToUV` is true. The MCP plugin authors a `source.Vector3 → Split.In, Split.R → Combine.R, Split.G → Combine.G, Combine.RG → target.UV` chain in one call. `AutoCreatedNodeObjectIds` lists the Split + Combine ids, `AutoCreatedEdges` carries the three intermediate edges, and `Edge` is the final Combine.RG → target connection. Has no effect on already-compatible pairs.
 - `assets-shadergraph-reroute-output-slot`
   - Moves every outgoing edge from one output slot to another compatible output slot.
   - Preflights every downstream input before any write is persisted.

@@ -35,8 +35,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "## Inputs\n\n" +
             "- `assetPath` — destination under `Assets/` ending with '.shadergraph'.\n" +
             "- `templateAssetPath` — optional source template path under `Packages/` or `Assets/`. " +
-            "Defaults to a built-in cross-pipeline unlit template.\n" +
+            "Defaults to a built-in cross-pipeline unlit template (HDTarget + URP target + 2 blackboard properties + 4 demo edges).\n" +
+            "- `useCleanUrpTemplate` — shortcut: clone the MCP-owned clean URP-only template instead of the default. " +
+            "Equivalent to passing the package-local `Packages/com.ivanmurzak.unity.mcp/Editor/Templates/Unlit URP Clean.shadergraph` path. " +
+            "The clean template has only the URP target, the 6 default block-stack nodes, no blackboard properties, no inherited categories, and zero edges — start here for strict URP recreation trials.\n" +
             "- `overwrite` — when true, replace an existing destination file.\n\n" +
+            "Pass either `templateAssetPath` or `useCleanUrpTemplate`, not both. When both are provided `templateAssetPath` wins.\n\n" +
             "## Behavior\n\n" +
             "Copies the template source file, imports it synchronously, repaints editor windows, and returns Shader Graph data for the created asset.")]
         [Description("Create a new Shader Graph asset by cloning a template '.shadergraph' file.")]
@@ -47,7 +51,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             [Description("Optional template asset path under 'Packages/' or 'Assets/'. Defaults to a built-in unlit Shader Graph template.")]
             string? templateAssetPath = null,
             [Description("When true, replace an existing destination file. Default: false")]
-            bool? overwrite = false
+            bool? overwrite = false,
+            [Description("When true, use the MCP-owned clean URP-only blank template (Packages/com.ivanmurzak.unity.mcp/Editor/Templates/Unlit URP Clean.shadergraph). Ignored when templateAssetPath is also provided. Default: false")]
+            bool? useCleanUrpTemplate = false
         )
         {
             return MainThread.Instance.Run(() =>
@@ -61,9 +67,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 if (!IsShaderGraphAssetPath(assetPath))
                     throw new ArgumentException(Error.AssetPathMustEndWithShaderGraph(assetPath), nameof(assetPath));
 
-                var resolvedTemplateAssetPath = string.IsNullOrEmpty(templateAssetPath)
-                    ? DefaultTemplateAssetPath
-                    : templateAssetPath!;
+                string resolvedTemplateAssetPath;
+                if (!string.IsNullOrEmpty(templateAssetPath))
+                    resolvedTemplateAssetPath = templateAssetPath!;
+                else if (useCleanUrpTemplate == true)
+                    resolvedTemplateAssetPath = CleanUrpUnlitTemplateAssetPath;
+                else
+                    resolvedTemplateAssetPath = DefaultTemplateAssetPath;
 
                 var templatePhysicalPath = ResolvePhysicalAssetPath(resolvedTemplateAssetPath);
                 if (!File.Exists(templatePhysicalPath))

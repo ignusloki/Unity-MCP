@@ -40,6 +40,9 @@ namespace AIGD
 
         [Description("When true, treat an already-existing identical edge as a successful no-op instead of throwing. The result reports AlreadyExisted=true, ChangedFields=[\"edge.alreadyExists\"], and no asset import is triggered. Incompatible slot pairings and conflicting input connections still fail loudly. Default: false")]
         public bool? AllowExisting { get; set; }
+
+        [Description("When true, a Vector3 -> UV pairing (which is otherwise rejected) is auto-narrowed by inserting Split + Combine(RG) between the source and target. The MCP plugin authors a `source -> Split.In, Split.R -> Combine.R, Split.G -> Combine.G, Combine.RG -> target.UV` chain in one call and returns the auto-created nodes/edges in AutoCreatedNodeObjectIds / AutoCreatedEdges. No effect on already-compatible pairs. Default: false")]
+        public bool? AutoNarrowVector3ToUV { get; set; }
     }
 
     [Description("Structured input for disconnecting an existing Shader Graph edge.")]
@@ -134,5 +137,11 @@ namespace AIGD
 
         [Description("True when the requested edge was already present and the call was treated as an idempotent no-op (AllowExisting=true on ConnectEdge). Asset was not re-imported in that case.")]
         public bool AlreadyExisted { get; set; }
+
+        [Description("Object ids of any nodes that were auto-created on the caller's behalf, e.g. the Split + Combine pair inserted when ConnectEdge runs with AutoNarrowVector3ToUV=true. Null on a plain connect.")]
+        public List<string>? AutoCreatedNodeObjectIds { get; set; }
+
+        [Description("Edges authored on the caller's behalf as part of an auto-narrow chain (e.g. source -> Split.In, Split.R -> Combine.R, Split.G -> Combine.G). The final 'Edge' field still carries the requested-and-realised Combine.RG -> target connection. Null on a plain connect.")]
+        public List<ShaderGraphEdgeDefinitionData>? AutoCreatedEdges { get; set; }
     }
 }

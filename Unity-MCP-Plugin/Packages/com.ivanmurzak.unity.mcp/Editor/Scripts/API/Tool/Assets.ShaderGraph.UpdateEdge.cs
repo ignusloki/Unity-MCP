@@ -110,7 +110,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports direct `Vector4 -> UV` edges via Unity's documented `.xy` truncation (no narrowing node needed)\n" +
             "- supports explicit vector narrowing workflows such as `Vector3 -> Split -> Combine(Vector2) -> UV`; direct Vector3-to-UV remains rejected unless Unity exposes a validated direct conversion\n" +
             "- supports guarded input-edge replacement when `replaceExistingInputConnection` is true\n" +
-            "- supports idempotent connect when `allowExisting` is true: if the exact requested edge already exists, the call succeeds as a no-op (no asset import, `ChangedFields=[\"edge.alreadyExists\"]`, `AlreadyExisted=true`). Incompatible pairings and conflicting input connections still fail loudly\n\n" +
+            "- supports idempotent connect when `allowExisting` is true: if the exact requested edge already exists, the call succeeds as a no-op (no asset import, `ChangedFields=[\"edge.alreadyExists\"]`, `AlreadyExisted=true`). Incompatible pairings and conflicting input connections still fail loudly\n" +
+            "- supports auto-narrowing Vector3 -> UV when `autoNarrowVector3ToUV` is true: the MCP plugin authors a `source -> Split.In, Split.R -> Combine.R, Split.G -> Combine.G, Combine.RG -> target.UV` chain in one call. The created Split + Combine ids and the 3 intermediate edges are returned in `AutoCreatedNodeObjectIds` / `AutoCreatedEdges`; the final `Edge` is the Combine.RG -> target connection. Has no effect on already-compatible pairs\n\n" +
             "## Response shape\n\n" +
             "By default returns a slim diff: `Edge`, `RemovedEdge` / `RemovedEdges` when applicable, `ChangedFields`, and `GraphSummary`. " +
             "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
@@ -303,6 +304,22 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ApplyConnectEdgeSlotRefs(edge, new AssetObjectRef(assetPath));
             var outputSlot = ResolveNodeSlot(document, edge.OutputNodeObjectId, edge.OutputSlotObjectId, expectedSlotType: 1);
             var inputSlot = ResolveNodeSlot(document, edge.InputNodeObjectId, edge.InputSlotObjectId, expectedSlotType: 0);
+
+            if (edge.AutoNarrowVector3ToUV == true
+                && string.Equals(outputSlot.SlotTypeName, "UnityEditor.ShaderGraph.Vector3MaterialSlot", StringComparison.Ordinal)
+                && string.Equals(inputSlot.SlotTypeName, "UnityEditor.ShaderGraph.UVMaterialSlot", StringComparison.Ordinal))
+            {
+                return RunAutoNarrowVector3ToUV(
+                    assetRef,
+                    assetPath,
+                    edge,
+                    outputSlot,
+                    inputSlot,
+                    includeStructure,
+                    includeGraph,
+                    includeMessages,
+                    includeProperties);
+            }
 
             ValidateEdgeCompatibility(outputSlot, inputSlot);
 
@@ -1046,6 +1063,92 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 return (int)doubleValue;
 
             return null;
+        }
+
+        // Slice 7 helper: when the caller asked for AutoNarrowVector3ToUV and the slot pair is
+        // exactly Vector3 -> UV, author the narrowing chain `source -> Split.In, Split.R -> Combine.R,
+        // Split.G -> Combine.G, Combine.RG -> target.UV` and return the realised Combine.RG edge as
+        // the primary `Edge` field. Each step delegates to the existing single-op helpers so atomicity
+        // is best-effort (no shared snapshot rollback); the alternative would be to share an in-memory
+        // document, which is the same shared-import work tracked under Epic 8B v2 debt.
+        static ShaderGraphEdgeMutationResultData RunAutoNarrowVector3ToUV(
+            AssetObjectRef assetRef,
+            string assetPath,
+            ShaderGraphConnectEdgeInput edge,
+            NodeSlotContext outputSlot,
+            NodeSlotContext inputSlot,
+            bool includeStructure,
+            bool includeGraph,
+            bool includeMessages,
+            bool includeProperties)
+        {
+            var sourceNodeId = outputSlot.NodeObjectId;
+            var sourceSlotId = outputSlot.SlotObjectId;
+            var targetNodeId = inputSlot.NodeObjectId;
+            var targetSlotId = inputSlot.SlotObjectId;
+
+            var split = AddShaderGraphNode(assetRef, new ShaderGraphAddNodeInput { NodeType = "split" },
+                includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+            var splitId = split.NodeObjectId
+                ?? throw new InvalidOperationException("AutoNarrowVector3ToUV: Split node creation did not return an ObjectId.");
+
+            var combine = AddShaderGraphNode(assetRef, new ShaderGraphAddNodeInput { NodeType = "combine" },
+                includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+            var combineId = combine.NodeObjectId
+                ?? throw new InvalidOperationException("AutoNarrowVector3ToUV: Combine node creation did not return an ObjectId.");
+
+            var sourceToSplit = ConnectShaderGraphEdge(assetRef, new ShaderGraphConnectEdgeInput
+            {
+                OutputNodeObjectId = sourceNodeId,
+                OutputSlotObjectId = sourceSlotId,
+                InputSlot = new ShaderGraphSlotRef
+                {
+                    Node = new ShaderGraphNodeRef { ObjectId = splitId },
+                    DisplayName = "In"
+                }
+            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+
+            var splitRToCombineR = ConnectShaderGraphEdge(assetRef, new ShaderGraphConnectEdgeInput
+            {
+                OutputSlot = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = splitId },   DisplayName = "R" },
+                InputSlot  = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = combineId }, DisplayName = "R" }
+            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+
+            var splitGToCombineG = ConnectShaderGraphEdge(assetRef, new ShaderGraphConnectEdgeInput
+            {
+                OutputSlot = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = splitId },   DisplayName = "G" },
+                InputSlot  = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = combineId }, DisplayName = "G" }
+            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+
+            var combineRGToTarget = ConnectShaderGraphEdge(assetRef, new ShaderGraphConnectEdgeInput
+            {
+                OutputSlot = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = combineId }, DisplayName = "RG" },
+                InputNodeObjectId = targetNodeId,
+                InputSlotObjectId = targetSlotId
+            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+
+            var graphRef = new AssetObjectRef(assetPath);
+            return new ShaderGraphEdgeMutationResultData
+            {
+                ChangedFields = new List<string> { "edge.connected", "edge.autoNarrowedVector3ToUV" },
+                Edge = combineRGToTarget.Edge,
+                AutoCreatedNodeObjectIds = new List<string> { splitId, combineId },
+                AutoCreatedEdges = new List<ShaderGraphEdgeDefinitionData>
+                {
+                    sourceToSplit.Edge!,
+                    splitRToCombineR.Edge!,
+                    splitGToCombineG.Edge!
+                },
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? BuildShaderGraphStructureData(graphRef) : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
+            };
         }
 
         // Slice 1 helper: when the caller supplied SlotRefs (Node alias/display + slot display name)

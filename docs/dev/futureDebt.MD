@@ -105,13 +105,13 @@ Future work:
 
 ### Clean Universal Template
 
-The trials sometimes clone existing graphs to avoid unrelated HDRP target scaffolding. That can preserve stale Blackboard categories and template metadata.
+**v1 landed** on `custom/shadergraph-mcp`. The plugin ships a vendored URP-only blank fixture at `Packages/com.ivanmurzak.unity.mcp/Editor/Templates/Unlit URP Clean.shadergraph` (URP target only, 6 block-stack nodes, no inherited blackboard properties / categories, no HDTarget scaffolding). `assets-shadergraph-create` exposes the shortcut flag `useCleanUrpTemplate` to clone it.
 
-Future work:
+**v2 follow-up debt**:
 
-- Provide a clean MCP-owned Universal-only blank ShaderGraph template.
-- Ensure the template does not include unused categories, properties, groups, sticky notes, or target scaffolding unrelated to URP.
-- Prefer this template for all strict recreation trials.
+- Author a clean URP **Lit** template (Lit/PBR block stack with no inherited cross-pipeline scaffolding) for trials that need PBR. The current fixture is Unlit only.
+- Author a clean HDRP-only template for HDRP-only recreation trials. Same authoring pattern: strip URP scaffolding from a cross-pipeline source.
+- When Unity exposes a stable serialised path for groups and sticky notes, sweep them out of any future MCP-owned template too.
 
 ### Blackboard Category Cleanup
 
@@ -159,17 +159,13 @@ Future work:
 
 ### Vector3 To UV Narrowing
 
-Direct `Vector3MaterialSlot -> UVMaterialSlot` edges remain intentionally rejected.
+**v1 landed** on `custom/shadergraph-mcp`. Direct `Vector3MaterialSlot -> UVMaterialSlot` edges remain intentionally rejected by `ValidateEdgeCompatibility`, but `assets-shadergraph-connect-edge` now exposes `AutoNarrowVector3ToUV`. When true and the resolved slot pair is exactly Vector3 -> UV, the plugin authors the chain `source -> Split.In, Split.R -> Combine.R, Split.G -> Combine.G, Combine.RG -> target.UV` in one call. The Split + Combine ids are returned in `AutoCreatedNodeObjectIds`; the three intermediate edges in `AutoCreatedEdges`; the final `Edge` reports the Combine.RG -> target connection.
 
-Accepted authoring rule:
+**v2 follow-up debt**:
 
-- Use `Vector3 -> Split -> Combine.RG -> UV` when a Vector3 source must feed a UV/vector2 input.
-
-Future work:
-
-- Validate whether Unity's serialized graph model consistently imports direct `Vector3 -> Vector2/UV` edges across supported Unity/ShaderGraph versions.
-- If safe, add compatibility support and tests.
-- If not safe, keep the explicit narrowing path and consider an MCP helper that auto-inserts conversion nodes.
+- The narrow currently costs 6 AssetDatabase imports (2 add-node + 4 connect-edge) because each step delegates to the existing single-op helpers. Collapsing to 1 import per narrow is part of the Epic 8B v2 shared in-memory `GraphData` work.
+- Extend the same auto-narrow contract to `assets-shadergraph-reconnect-edge` and to the batch tool's `connectEdge` op.
+- Investigate whether Unity ever exposes a stable direct Vector3 -> UV path across the supported Unity / ShaderGraph package versions. If a trial proves it round-trips correctly, replace the auto-narrow path with a direct edge and keep the flag as a compatibility shim.
 
 ## P2 Feature Debt
 

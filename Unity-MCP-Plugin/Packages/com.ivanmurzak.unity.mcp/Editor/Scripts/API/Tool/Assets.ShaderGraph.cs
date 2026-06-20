@@ -19,6 +19,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         internal const string DefaultTemplateAssetPath =
             "Packages/com.unity.shadergraph/GraphTemplates/Cross Pipeline/Unlit Simple.shadergraph";
 
+        // MCP-owned URP-only blank Shader Graph: 6 block-stack nodes, no inherited
+        // blackboard properties or categories, no HDTarget scaffolding. Use this
+        // template when starting a strict URP recreation trial so the agent does
+        // not need to clean up cross-pipeline cruft first.
+        internal const string CleanUrpUnlitTemplateAssetPath =
+            "Packages/com.ivanmurzak.unity.mcp/Editor/Templates/Unlit URP Clean.shadergraph";
+
         public static class Error
         {
             public static string AssetPathMustEndWithShaderGraph(string assetPath)
