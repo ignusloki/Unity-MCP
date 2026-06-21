@@ -3894,7 +3894,126 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
-        public void ShaderGraph_DissolveTrialPath_CanCreateThresholdAndEdgeGlowChain()
+        public void ShaderGraph_ConnectEdge_RejectsDynamicStepEdgeInput()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_DissolveStepEdgeReject.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var add = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "add", PositionX = -740f, PositionY = 80f });
+                var step = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "step", PositionX = -500f, PositionY = 80f });
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var addNode = structure.Nodes!.First(node => node.ObjectId == add.Node!.ObjectId);
+                var stepNode = structure.Nodes!.First(node => node.ObjectId == step.Node!.ObjectId);
+
+                var exception = Assert.Throws<InvalidOperationException>(() =>
+                    ConnectSlots(tool, shader!, addNode, "Out", stepNode, "Edge"));
+
+                StringAssert.Contains("Step.Edge requires a literal compile-time value", exception!.Message);
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_BatchConnectEdge_RejectsDynamicStepEdgeInputAndRollsBack()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_DissolveStepEdgeBatchReject.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var exception = Assert.Throws<InvalidOperationException>(() =>
+                    tool.Batch(
+                        new AssetObjectRef(shader),
+                        new ShaderGraphBatchInput
+                        {
+                            Operations = new List<ShaderGraphBatchOperationInput>
+                            {
+                                new()
+                                {
+                                    Kind = "addNode",
+                                    Alias = "add",
+                                    AddNode = new ShaderGraphAddNodeInput { NodeType = "add", PositionX = -740f, PositionY = 80f }
+                                },
+                                new()
+                                {
+                                    Kind = "addNode",
+                                    Alias = "step",
+                                    AddNode = new ShaderGraphAddNodeInput { NodeType = "step", PositionX = -500f, PositionY = 80f }
+                                },
+                                new()
+                                {
+                                    Kind = "connectEdge",
+                                    ConnectEdge = new ShaderGraphConnectEdgeInput
+                                    {
+                                        OutputSlot = new ShaderGraphSlotRef
+                                        {
+                                            Node = new ShaderGraphNodeRef { Alias = "add" },
+                                            DisplayName = "Out"
+                                        },
+                                        InputSlot = new ShaderGraphSlotRef
+                                        {
+                                            Node = new ShaderGraphNodeRef { Alias = "step" },
+                                            DisplayName = "Edge"
+                                        }
+                                    }
+                                }
+                            }
+                        }));
+
+                StringAssert.Contains("Step.Edge requires a literal compile-time value", exception!.Message);
+
+                var structureAfterRollback = tool.GetStructure(new AssetObjectRef(shader));
+                Assert.IsFalse(structureAfterRollback.Nodes!.Any(node =>
+                    string.Equals(node.Type, "UnityEditor.ShaderGraph.StepNode", StringComparison.Ordinal)),
+                    "The failed batch should roll the added Step node back out of the graph.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_GetData_FlagsExistingDynamicStepEdgeInput()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_DissolveStepEdgeDiagnostics.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var add = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "add", PositionX = -740f, PositionY = 80f });
+                var step = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "step", PositionX = -500f, PositionY = 80f });
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var addNode = structure.Nodes!.First(node => node.ObjectId == add.Node!.ObjectId);
+                var stepNode = structure.Nodes!.First(node => node.ObjectId == step.Node!.ObjectId);
+
+                AddRawEdgeForTest(assetPath, addNode, "Out", stepNode, "Edge");
+
+                var data = tool.GetData(new AssetObjectRef(shader), includeMessages: false, includeProperties: false, includeDiagnostics: true);
+
+                Assert.IsTrue(data.HasErrors, "Serialized validation should mark the graph as erroneous even if ShaderUtil misses the import failure.");
+                Assert.IsTrue(data.Diagnostics!.Any(d => d.Code == "SHADERGRAPH_LITERAL_SLOT_EDGE" && d.Severity == "Error"),
+                    "Expected get-data diagnostics to report the dynamic edge into Step.Edge.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_DissolveTrialPath_CanCreateLiteralStepEdgeAndDynamicInputChain()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_DissolveTrialPath.shadergraph", LitFullTemplateAssetPath);
             try
@@ -3931,6 +4050,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                             Blue = false
                         }
                     });
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = step.Node!.ObjectId,
+                        Step = new ShaderGraphStepNodeSettingsUpdateInput
+                        {
+                            Edge = new ShaderGraphVector4ValueUpdateInput { X = 0.025f, Y = 0.025f, Z = 0.025f, W = 0.025f }
+                        }
+                    });
 
                 var structureBeforeWiring = tool.GetStructure(new AssetObjectRef(shader));
                 var nodesById = structureBeforeWiring.Nodes!.ToDictionary(node => node.ObjectId);
@@ -3944,7 +4073,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
 
                 ConnectSlots(tool, shader, timeNode, "Time", fractionNode, "In");
                 ConnectSlots(tool, shader, fractionNode, "Out", addNode, "A");
-                ConnectSlots(tool, shader, addNode, "Out", stepNode, "Edge");
+                ConnectSlots(tool, shader, addNode, "Out", stepNode, "In");
                 ConnectSlots(tool, shader, stepNode, "Out", invertColorsNode, "In");
                 var finalConnectResult = ConnectSlots(
                     tool,
@@ -3970,7 +4099,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
                     edge.OutputNodeId == addNode.ObjectId
                     && edge.InputNodeId == stepNode.ObjectId),
-                    "Expected Add.Out to feed Step.Edge.");
+                    "Expected Add.Out to feed Step.In while Step.Edge remains a literal threshold.");
                 Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
                     edge.OutputNodeId == stepNode.ObjectId
                     && edge.InputNodeId == invertColorsNode.ObjectId),
@@ -7072,6 +7201,51 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
 
             Assert.IsNotEmpty(objects, $"Expected Shader Graph source '{assetPath}' to contain JSON objects.");
             return objects;
+        }
+
+        static void AddRawEdgeForTest(
+            string assetPath,
+            ShaderGraphNodeDefinitionData outputNode,
+            string outputSlotName,
+            ShaderGraphNodeDefinitionData inputNode,
+            string inputSlotName)
+        {
+            var objects = ReadShaderGraphJsonObjects(assetPath);
+            var root = objects[0];
+            if (root["m_Edges"] is not JsonArray edgesArray)
+            {
+                edgesArray = new JsonArray();
+                root["m_Edges"] = edgesArray;
+            }
+
+            var outputSlot = FindSlot(outputNode, outputSlotName);
+            var inputSlot = FindSlot(inputNode, inputSlotName);
+            edgesArray.Add(new JsonObject
+            {
+                ["m_OutputSlot"] = new JsonObject
+                {
+                    ["m_Node"] = new JsonObject
+                    {
+                        ["m_Id"] = outputNode.ObjectId
+                    },
+                    ["m_SlotId"] = outputSlot.SlotId
+                },
+                ["m_InputSlot"] = new JsonObject
+                {
+                    ["m_Node"] = new JsonObject
+                    {
+                        ["m_Id"] = inputNode.ObjectId
+                    },
+                    ["m_SlotId"] = inputSlot.SlotId
+                }
+            });
+
+            var sourceText = string.Join(
+                Environment.NewLine + Environment.NewLine,
+                objects.Select(obj => obj.ToJsonString(ShaderGraphTestJsonWriteOptions))) + Environment.NewLine;
+            File.WriteAllText(assetPath, sourceText);
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
         static IEnumerable<string> EnumerateShaderGraphJsonObjects(string sourceText)

@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AIGD;
 using com.IvanMurzak.Unity.MCP.Runtime.Extensions;
 using UnityEditor;
@@ -80,6 +81,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             var sourceInfo = ReadSourceInfo(assetPath);
             var resolvedAsset = asset ?? (UnityEngine.Object?)shader ?? AssetDatabase.LoadMainAssetAtPath(assetPath);
 
+            var diagnostics = BuildDiagnostics(assetPath, sourceInfo, importer, shader);
+            var hasErrors = (shader != null && ShaderUtil.ShaderHasError(shader))
+                || HasErrorDiagnostics(diagnostics);
+
             var data = new ShaderGraphData
             {
                 Reference = resolvedAsset == null ? null : new AssetObjectRef(resolvedAsset),
@@ -90,7 +95,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 ShaderName = shader?.name,
                 ShaderResolved = shader != null,
                 IsSupported = shader != null && shader.isSupported,
-                HasErrors = shader != null && ShaderUtil.ShaderHasError(shader),
+                HasErrors = hasErrors,
                 GraphVersion = sourceInfo.GraphVersion,
                 GraphType = sourceInfo.GraphType,
                 ShaderMenuPath = sourceInfo.ShaderMenuPath,
@@ -112,7 +117,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 FillCompiledShaderData(data, shader, includeMessages, includeProperties);
 
             if (includeDiagnostics)
-                data.Diagnostics = BuildDiagnostics(assetPath, sourceInfo, importer, shader);
+                data.Diagnostics = diagnostics;
 
             return data;
         }
@@ -149,7 +154,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return new ShaderGraphSummaryData
             {
                 ShaderResolved = shader != null,
-                HasErrors = shader != null && ShaderUtil.ShaderHasError(shader),
+                HasErrors = (shader != null && ShaderUtil.ShaderHasError(shader))
+                    || HasErrorDiagnostics(fullDiagnostics),
                 NodeCount = sourceInfo.NodeCount,
                 EdgeCount = sourceInfo.EdgeCount,
                 Diagnostics = filtered.Count == 0 ? null : filtered
@@ -304,6 +310,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                         Hint = "Assign at least one target in Shader Graph Graph Settings."
                     });
                 }
+
+                AddSerializedGraphValidationDiagnostics(diagnostics, assetPath);
             }
 
             if (shader == null)
@@ -341,6 +349,61 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             }
 
             return diagnostics;
+        }
+
+        static bool HasErrorDiagnostics(IEnumerable<ShaderGraphDiagnosticData> diagnostics)
+            => diagnostics.Any(d => string.Equals(d.Severity, "Error", StringComparison.Ordinal));
+
+        static void AddSerializedGraphValidationDiagnostics(
+            List<ShaderGraphDiagnosticData> diagnostics,
+            string assetPath)
+        {
+            try
+            {
+                var document = LoadMutableDocument(assetPath);
+                if (document.Root["m_Edges"] is not JsonArray edgesArray)
+                    return;
+
+                foreach (var edgeNode in edgesArray)
+                {
+                    if (edgeNode is not JsonObject edgeObject)
+                        continue;
+
+                    var inputNodeId = GetStringAt(edgeObject, "m_InputSlot", "m_Node", "m_Id");
+                    var inputSlotId = GetIntAt(edgeObject, "m_InputSlot", "m_SlotId");
+                    if (string.IsNullOrEmpty(inputNodeId) || !inputSlotId.HasValue)
+                        continue;
+
+                    var inputSlot = ResolveNodeSlotBySlotId(
+                        document,
+                        inputNodeId!,
+                        inputSlotId.Value,
+                        expectedSlotType: 0);
+
+                    if (!IsStepEdgeInputSlot(inputSlot))
+                        continue;
+
+                    var outputNodeId = GetStringAt(edgeObject, "m_OutputSlot", "m_Node", "m_Id") ?? "<unknown>";
+                    var outputSlotId = GetIntAt(edgeObject, "m_OutputSlot", "m_SlotId");
+                    diagnostics.Add(new ShaderGraphDiagnosticData
+                    {
+                        Code = "SHADERGRAPH_LITERAL_SLOT_EDGE",
+                        Severity = "Error",
+                        Message = $"Shader Graph '{assetPath}' has an incoming edge '{outputNodeId}:{(outputSlotId.HasValue ? outputSlotId.Value.ToString() : "?")}' -> Step.Edge. Unity requires Step.Edge to be a literal compile-time value.",
+                        Hint = "Set the Step.Edge literal through assets-shadergraph-update-node-settings (`step.edge`) and connect dynamic dissolve/noise values into Step.In instead."
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                diagnostics.Add(new ShaderGraphDiagnosticData
+                {
+                    Code = "SERIALIZED_GRAPH_VALIDATION_FAILED",
+                    Severity = "Warning",
+                    Message = $"Serialized Shader Graph validation could not inspect '{assetPath}': {ex.GetType().Name}: {ex.Message}",
+                    Hint = "Run assets-shadergraph-get-structure and inspect Unity Console if graph import status is unclear."
+                });
+            }
         }
 
         static ShaderGraphSourceInfo ReadSourceInfo(string assetPath)

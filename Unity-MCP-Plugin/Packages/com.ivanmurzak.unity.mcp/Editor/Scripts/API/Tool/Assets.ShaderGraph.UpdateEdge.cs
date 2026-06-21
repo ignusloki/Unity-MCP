@@ -801,6 +801,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.IsNullOrEmpty(outputType) || string.IsNullOrEmpty(inputType))
                 throw new InvalidOperationException("Both slots must expose a serialized m_Type.");
 
+            if (IsStepEdgeInputSlot(inputSlot))
+            {
+                throw new InvalidOperationException(
+                    "Step.Edge requires a literal compile-time value in Unity Shader Graph and cannot accept an incoming edge. " +
+                    "Set the edge threshold through assets-shadergraph-update-node-settings (`step.edge`) and connect dynamic dissolve/noise values into Step.In instead.");
+            }
+
             if (string.Equals(outputType, inputType, StringComparison.Ordinal))
                 return;
 
@@ -872,6 +879,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
         static bool IsDynamicVectorSlotType(string slotType)
             => string.Equals(slotType, "UnityEditor.ShaderGraph.DynamicVectorMaterialSlot", StringComparison.Ordinal);
+
+        static bool IsStepEdgeInputSlot(NodeSlotContext inputSlot)
+            => string.Equals(GetString(inputSlot.NodeObject, "m_Type"), "UnityEditor.ShaderGraph.StepNode", StringComparison.Ordinal)
+               && string.Equals(GetString(inputSlot.SlotObject, "m_DisplayName"), "Edge", StringComparison.Ordinal)
+               && inputSlot.SlotType == 0;
 
         static JsonArray EnsureEdgeArray(JsonObject root)
         {

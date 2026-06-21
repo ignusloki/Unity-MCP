@@ -92,9 +92,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 }
 
                 File.Copy(templatePhysicalPath, destinationPhysicalPath, shouldOverwrite);
-                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                File.SetLastWriteTimeUtc(destinationPhysicalPath, DateTime.UtcNow);
+                FinalizeShaderGraphMutation(assetPath);
 
                 var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
                 if (shader == null)
