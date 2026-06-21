@@ -32,7 +32,7 @@ Do not keep re-listing fixed trial gaps as future work unless a regression is fo
 - Operation coverage: `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`, `setSettings`, `setBlocks`.
 - Batch-local aliases on `addNode` / `addProperty` / `addPropertyNode`. Aliases stay in scope for the rest of the batch and resolve via either the `Node` / `Property` reference envelopes on `updateNodeSettings` / `updateProperty` / `addPropertyNode`, or as bare / `@alias` strings in the existing `*ObjectId` fields.
 - `ConnectEdge` accepts the reference form: `OutputSlot` / `InputSlot` carry `Node` (Alias / DisplayName / ObjectId) plus the slot `DisplayName`. The resolver consults the live structure plus the batch alias bag, removing the need for a separate `get-structure` lookup.
-- `stopOnError` (default `true`). On the first failure the `.shadergraph` file is snapshot-rolled back, the file mtime is bumped, and `FinalizeShaderGraphMutation` (re-import + ShaderGraph window reload) runs so the importer drops its cached `GraphData`. The thrown error explicitly states `Asset rolled back to pre-batch content; retries are safe.` so callers can re-run the same batch immediately. `stopOnError=false` persists whatever succeeded and reports per-op errors.
+- `stopOnError` (default `true`). On the first failure the `.shadergraph` file is snapshot-rolled back, the file mtime is bumped, and `FinalizeShaderGraphMutation` (re-import + ShaderGraph window reload) runs so the importer drops its cached `GraphData`. The thrown error is self-describing: it ships an MD5 snapshot hash, a `Pre-batch fingerprint` block (`NodeCount=… EdgeCount=… ShaderResolved=…`), and either `Asset rolled back to pre-batch content; retries are safe.` (verified hash match after restore) or `WARNING: rollback verification FAILED.` (the bytes on disk don't match the snapshot — typically a dirty Shader Graph editor window stomped the restore). `stopOnError=false` persists whatever succeeded and reports per-op errors.
 - One consolidated `ShaderGraphBatchResultData` response: per-op summaries (operation tag, ObjectId, ChangedFields, error), an alias-to-id map, and a single post-batch `GraphSummary`. No per-op `Structure` / `Graph` echo.
 
 **v2 follow-up debt** (the actual per-edge import cost):
@@ -40,6 +40,7 @@ Do not keep re-listing fixed trial gaps as future work unless a regression is fo
 - Share a single in-memory `GraphData` across the batch so the batch performs **one** AssetDatabase import instead of N. The v1 batch still pays N imports because each op delegates to its single-op helper, which loads + saves + imports on its own.
 - Extend the batch to the remaining single-op mutations not yet covered: `disconnectEdge`, `reconnectEdge`, `duplicateNode`, `setPropertyCategory`, `reorderProperty`, `createCategory`, `deleteCategory`, `pruneEmptyCategories`.
 - Add `continueOnAlreadyExists` flag for idempotent edge creation (already lands in P1's idempotent-edge work via `AllowExisting`; mirroring it on `reconnect-edge` and `reroute-output-slot` is the open work).
+- **E-3 — Hostile-window rollback hardening.** If E-2's hash-mismatch warning ever fires in a real trial, the cause is almost certainly that `FinalizeShaderGraphMutation` calls `AssetDatabase.SaveAssets()` *before* `ReloadOpenShaderGraphWindows()`. A dirty open Shader Graph window holding the user's in-memory graph would have its state saved on top of the just-restored snapshot. Fix: add a `FinalizeForRollback` variant that reloads open windows first, then re-imports, and skips `SaveAssets()`. Deferred until E-2 actually flags a failure — landing it preemptively touches ShaderGraph reflection that's hard to unit-test in isolation.
 
 ### Compact Responses By Default
 
@@ -140,11 +141,13 @@ Direct typed node-setting mutation exists for common node families, but dynamic-
 Accepted authoring rule:
 
 - Prefer edge wiring or blackboard properties over forcing dynamic literal defaults before the dynamic slot has resolved its final width.
+- `Step.Edge` is a special literal-threshold slot. Do not wire dynamic outputs into it; MCP rejects that topology because Unity imports it with a Shader Graph concretization error. Use `assets-shadergraph-update-node-settings` to set `step.edge` and route dynamic dissolve/noise values into `Step.In`.
 
 Future work:
 
 - Normalize incompatible literal fallback metadata before edge creation where safe.
 - Improve direct literal/default-slot mutation only when trial evidence shows a real need.
+- Revisit `Step.Edge` only if a future Unity ShaderGraph package exposes a safe non-literal threshold mode or if Unity's own editor starts accepting dynamic edges into that slot without import errors.
 
 ### Texture Slot Assignment Boundaries
 

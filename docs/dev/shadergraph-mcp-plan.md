@@ -424,7 +424,7 @@ Implementation plan:
 - Slice 7F.1: add `fraction`, `step`, and `invertColors` to the `assets-shadergraph-add-node` allowlist and public input descriptions. Implemented.
 - Slice 7F.2: expose structure readback for the serialized `Invert Colors` channel toggles (`red`, `green`, `blue`); `alpha` readback is unavailable because Unity does not serialize `m_AlphaChannel` safely in the current package. `Fraction` and `Step` remain slot-only nodes with generic slot readback. Implemented.
 - Slice 7F.3: add typed `assets-shadergraph-update-node-settings` support for `invertColors.red`, `invertColors.green`, and `invertColors.blue`; reject `invertColors.alpha` loudly. Implemented.
-- Slice 7F.4: add editor tests for add, inspect, duplicate, move, delete, typed `Invert Colors` update/readback, loud alpha rejection, and a minimal dissolve-style path `Time -> Fraction -> Add -> Step -> Invert Colors -> Fragment Emission`. Implemented in editor tests.
+- Slice 7F.4: add editor tests for add, inspect, duplicate, move, delete, typed `Invert Colors` update/readback, loud alpha rejection, and a minimal dissolve-style path with `Step.Edge` kept literal and the dynamic dissolve value connected into `Step.In`. Implemented in editor tests.
 
 Validation requirements:
 
@@ -436,7 +436,39 @@ Validation evidence:
 
 - `Validation_AddNode_DissolveTrial.shadergraph`: editor test created `Fraction`, `Step`, and `Invert Colors`, verified expected slots, and exercised duplicate, move, and delete on `Invert Colors`.
 - `Validation_UpdateNodeSettings_DissolveTrial.shadergraph`: editor test set `Invert Colors.red=true`, confirmed green/blue disabled, confirmed alpha readback is unavailable in the current Unity package, and verified `invertColors.alpha` is rejected loudly.
-- `Validation_DissolveTrialPath.shadergraph`: editor test wired `Time.Time -> Fraction.In -> Add.A -> Step.Edge -> Invert Colors.In -> Fragment Emission`, with final `ShaderResolved=true` and no ShaderGraph diagnostic errors.
+- `Validation_DissolveTrialPath.shadergraph`: editor test wires `Time.Time -> Fraction.In -> Add.A -> Step.In`, keeps `Step.Edge` as a typed literal threshold, then wires `Step.Out -> Invert Colors.In -> Fragment Emission`, with final `ShaderResolved=true` and no ShaderGraph diagnostic errors.
+
+## Epic 7G: Dissolve-5 Literal Slot And Diagnostics Gap
+
+Status:
+
+- Implemented in code on `custom/shadergraph-mcp`.
+- Compile sanity check passed in the local Unity 6 validation project on 2026-06-20 with existing Unity/API warnings and 0 errors.
+- Live Dissolve-5 retry validation pending.
+
+Purpose:
+
+- Close the Dissolve-5 validation failure where MCP allowed `Add.Out -> Step.Edge`, Unity imported the graph with a Shader Graph concretization error, and MCP diagnostics still reported `HasErrors=false`.
+- Make agents fail before authoring known-invalid literal-only Step threshold edges, and make `assets-shadergraph-get-data`/`GraphSummary` flag existing bad graphs if they already contain that topology.
+- Reduce stale graph state after `assets-shadergraph-create overwrite=true` by using the same finalization path as ShaderGraph mutations.
+
+Implementation plan:
+
+- Slice 7G.1: reject incoming edges into `Step.Edge` through the shared edge compatibility validator used by `connectEdge`, `reconnectEdge`, `rerouteOutputSlot`, and batch `connectEdge`. Implemented.
+- Slice 7G.2: add serialized-graph diagnostics for existing `Step.Edge` incoming edges and set `HasErrors=true` when those diagnostics are present, even if Unity's compiled shader API reports no shader errors. Implemented.
+- Slice 7G.3: update `assets-shadergraph-create overwrite=true` to bump file mtime and run `FinalizeShaderGraphMutation` so Unity drops stale imported/open-window graph state after replacing a graph at the same path. Implemented.
+- Slice 7G.4: add editor regressions for single-edge rejection, batch rejection with rollback, diagnostics on an already-invalid graph, and the supported literal-`Step.Edge` dissolve topology. Implemented.
+
+Validation requirements:
+
+- `dotnet build Assembly-CSharp.csproj -v minimal` must pass with 0 errors.
+- Focused editor tests must cover `Validation_DissolveStepEdgeReject.shadergraph`, `Validation_DissolveStepEdgeBatchReject.shadergraph`, `Validation_DissolveStepEdgeDiagnostics.shadergraph`, and `Validation_DissolveTrialPath.shadergraph`.
+- A follow-up Dissolve-5 trial should use `Step.Edge` only as a literal threshold and connect the dynamic dissolve/noise chain into `Step.In`.
+
+Validation evidence:
+
+- `dotnet build Assembly-CSharp.csproj -v minimal` passed on 2026-06-20 from `Unity-test/TestShadergraph` with 0 errors and pre-existing Unity/API warnings.
+- Live Dissolve-5 retry validation pending.
 
 ## Epic 8A: Slim Default Mutation Responses
 
@@ -488,6 +520,9 @@ Status:
   - **D-Opt — `setSettings` + `setBlocks` in batch.** Two new op kinds; the entire Dissolve-4 authoring run (graph settings + URP target settings + block stack + node/property/edge mutations) can now be expressed in one batch.
   - **D-2 — Retry-safe rollback.** On `stopOnError=true` failure the batch now bumps the file mtime after restoring the snapshot and calls `FinalizeShaderGraphMutation` (re-import + ShaderGraph window reload) so the importer drops its cached `GraphData`. The thrown error explicitly states `Asset rolled back to pre-batch content; retries are safe.` so callers can re-run the same batch immediately.
   - **D-3 — Step typed settings.** New `ShaderGraphStepNodeSettingsUpdateInput` (Edge + In Vector4 defaults), readback DTO, and parser/dispatch wiring. `updateNodeSettings { step: { edge: { x: 0.7 } } }` round-trips.
+- **Dissolve-5 trial diagnostic improvements landed on 2026-06-20.** The Dissolve-5 trial report (`Unity-test/TestShadergraph/Assets/Unity-MCP-Test/Trials/Dissolve-5/TRIAL_REPORT.md`) flagged "batch returned rollback but state appears completed" — a controlled live repro confirmed the rollback was byte-faithful; the symptom matched a prior successful batch contaminating the pre-batch snapshot. Two diagnostic slices landed so a future agent can never make the same misreading:
+  - **E-1 — Pre-batch fingerprint in rollback message.** Every batch now builds a `ShaderGraphSummaryData` at start and appends `Pre-batch fingerprint: NodeCount=… EdgeCount=… ShaderResolved=…` to the rollback throw, plus the instruction `If a post-failure readback shows a different shape than this fingerprint, the batch you just ran was not the first run against this asset.` Validated: a rollback against a clean URP-template asset ships `NodeCount=6`; the same rollback after a successful prior batch (8 nodes, 1 property) ships `NodeCount=8` — the prior-run contamination is visible from the error alone.
+  - **E-2 — Snapshot hash verification.** Every batch now MD5-hashes the snapshot bytes at start and again after `FinalizeShaderGraphMutation`. If the hashes match the existing `Asset rolled back to pre-batch content; retries are safe. Snapshot hash …` wording stays. If they differ the message swaps to `WARNING: rollback verification FAILED. Snapshot hash X but on-disk hash Y after restore. Something stomped the restored bytes (most likely a dirty Shader Graph editor window).` The hash is short (12 hex chars) so the message stays human-readable. Live-validated against three scenarios: clean rollback (matching hashes), prior-run contamination (matching hashes, different fingerprint), and hash format (12 hex chars).
 - Slice 8B.1 (alias foundation + batch tool, v1) landed in code on `custom/shadergraph-mcp`. `ShaderGraphNodeRef`, `ShaderGraphSlotRef`, `ShaderGraphPropertyRef` DTOs and a resolver are in place. `assets-shadergraph-connect-edge` now accepts the reference form so callers can identify slots by `Node` (Alias / DisplayName / ObjectId) + slot `DisplayName` instead of two serialized object ids. The reference form is additive — object-ID callers continue working unchanged.
 - `assets-shadergraph-batch` accepts an ordered list of operations (`addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`), executes them in order against the live asset, registers per-op aliases for downstream use, and returns one consolidated result with per-op summaries and a single post-batch `GraphSummary`. `stopOnError=true` (default) snapshot-rolls the file back on any failure.
 - Slice 8B.2 (filtered read) landed in code on `custom/shadergraph-mcp`. `assets-shadergraph-query-structure` returns a `Stats` summary on every call and projects a subset of the existing `ShaderGraphStructureData` shape (Properties, Categories, Nodes, Edges, Targets, contexts) using filters: `statsOnly`, `propertiesOnly`, `nodeObjectIds`, `nodeTypeSubstrings`, `nodeDisplayNames`, `includeSlots`, `includeNodeSettings`, `includeEdges`, `edgesTouchingNodeIds`, `includeTargets`. `get-structure` semantics are unchanged. v2 follow-up: collapse to a single in-memory parse instead of rebuilding the full structure per query.

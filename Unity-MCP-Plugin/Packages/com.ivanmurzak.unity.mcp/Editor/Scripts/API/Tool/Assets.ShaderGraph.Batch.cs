@@ -91,6 +91,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 throw new FileNotFoundException($"Physical file does not exist at '{fullPath}'.", fullPath);
 
             var snapshot = File.ReadAllBytes(fullPath);
+            var snapshotHash = ComputeBatchSnapshotHash(snapshot);
+            // E-1 fingerprint: capture pre-batch counts so the rollback message can ship them. If the
+            // graph fails to parse here we still want the batch to run and (likely) fail with a clearer
+            // per-op error, so any exception in the summary build is swallowed and we ship "unknown"
+            // counts in the suffix instead.
+            ShaderGraphSummaryData? preBatchSummary = null;
+            try { preBatchSummary = BuildShaderGraphSummary(assetRef); }
+            catch { /* surface via fingerprint suffix below */ }
+
             var aliases = new ShaderGraphAliasBag();
             var results = new List<ShaderGraphBatchOperationResultData>(operations.Count);
             var completed = 0;
@@ -150,7 +159,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     // FinalizeShaderGraphMutation drops the importer's in-memory GraphData and
                     // reloads any open ShaderGraph window against the restored bytes.
                     FinalizeShaderGraphMutation(assetPath);
-                    rollbackNote = "Asset rolled back to pre-batch content; retries are safe.";
+
+                    // E-2 hash verification: confirm the on-disk bytes match the snapshot we just
+                    // wrote. If something stomped the file between WriteAllBytes and the import (most
+                    // likely a dirty Shader Graph window getting saved by AssetDatabase.SaveAssets()),
+                    // we downgrade the reassuring wording.
+                    var postRollbackBytes = File.ReadAllBytes(fullPath);
+                    var postRollbackHash = ComputeBatchSnapshotHash(postRollbackBytes);
+                    rollbackNote = string.Equals(snapshotHash, postRollbackHash, StringComparison.Ordinal)
+                        ? $"Asset rolled back to pre-batch content; retries are safe. Snapshot hash {snapshotHash}."
+                        : $"WARNING: rollback verification FAILED. Snapshot hash {snapshotHash} but on-disk hash {postRollbackHash} after restore. " +
+                          $"Something stomped the restored bytes (most likely a dirty Shader Graph editor window). Close the open Shader Graph editor before retrying.";
                 }
                 catch (Exception rollbackEx)
                 {
@@ -159,9 +178,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                         $"The on-disk snapshot was written, but Unity may still hold stale state — close and reopen the asset before retrying.";
                 }
 
+                // E-1 fingerprint suffix: ship the pre-batch counts so the caller can spot prior-run
+                // contamination by comparing against their own post-failure readback.
+                var fingerprint = preBatchSummary == null
+                    ? "Pre-batch fingerprint: unavailable (graph failed to summarize at batch start)."
+                    : $"Pre-batch fingerprint: NodeCount={preBatchSummary.NodeCount}, EdgeCount={preBatchSummary.EdgeCount}, ShaderResolved={preBatchSummary.ShaderResolved}. " +
+                      "If a post-failure readback shows a different shape than this fingerprint, the batch you just ran was not the first run against this asset and the rollback faithfully restored the prior-run state.";
+
                 throw new InvalidOperationException(
                     $"Shader Graph batch aborted at op[{firstFailureIndex}] ({operations[firstFailureIndex].Kind}). " +
-                    $"{rollbackNote} Underlying error: {firstFailure.Message}",
+                    $"{rollbackNote} {fingerprint} Underlying error: {firstFailure.Message}",
                     firstFailure);
             }
 
@@ -631,5 +657,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         // against the in-batch alias bag; non-aliased strings fall through untouched.
         static string StripAliasPrefix(string value)
             => value.StartsWith("@", StringComparison.Ordinal) ? value.Substring(1) : value;
+
+        // Short MD5 fingerprint used for batch rollback verification (E-2). 12 hex chars is enough
+        // to disambiguate two snapshots of the same .shadergraph file in human-readable messages.
+        static string ComputeBatchSnapshotHash(byte[] data)
+        {
+            using var md5 = System.Security.Cryptography.MD5.Create();
+            var hash = md5.ComputeHash(data);
+            var sb = new System.Text.StringBuilder(12);
+            for (var i = 0; i < 6 && i < hash.Length; i++)
+                sb.Append(hash[i].ToString("x2"));
+            return sb.ToString();
+        }
     }
 }
