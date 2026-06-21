@@ -72,6 +72,7 @@ Enabling or disabling that row toggles the ShaderGraph tool set as one group.
 - `assets-shadergraph-create`
   - Creates a new `.shadergraph` asset by cloning a known-good template.
   - `useCleanUrpTemplate` shortcut points the create at the MCP-owned clean URP-only blank fixture (`Packages/com.ivanmurzak.unity.mcp/Editor/Templates/Unlit URP Clean.shadergraph`): URP target only, 6 block-stack nodes, no inherited blackboard properties or categories, no HDTarget scaffolding. Prefer this for strict URP recreation trials. `templateAssetPath` still overrides when both are provided.
+  - Overwrite/create finalization imports and reloads ShaderGraph editor windows from the copied disk bytes without calling `AssetDatabase.SaveAssets()`, avoiding stale open-window state being saved back over a newly cloned template.
 - `assets-shadergraph-create-material`
   - Creates a `.mat` asset from the compiled shader resolved from a Shader Graph asset.
 - `assets-shadergraph-create-from-style-recipe`
@@ -257,6 +258,7 @@ Node lifecycle mutation results include normalized summary fields:
     - `uv` (`UV`)
     - `screenPosition` (`Screen Position`)
     - `sceneDepth` (`Scene Depth`)
+    - `camera` (`Camera`)
     - `sceneColor` (`Scene Color`)
     - `comparison` (`Comparison`)
     - `normalFromHeight` (`Normal From Height`)
@@ -267,6 +269,7 @@ Node lifecycle mutation results include normalized summary fields:
     - `smoothstep` (`Smoothstep`)
     - `step` (`Step`)
     - `saturate` (`Saturate`)
+    - `exponential` (`Exponential`)
     - `invertColors` (`Invert Colors`)
     - `vector2` (`Vector 2`)
     - `sine` (`Sine`)
@@ -288,6 +291,7 @@ Node lifecycle mutation results include normalized summary fields:
 
 - `assets-shadergraph-update-node-settings`
   - Updates supported serialized settings on existing graph nodes.
+  - No-op restate is a success, not an error: when every typed setting requested by the caller already matches the node's current serialized state, the call returns `Success` with `ChangedFields=[]` and `NoOp=true`. The asset is not re-imported. This lets a batch carry "set Space=world" or "set Mode=raw" defensively against arbitrary nodes without aborting the whole batch when the node already happens to be at that value.
   - Supported `Sample Texture 2D` fields:
     - `textureType`
     - `normalMapSpace`
@@ -384,6 +388,7 @@ Node lifecycle mutation results include normalized summary fields:
   - Supported `Scene Depth` fields:
     - `samplingMode`
   - Supported Scene Depth sampling modes: `linear01`, `raw`, `eye`.
+  - `Camera` does not expose typed serialized settings today; its meaningful behavior is driven by output slots such as `Position`, `Direction`, `Orthographic`, `Near Plane`, `Far Plane`, `Z Buffer Sign`, `Width`, and `Height`.
   - Supported `Comparison` fields:
     - `comparisonType`
   - Supported comparison operators: `equal`, `notEqual`, `less`, `lessOrEqual`, `greater`, `greaterOrEqual`.
@@ -433,6 +438,13 @@ Node lifecycle mutation results include normalized summary fields:
     - `input.z`
     - `input.w`
   - `Step.Edge` is literal-threshold only in the current Unity ShaderGraph baseline. Incoming edges to `Step.Edge` are rejected by MCP because Unity imports that topology with a concretization error. Set `step.edge` through `assets-shadergraph-update-node-settings` and connect dynamic dissolve/noise values into `Step.In`.
+  - Supported `Exponential` fields:
+    - `base`
+    - `input.x`
+    - `input.y`
+    - `input.z`
+    - `input.w`
+  - Supported Exponential bases: `baseE`, `base2`.
   - Supported `Invert Colors` fields:
     - `red`
     - `green`
@@ -480,7 +492,7 @@ Node lifecycle mutation results include normalized summary fields:
   - Supported operation kinds (Slice 8B.1 surface): `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`.
   - Each `addNode` / `addProperty` / `addPropertyNode` envelope accepts an optional `Alias`. Later ops can pass that string in the `NodeObjectId` / `PropertyObjectId` field (or, for `connectEdge`, inside `OutputSlot.Node.Alias` / `InputSlot.Node.Alias`) and the resolver swaps it for the real serialized id.
   - `connectEdge` supports the new reference shape from Slice 8B.1 directly: `OutputSlot` / `InputSlot` carry a `Node` selector (`Alias` / `DisplayName` / `ObjectId`) plus the slot `DisplayName`. The resolver consults the live structure plus the batch alias bag.
-  - `stopOnError` (default `true`): on first op failure the asset is snapshot-rolled back to its pre-batch content, the file mtime is bumped, and `FinalizeShaderGraphMutation` (re-import + ShaderGraph window reload) runs so the importer drops its cached `GraphData`. The failure exception is self-describing: it ships an MD5 snapshot hash, a `Pre-batch fingerprint` block (`NodeCount=… EdgeCount=… ShaderResolved=…`), and either `Asset rolled back to pre-batch content; retries are safe.` (snapshot hash matches on-disk hash after restore) or `WARNING: rollback verification FAILED. Snapshot hash X but on-disk hash Y after restore.` (something stomped the file between restore and verification, typically a dirty open Shader Graph editor window). The fingerprint lets callers tell a rollback-to-clean-template apart from a rollback-to-prior-run-state without a separate readback. `stopOnError=false` persists whatever succeeded and reports per-op errors.
+  - `stopOnError` (default `true`) is provisional while the known batch rollback bug remains active. Do not use batch rollback as validation evidence for destructive graph-authoring trials until the snapshot/finalizer behavior is reworked and revalidated. Use single-op mutation tools for live validation when rollback correctness matters.
   - Supported operation kinds: `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`, `setSettings`, `setBlocks`. `setSettings` and `setBlocks` were folded into the batch after the Dissolve-4 trial so that a complete graph (graph settings + URP target + block stack + nodes + edges + blackboard) can be authored in a single MCP round-trip.
   - `updateNodeSettings`, `updateProperty`, and `addPropertyNode` accept reference-based selectors (`Node` / `Property`) inside the batch envelope, so an addNode-then-updateNodeSettings sequence in the same batch can refer to the new node by its alias instead of round-tripping through the alias map. The resolver also accepts the `@alias` prefix on the legacy `NodeObjectId` / `PropertyObjectId` string fields for convenience.
   - `responseMode` (default `Summary`) selects the post-batch view returned to the caller:
@@ -561,6 +573,8 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - Epic 7E flame-trial node-gap validation through the already-open project-scoped MCP/editor session passed on 2026-06-17:
   - Throwaway `Codex_FlameTrial_NodeProbe.shadergraph` under `Assets/Unity-MCP-Test/Trials/Flames/`: created `uv` with default channel `UV0` and `simpleNoise` with default `Scale=500`, cycled `uv.channel` through `UV1` and `UV3`, applied `simpleNoise.scale=250`, wired `UV.Out -> Add.A` and `Add.Out -> Simple Noise.UV`, and verified loud failure on `uv.channel=UV9` and on an empty `simpleNoise` payload. Final state reported 13 nodes, 6 edges, `ShaderResolved=true`, `HasErrors=false`; the asset was deleted after validation.
 - Epic 7F/7G dissolve-trial support adds `fraction`, `step`, and `invertColors`, plus typed readback/update for the serialized `Invert Colors` red/green/blue channel toggles. `invertColors.alpha` is rejected loudly because Unity does not serialize that field safely in the current package. Focused editor tests cover node lifecycle, red-only edge-glow settings, alpha rejection, rejection of dynamic `Step.Edge` edges, diagnostics for existing invalid `Step.Edge` edges, and a minimal valid dissolve path that keeps `Step.Edge` literal while routing dynamic values into `Step.In`.
+- Epic 7H WorldSpaceDepthFade support adds `camera` (`UnityEditor.ShaderGraph.CameraNode`) and `exponential` (`UnityEditor.ShaderGraph.ExponentialNode`), typed Exponential readback/update for `baseE` / `base2` and the `In` literal default, and validation coverage for the reference path: `ViewVector(World) -> Negate -> Divide`, `ScreenPosition(Raw) -> Split/SceneDepth(Eye)`, depth multiplication, `Camera.Position` world-position reconstruction, `Position(World)` subtraction, `Split.G -> Negate -> Divide`, `Exponential(BaseE) -> Saturate -> Alpha`.
+- WorldSpaceDepthFade live MCP validation passed on 2026-06-20 in [Codex_WorldSpaceDepthFade.shadergraph](/Users/suporte/Unity-MCP/Unity-test/TestShadergraph/Assets/Unity-MCP-Test/Trials/WorldSpaceDepthFade/Codex_WorldSpaceDepthFade.shadergraph): final graph reported `ShaderResolved=true`, `HasErrors=false`, 116 nodes, and 125 edges. The validation intentionally used single-op mutation tools, not `assets-shadergraph-batch`, because the batch rollback bug remains deferred.
 - A Unity batch-mode editor test run was intentionally not performed while the project was already open in a Unity Editor instance.
 - A targeted MCP `tests-run` attempt for the new editor test was blocked by an unsaved open scene; Codex did not save editor scene state automatically.
 - A targeted MCP `tests-run` attempt for `ShaderGraph_WaterCorePath_CanBeWiredEndToEnd` did not discover the package editor test from the local validation project.

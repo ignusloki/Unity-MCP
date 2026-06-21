@@ -49,7 +49,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, invertColors, vector2, uv, sine, cosine, negate.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, camera, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, exponential, invertColors, vector2, uv, sine, cosine, negate.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]
@@ -195,6 +195,9 @@ namespace AIGD
 
         [Description("Structured settings updates for a Negate node.")]
         public ShaderGraphUnaryVectorNodeSettingsUpdateInput? Negate { get; set; }
+
+        [Description("Structured settings updates for an Exponential node.")]
+        public ShaderGraphExponentialNodeSettingsUpdateInput? Exponential { get; set; }
     }
 
     [Description("Structured settings updates for a Sample Texture 2D node.")]
@@ -502,6 +505,16 @@ namespace AIGD
         public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
     }
 
+    [Description("Structured settings updates for an Exponential node.")]
+    public class ShaderGraphExponentialNodeSettingsUpdateInput
+    {
+        [Description("Exponential base. Supported values: baseE, base2.")]
+        public string? Base { get; set; }
+
+        [Description("Default value for the In input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
+    }
+
     [Description("Result of mutating a Shader Graph node and re-importing the graph.")]
     public class ShaderGraphNodeMutationResultData
     {
@@ -531,5 +544,8 @@ namespace AIGD
 
         [Description("List of node fields that actually changed.")]
         public List<string>? ChangedFields { get; set; }
+
+        [Description("True when an updateNodeSettings call resolved to a no-op (all requested fields already match). ChangedFields is empty and the asset is NOT re-imported. The op still counts as a success — the batch executor records this as Success=true with ChangedFields=[].")]
+        public bool NoOp { get; set; }
     }
 }

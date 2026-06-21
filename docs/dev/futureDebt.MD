@@ -20,6 +20,7 @@ The following items are no longer active debt:
 - Scalar `Vector1MaterialSlot -> UVMaterialSlot` broadcast. This now supports paths such as `Time.Time -> Simple Noise.UV`.
 - Direct `Vector4MaterialSlot -> UVMaterialSlot` truncation. This remains supported for Unity's documented `.xy` vector truncation behavior.
 - Reflection-outline, object-outline, water-core, behavior, dissolve, and distortion trial node families that have already been implemented and validated through live MCP use.
+- WorldSpaceDepthFade `Camera` and `Exponential` blockers. MCP can now create/read `CameraNode`, create/read/update `ExponentialNode`, wire the reference world-space depth fade path, and validate the graph with no ShaderGraph diagnostics errors.
 
 Do not keep re-listing fixed trial gaps as future work unless a regression is found.
 
@@ -32,15 +33,15 @@ Do not keep re-listing fixed trial gaps as future work unless a regression is fo
 - Operation coverage: `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`, `setSettings`, `setBlocks`.
 - Batch-local aliases on `addNode` / `addProperty` / `addPropertyNode`. Aliases stay in scope for the rest of the batch and resolve via either the `Node` / `Property` reference envelopes on `updateNodeSettings` / `updateProperty` / `addPropertyNode`, or as bare / `@alias` strings in the existing `*ObjectId` fields.
 - `ConnectEdge` accepts the reference form: `OutputSlot` / `InputSlot` carry `Node` (Alias / DisplayName / ObjectId) plus the slot `DisplayName`. The resolver consults the live structure plus the batch alias bag, removing the need for a separate `get-structure` lookup.
-- `stopOnError` (default `true`). On the first failure the `.shadergraph` file is snapshot-rolled back, the file mtime is bumped, and `FinalizeShaderGraphMutation` (re-import + ShaderGraph window reload) runs so the importer drops its cached `GraphData`. The thrown error is self-describing: it ships an MD5 snapshot hash, a `Pre-batch fingerprint` block (`NodeCount=… EdgeCount=… ShaderResolved=…`), and either `Asset rolled back to pre-batch content; retries are safe.` (verified hash match after restore) or `WARNING: rollback verification FAILED.` (the bytes on disk don't match the snapshot — typically a dirty Shader Graph editor window stomped the restore). `stopOnError=false` persists whatever succeeded and reports per-op errors.
+- `stopOnError` (default `true`) exists but remains provisional while the known rollback bug is active. Do not rely on batch rollback for destructive live validation until the snapshot/finalizer path is reworked and revalidated. `stopOnError=false` persists whatever succeeded and reports per-op errors.
 - One consolidated `ShaderGraphBatchResultData` response: per-op summaries (operation tag, ObjectId, ChangedFields, error), an alias-to-id map, and a single post-batch `GraphSummary`. No per-op `Structure` / `Graph` echo.
 
 **v2 follow-up debt** (the actual per-edge import cost):
 
+- Fix the known rollback snapshot/finalizer bug before using `assets-shadergraph-batch` for destructive live validation. The current hardening attempt is not accepted as complete; rollback must capture and restore a trustworthy disk snapshot without stale Unity open-window/import state re-mutating the graph after failure.
 - Share a single in-memory `GraphData` across the batch so the batch performs **one** AssetDatabase import instead of N. The v1 batch still pays N imports because each op delegates to its single-op helper, which loads + saves + imports on its own.
 - Extend the batch to the remaining single-op mutations not yet covered: `disconnectEdge`, `reconnectEdge`, `duplicateNode`, `setPropertyCategory`, `reorderProperty`, `createCategory`, `deleteCategory`, `pruneEmptyCategories`.
 - Add `continueOnAlreadyExists` flag for idempotent edge creation (already lands in P1's idempotent-edge work via `AllowExisting`; mirroring it on `reconnect-edge` and `reroute-output-slot` is the open work).
-- **E-3 — Hostile-window rollback hardening.** If E-2's hash-mismatch warning ever fires in a real trial, the cause is almost certainly that `FinalizeShaderGraphMutation` calls `AssetDatabase.SaveAssets()` *before* `ReloadOpenShaderGraphWindows()`. A dirty open Shader Graph window holding the user's in-memory graph would have its state saved on top of the just-restored snapshot. Fix: add a `FinalizeForRollback` variant that reloads open windows first, then re-imports, and skips `SaveAssets()`. Deferred until E-2 actually flags a failure — landing it preemptively touches ShaderGraph reflection that's hard to unit-test in isolation.
 
 ### Compact Responses By Default
 
@@ -212,6 +213,19 @@ Known deferred target work:
 - Default SSAO.
 - Subtarget-only fields that require separate serialized-path validation through `m_Datas`.
 - Unsupported/custom block mutation outside the built-in block allowlist.
+
+## Transport Debt (out of this repo)
+
+### HTTP MCP "Response data is null" on long script-execute responses
+
+Reproduced locally on 2026-06-20: a `script-execute` call returning a moderately large string aggregated from several `try/catch` blocks comes back as `Response data is null` with no underlying exception text, while a smaller variant of the same call returns the real exception cleanly. The WorldSpaceDepthFade trial agent hit this on a failed 25-op batch — the structured HTTP response dropped the real "node did not change" error and surfaced only the placeholder, forcing the trial agent to scrape Unity Console to recover the cause.
+
+This is **not** in the Unity-MCP plugin. The transport sits in the standalone GameDev-MCP-Server (the engine-agnostic MCP server pinned through `ServerVersion` in `Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp/Editor/Scripts/McpServerManager.cs`). The fix needs to land in that repo: either raise the structured-response budget, switch error envelope serialization to a more forgiving framing, or downgrade the placeholder to surface the underlying exception message.
+
+Mitigation on this side:
+
+- Keep MCP tool exception messages compact and free of large embedded payloads.
+- Be aware that an HTTP MCP caller may see `Response data is null` for any of our tools if their cumulative response gets long enough; the actionable diagnostic is in the Unity Console / `Editor.log`.
 
 ## Validation Debt
 

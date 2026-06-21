@@ -56,6 +56,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `uv`: `channel` (`UV0`, `UV1`, `UV2`, `UV3`)\n" +
             "- `screenPosition`: `mode` (`default` or `raw`)\n" +
             "- `sceneDepth`: `samplingMode` (`linear01`, `raw`, or `eye`)\n" +
+            "- `exponential`: `base` (`baseE` or `base2`) and default `input` slot value\n" +
             "- `comparison`: `comparisonType`\n" +
             "- `normalFromHeight`: `outputSpace`\n" +
             "- `blend`: `blendMode`\n" +
@@ -172,7 +173,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ApplySampleTexture2DNodeSettings(document.Bindings, nodeObject, node.SampleTexture2D!, changedFields);
 
             if (changedFields.Count == 0)
-                throw new InvalidOperationException($"Shader Graph node '{nodeObjectId}' did not change.");
+                return BuildNodeSettingsNoOpResult(assetPath, nodeObjectId, includeStructure, includeGraph, includeMessages, includeProperties);
 
             InvokeShaderGraphMethod(document.Bindings.ValidateGraphMethod, document.GraphData);
             SaveShaderGraphReflectionDocument(document);
@@ -307,13 +308,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "UnityEditor.ShaderGraph.NegateNode":
                     ApplyUnaryVectorNodeSettings(document.Bindings, nodeObject, node.Negate, "Negate", "node.negate", changedFields);
                     break;
+                case "UnityEditor.ShaderGraph.ExponentialNode":
+                    ApplyExponentialNodeSettings(document.Bindings, nodeObject, node.Exponential, changedFields);
+                    break;
                 default:
                     throw new InvalidOperationException(
                         $"Node '{nodeType}' does not yet support typed node settings updates.");
             }
 
             if (changedFields.Count == 0)
-                throw new InvalidOperationException($"Shader Graph node '{nodeObjectId}' did not change.");
+                return BuildNodeSettingsNoOpResult(assetPath, nodeObjectId, includeStructure, includeGraph, includeMessages, includeProperties);
 
             InvokeShaderGraphMethod(document.Bindings.ValidateGraphMethod, document.GraphData);
             SaveShaderGraphReflectionDocument(document);
@@ -350,6 +354,43 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 NodeType = updatedNode?.Type,
                 ChangedFields = changedFields,
                 Node = updatedNode,
+                GraphSummary = BuildShaderGraphSummary(graphRef),
+                Structure = includeStructure ? structure : null,
+                Graph = includeGraph
+                    ? BuildShaderGraphData(
+                        graphRef,
+                        includeMessages: includeMessages,
+                        includeProperties: includeProperties,
+                        includeDiagnostics: true)
+                    : null
+            };
+        }
+
+        // WSDF-1: when every typed setting the caller asked for already matches the node's current
+        // serialized state, the asset doesn't need to be touched. Returning success with empty
+        // ChangedFields lets the batch tool's loop continue instead of aborting the whole batch
+        // on what is logically a benign restatement of the current values.
+        static ShaderGraphNodeMutationResultData BuildNodeSettingsNoOpResult(
+            string assetPath,
+            string nodeObjectId,
+            bool includeStructure,
+            bool includeGraph,
+            bool includeMessages,
+            bool includeProperties)
+        {
+            var graphRef = new AssetObjectRef(assetPath);
+            var structure = BuildShaderGraphStructureData(graphRef);
+            var node = structure.Nodes?
+                .FirstOrDefault(n => string.Equals(n.ObjectId, nodeObjectId, StringComparison.Ordinal));
+
+            return new ShaderGraphNodeMutationResultData
+            {
+                Operation = "updateSettings",
+                NodeObjectId = node?.ObjectId ?? nodeObjectId,
+                NodeType = node?.Type,
+                Node = node,
+                ChangedFields = new List<string>(),
+                NoOp = true,
                 GraphSummary = BuildShaderGraphSummary(graphRef),
                 Structure = includeStructure ? structure : null,
                 Graph = includeGraph
@@ -399,7 +440,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasInvertColorsUpdates(node.InvertColors)
                || HasUnaryVectorUpdates(node.Sine)
                || HasUnaryVectorUpdates(node.Cosine)
-               || HasUnaryVectorUpdates(node.Negate);
+               || HasUnaryVectorUpdates(node.Negate)
+               || HasExponentialUpdates(node.Exponential);
 
         static int CountSerializedNodeSettingsUpdatePayloads(ShaderGraphUpdateNodeSettingsInput node)
         {
@@ -437,6 +479,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasUnaryVectorUpdates(node.Sine)) count++;
             if (HasUnaryVectorUpdates(node.Cosine)) count++;
             if (HasUnaryVectorUpdates(node.Negate)) count++;
+            if (HasExponentialUpdates(node.Exponential)) count++;
             return count;
         }
 
@@ -567,6 +610,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
         static bool HasUnaryVectorUpdates(ShaderGraphUnaryVectorNodeSettingsUpdateInput? unary)
             => unary != null && HasVector4Updates(unary.Input);
+
+        static bool HasExponentialUpdates(ShaderGraphExponentialNodeSettingsUpdateInput? exponential)
+            => exponential != null
+               && (!string.IsNullOrWhiteSpace(exponential.Base)
+                   || HasVector4Updates(exponential.Input));
 
         static bool HasVector2Updates(ShaderGraphVector2ValueUpdateInput? value)
             => value != null && (value.X.HasValue || value.Y.HasValue);
@@ -1229,6 +1277,26 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 throw new InvalidOperationException($"{nodeDisplayName} nodes require a `{changedFieldPrefix[(changedFieldPrefix.LastIndexOf('.') + 1)..]}` settings payload.");
 
             SetSlotVector4(bindings, nodeObject, "In", unary.Input, $"{changedFieldPrefix}.input", changedFields);
+        }
+
+        static void ApplyExponentialNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphExponentialNodeSettingsUpdateInput? exponential,
+            List<string> changedFields)
+        {
+            if (exponential == null)
+                throw new InvalidOperationException("Exponential nodes require an `exponential` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_ExponentialBase",
+                exponential.Base,
+                "node.exponential.base",
+                new[] { "baseE", "base2" },
+                changedFields);
+
+            SetSlotVector4(bindings, nodeObject, "In", exponential.Input, "node.exponential.input", changedFields);
         }
 
         static void SetTransformConversionSpaces(
