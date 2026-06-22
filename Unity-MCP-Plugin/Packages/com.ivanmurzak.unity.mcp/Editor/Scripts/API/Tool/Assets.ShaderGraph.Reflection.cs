@@ -397,6 +397,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     TypeName = "UnityEditor.ShaderGraph.NegateNode",
                     DefaultWidth = 208f,
                     DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "fresnelEffect",
+                    DisplayName = "Fresnel Effect",
+                    TypeName = "UnityEditor.ShaderGraph.FresnelEffectNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 96f
                 }
             };
 
