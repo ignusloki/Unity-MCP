@@ -3281,6 +3281,142 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_AddNode_AddsWorldSpaceDepthFadeNodes()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode_WorldSpaceDepthFade.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var camera = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "camera", PositionX = -880f, PositionY = 100f });
+                var exponential = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "exponential", PositionX = -620f, PositionY = 100f },
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("UnityEditor.ShaderGraph.CameraNode", camera.Node!.Type);
+                Assert.AreEqual("Camera", camera.Node.Name);
+                foreach (var slotName in new[] { "Position", "Direction", "Orthographic", "Near Plane", "Far Plane", "Z Buffer Sign", "Width", "Height" })
+                {
+                    Assert.IsTrue(camera.Node.Slots!.Any(slot => slot.DisplayName == slotName),
+                        $"Expected Camera node to expose slot '{slotName}'.");
+                }
+
+                Assert.AreEqual("UnityEditor.ShaderGraph.ExponentialNode", exponential.Node!.Type);
+                Assert.AreEqual("Exponential", exponential.Node.Name);
+                Assert.IsTrue(exponential.Node.Slots!.Any(slot => slot.DisplayName == "In"));
+                Assert.IsTrue(exponential.Node.Slots.Any(slot => slot.DisplayName == "Out"));
+                Assert.AreEqual("baseE", exponential.Node.Exponential!.Base);
+
+                var duplicateResult = tool.DuplicateNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDuplicateNodeInput
+                    {
+                        NodeObjectId = exponential.Node.ObjectId,
+                        PositionOffsetX = 80f,
+                        PositionOffsetY = 40f
+                    },
+                    includeStructure: true);
+                Assert.AreEqual("UnityEditor.ShaderGraph.ExponentialNode", duplicateResult.Node!.Type);
+                Assert.AreNotEqual(exponential.Node.ObjectId, duplicateResult.Node.ObjectId);
+
+                var moveResult = tool.UpdateNodePosition(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodePositionInput
+                    {
+                        NodeObjectId = duplicateResult.Node.ObjectId,
+                        PositionX = -300f,
+                        PositionY = 260f
+                    });
+                Assert.AreEqual(-300f, moveResult.Node!.PositionX);
+                Assert.AreEqual(260f, moveResult.Node.PositionY);
+
+                var deleteResult = tool.DeleteNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDeleteNodeInput { NodeObjectId = duplicateResult.Node.ObjectId },
+                    includeStructure: true);
+                Assert.IsFalse(deleteResult.Structure!.Nodes!.Any(node => node.ObjectId == duplicateResult.Node.ObjectId),
+                    "Deleted Exponential duplicate should not remain in the graph.");
+
+                Assert.IsNotNull(exponential.Graph);
+                Assert.IsTrue(exponential.Graph!.ShaderResolved, "Adding WorldSpaceDepthFade nodes should keep the Shader Graph import valid.");
+                Assert.IsFalse(exponential.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Adding WorldSpaceDepthFade nodes should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_UpdateNodeSettings_UpdatesWorldSpaceDepthFadeSettings()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_WorldSpaceDepthFade.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var exponential = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "exponential", PositionX = -620f, PositionY = 100f });
+
+                var base2Result = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = exponential.Node!.ObjectId,
+                        Exponential = new ShaderGraphExponentialNodeSettingsUpdateInput
+                        {
+                            Base = "base2",
+                            Input = new ShaderGraphVector4ValueUpdateInput { X = -0.5f, Y = 0f, Z = 0f, W = 0f }
+                        }
+                    });
+                Assert.AreEqual("base2", base2Result.Node!.Exponential!.Base);
+                Assert.AreEqual(-0.5f, base2Result.Node.Exponential.Input!.X ?? 0f, 0.0001f);
+                AssertSlotFloat(base2Result.Node, "In", -0.5f);
+
+                var baseEResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = exponential.Node.ObjectId,
+                        Exponential = new ShaderGraphExponentialNodeSettingsUpdateInput { Base = "baseE" }
+                    },
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+                Assert.AreEqual("baseE", baseEResult.Node!.Exponential!.Base);
+
+                var unsupportedBase = Assert.Throws<ArgumentException>(() => tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = exponential.Node.ObjectId,
+                        Exponential = new ShaderGraphExponentialNodeSettingsUpdateInput { Base = "base10" }
+                    }));
+                StringAssert.Contains("Supported values: baseE, base2", unsupportedBase!.Message);
+
+                Assert.IsNotNull(baseEResult.Graph);
+                Assert.IsTrue(baseEResult.Graph!.ShaderResolved, "Updating Exponential settings should keep the Shader Graph import valid.");
+                Assert.IsFalse(baseEResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Updating Exponential settings should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_UpdateNodeSettings_UpdatesDissolveTrialSettings()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_DissolveTrial.shadergraph");
@@ -3894,6 +4030,179 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_WorldSpaceDepthFadePath_CanBeWiredEndToEnd()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_WorldSpaceDepthFadePath.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Depth Fade Distance",
+                        OverrideReferenceName = "_DepthFadeDistance",
+                        FloatValue = 1.5f
+                    });
+
+                var depthFadeDistanceNode = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyReferenceName = "_DepthFadeDistance",
+                        PositionX = -520f,
+                        PositionY = 520f
+                    });
+
+                var viewVector = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "viewVector", PositionX = -1540f, PositionY = -260f });
+                var negateViewVector = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "negate", PositionX = -1280f, PositionY = -260f });
+                var screenPosition = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "screenPosition", PositionX = -1540f, PositionY = -40f });
+                var splitScreenPosition = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "split", PositionX = -1280f, PositionY = -40f });
+                var viewDivide = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "divide", PositionX = -1020f, PositionY = -180f });
+                var sceneDepth = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "sceneDepth", PositionX = -1020f, PositionY = 40f });
+                var depthMultiply = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -760f, PositionY = -100f });
+                var camera = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "camera", PositionX = -760f, PositionY = 160f });
+                var sceneWorldPosition = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "add", PositionX = -500f, PositionY = -40f });
+                var waterPosition = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "position", PositionX = -500f, PositionY = 260f });
+                var depthSubtract = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "subtract", PositionX = -240f, PositionY = 80f });
+                var splitDepth = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "split", PositionX = 20f, PositionY = 80f });
+                var negateDepth = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "negate", PositionX = 280f, PositionY = 80f });
+                var fadeDivide = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "divide", PositionX = 540f, PositionY = 160f });
+                var exponential = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "exponential", PositionX = 800f, PositionY = 160f });
+                var saturate = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "saturate", PositionX = 1060f, PositionY = 160f });
+
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = viewVector.Node!.ObjectId,
+                        ViewVector = new ShaderGraphSpaceNodeSettingsUpdateInput { Space = "world" }
+                    });
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = screenPosition.Node!.ObjectId,
+                        ScreenPosition = new ShaderGraphScreenPositionNodeSettingsUpdateInput { Mode = "raw" }
+                    });
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = sceneDepth.Node!.ObjectId,
+                        SceneDepth = new ShaderGraphSceneDepthNodeSettingsUpdateInput { SamplingMode = "eye" }
+                    });
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = waterPosition.Node!.ObjectId,
+                        Position = new ShaderGraphPositionNodeSettingsUpdateInput { Space = "world" }
+                    });
+                tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = exponential.Node!.ObjectId,
+                        Exponential = new ShaderGraphExponentialNodeSettingsUpdateInput { Base = "baseE" }
+                    });
+
+                var structureBeforeWiring = tool.GetStructure(new AssetObjectRef(shader));
+                var nodesById = structureBeforeWiring.Nodes!.ToDictionary(node => node.ObjectId);
+                var depthFadeDistancePropertyNode = nodesById[depthFadeDistanceNode.Node!.ObjectId];
+                var viewVectorNode = nodesById[viewVector.Node!.ObjectId];
+                var negateViewVectorNode = nodesById[negateViewVector.Node!.ObjectId];
+                var screenPositionNode = nodesById[screenPosition.Node!.ObjectId];
+                var splitScreenPositionNode = nodesById[splitScreenPosition.Node!.ObjectId];
+                var viewDivideNode = nodesById[viewDivide.Node!.ObjectId];
+                var sceneDepthNode = nodesById[sceneDepth.Node!.ObjectId];
+                var depthMultiplyNode = nodesById[depthMultiply.Node!.ObjectId];
+                var cameraNode = nodesById[camera.Node!.ObjectId];
+                var sceneWorldPositionNode = nodesById[sceneWorldPosition.Node!.ObjectId];
+                var waterPositionNode = nodesById[waterPosition.Node!.ObjectId];
+                var depthSubtractNode = nodesById[depthSubtract.Node!.ObjectId];
+                var splitDepthNode = nodesById[splitDepth.Node!.ObjectId];
+                var negateDepthNode = nodesById[negateDepth.Node!.ObjectId];
+                var fadeDivideNode = nodesById[fadeDivide.Node!.ObjectId];
+                var exponentialNode = nodesById[exponential.Node!.ObjectId];
+                var saturateNode = nodesById[saturate.Node!.ObjectId];
+                var alphaBlock = structureBeforeWiring.Nodes!
+                    .First(node => node.SerializedDescriptor == "SurfaceDescription.Alpha");
+
+                Assert.AreEqual("world", viewVectorNode.SourceVector!.Space);
+                Assert.AreEqual("raw", screenPositionNode.ScreenPosition!.Mode);
+                Assert.AreEqual("eye", sceneDepthNode.SceneDepth!.SamplingMode);
+                Assert.AreEqual("world", waterPositionNode.Position!.Space);
+                Assert.AreEqual("baseE", exponentialNode.Exponential!.Base);
+
+                ConnectSlots(tool, shader, viewVectorNode, "Out", negateViewVectorNode, "In");
+                ConnectSlots(tool, shader, negateViewVectorNode, "Out", viewDivideNode, "A");
+                ConnectSlots(tool, shader, screenPositionNode, "Out", splitScreenPositionNode, "In");
+                ConnectSlots(tool, shader, splitScreenPositionNode, "A", viewDivideNode, "B");
+                ConnectSlots(tool, shader, screenPositionNode, "Out", sceneDepthNode, "UV");
+                ConnectSlots(tool, shader, viewDivideNode, "Out", depthMultiplyNode, "A");
+                ConnectSlots(tool, shader, sceneDepthNode, "Out", depthMultiplyNode, "B");
+                ConnectSlots(tool, shader, depthMultiplyNode, "Out", sceneWorldPositionNode, "A");
+                ConnectSlots(tool, shader, cameraNode, "Position", sceneWorldPositionNode, "B");
+                ConnectSlots(tool, shader, waterPositionNode, "Out", depthSubtractNode, "A");
+                ConnectSlots(tool, shader, sceneWorldPositionNode, "Out", depthSubtractNode, "B");
+                ConnectSlots(tool, shader, depthSubtractNode, "Out", splitDepthNode, "In");
+                ConnectSlots(tool, shader, splitDepthNode, "G", negateDepthNode, "In");
+                ConnectSlots(tool, shader, negateDepthNode, "Out", fadeDivideNode, "A");
+                ConnectSlots(tool, shader, depthFadeDistancePropertyNode, "Depth Fade Distance", fadeDivideNode, "B");
+                ConnectSlots(tool, shader, fadeDivideNode, "Out", exponentialNode, "In");
+                ConnectSlots(tool, shader, exponentialNode, "Out", saturateNode, "In");
+                var finalConnectResult = ConnectSlots(
+                    tool,
+                    shader,
+                    saturateNode,
+                    "Out",
+                    alphaBlock,
+                    "Alpha",
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true,
+                    replaceExistingInputConnection: true);
+
+                Assert.IsNotNull(finalConnectResult.Structure);
+                Assert.IsTrue(finalConnectResult.Structure!.Edges!.Any(edge =>
+                    edge.OutputNodeId == screenPositionNode.ObjectId
+                    && edge.OutputSlotId == FindSlot(screenPositionNode, "Out").SlotId
+                    && edge.InputNodeId == sceneDepthNode.ObjectId
+                    && edge.InputSlotId == FindSlot(sceneDepthNode, "UV").SlotId),
+                    "Expected raw Screen Position to drive Scene Depth UV.");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
+                    edge.OutputNodeId == cameraNode.ObjectId
+                    && edge.OutputSlotId == FindSlot(cameraNode, "Position").SlotId
+                    && edge.InputNodeId == sceneWorldPositionNode.ObjectId
+                    && edge.InputSlotId == FindSlot(sceneWorldPositionNode, "B").SlotId),
+                    "Expected Camera.Position to reconstruct world-space scene position.");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
+                    edge.OutputNodeId == exponentialNode.ObjectId
+                    && edge.InputNodeId == saturateNode.ObjectId),
+                    "Expected Exponential(BaseE) to feed Saturate.");
+                Assert.IsTrue(finalConnectResult.Structure.Edges.Any(edge =>
+                    edge.OutputNodeId == saturateNode.ObjectId
+                    && edge.InputNodeId == alphaBlock.ObjectId),
+                    "Expected the saturated depth fade to drive Alpha.");
+
+                Assert.IsNotNull(finalConnectResult.Graph);
+                Assert.IsTrue(finalConnectResult.Graph!.ShaderResolved, "WorldSpaceDepthFade validation graph should resolve to a compiled Shader.");
+                Assert.IsFalse(finalConnectResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "WorldSpaceDepthFade validation graph should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_ConnectEdge_RejectsDynamicStepEdgeInput()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_DissolveStepEdgeReject.shadergraph", LitFullTemplateAssetPath);
@@ -3975,6 +4284,83 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsFalse(structureAfterRollback.Nodes!.Any(node =>
                     string.Equals(node.Type, "UnityEditor.ShaderGraph.StepNode", StringComparison.Ordinal)),
                     "The failed batch should roll the added Step node back out of the graph.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_BatchRollback_UsesCurrentDiskBytesAfterOverwriteCreate()
+        {
+            var assetPath = $"{TestFolder}/Validation_BatchRollback_DiskSnapshot.shadergraph";
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+                var created = tool.Create(
+                    assetPath: assetPath,
+                    templateAssetPath: TemplateAssetPath,
+                    overwrite: true);
+                Assert.IsNotNull(created);
+
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "color",
+                        DisplayName = "Rollback Marker",
+                        OverrideReferenceName = "_RollbackMarker",
+                        ColorHex = "#FFFFFFFF"
+                    });
+                Assert.IsTrue(
+                    File.ReadAllText(assetPath).Contains("Rollback Marker", StringComparison.Ordinal),
+                    "The test setup should write a marker property before overwrite.");
+
+                var staleShaderRef = new AssetObjectRef(shader);
+                var overwritten = tool.Create(
+                    assetPath: assetPath,
+                    templateAssetPath: TemplateAssetPath,
+                    overwrite: true);
+                Assert.IsNotNull(overwritten);
+
+                var cleanBytes = File.ReadAllBytes(assetPath);
+                Assert.IsFalse(
+                    File.ReadAllText(assetPath).Contains("Rollback Marker", StringComparison.Ordinal),
+                    "Overwrite create should replace the marker graph with clean template disk content.");
+
+                var exception = Assert.Throws<InvalidOperationException>(() =>
+                    tool.Batch(
+                        staleShaderRef,
+                        new ShaderGraphBatchInput
+                        {
+                            Operations = new List<ShaderGraphBatchOperationInput>
+                            {
+                                new()
+                                {
+                                    Kind = "addProperty",
+                                    AddProperty = new ShaderGraphAddPropertyInput
+                                    {
+                                        PropertyType = "color",
+                                        DisplayName = "Base Color",
+                                        OverrideReferenceName = "_BaseColor",
+                                        ColorHex = "#FFFFFFFF"
+                                    }
+                                }
+                            }
+                        }));
+
+                StringAssert.Contains("Asset rolled back to exact pre-batch disk content", exception!.Message);
+                CollectionAssert.AreEqual(
+                    cleanBytes,
+                    File.ReadAllBytes(assetPath),
+                    "A failed op[0] batch must restore the exact bytes that were on disk after overwrite create.");
+                Assert.IsFalse(
+                    File.ReadAllText(assetPath).Contains("Rollback Marker", StringComparison.Ordinal),
+                    "Rollback must not restore stale graph content from an earlier MCP session.");
             }
             finally
             {

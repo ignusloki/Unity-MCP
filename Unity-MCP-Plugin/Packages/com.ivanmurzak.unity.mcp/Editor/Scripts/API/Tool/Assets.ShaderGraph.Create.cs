@@ -93,7 +93,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
                 File.Copy(templatePhysicalPath, destinationPhysicalPath, shouldOverwrite);
                 File.SetLastWriteTimeUtc(destinationPhysicalPath, DateTime.UtcNow);
-                FinalizeShaderGraphMutation(assetPath);
+                FinalizeShaderGraphExternalDiskWrite(assetPath);
 
                 var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
                 if (shader == null)

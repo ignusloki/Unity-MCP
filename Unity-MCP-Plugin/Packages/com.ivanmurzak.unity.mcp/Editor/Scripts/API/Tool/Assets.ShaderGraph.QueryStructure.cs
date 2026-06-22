@@ -229,6 +229,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 projected.Vector2 = source.Vector2;
                 projected.Smoothstep = source.Smoothstep;
                 projected.InvertColors = source.InvertColors;
+                projected.Exponential = source.Exponential;
             }
 
             return projected;

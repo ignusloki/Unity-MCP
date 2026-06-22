@@ -277,6 +277,9 @@ namespace AIGD
 
         [Description("Resolved Invert Colors settings when the node is a supported Invert Colors node.")]
         public ShaderGraphInvertColorsNodeSettingsData? InvertColors { get; set; }
+
+        [Description("Resolved Exponential settings when the node is a supported Exponential node.")]
+        public ShaderGraphExponentialNodeSettingsData? Exponential { get; set; }
     }
 
     public class ShaderGraphSampleTexture2DNodeSettingsData
@@ -529,6 +532,18 @@ namespace AIGD
 
         [Description("Whether the Alpha channel is inverted, when Unity serializes it. Current Unity Shader Graph packages may leave this unavailable.")]
         public bool? Alpha { get; set; }
+    }
+
+    public class ShaderGraphExponentialNodeSettingsData
+    {
+        [Description("Serialized exponential base enum value.")]
+        public int? BaseValue { get; set; }
+
+        [Description("Formatted exponential base when recognized.")]
+        public string? Base { get; set; }
+
+        [Description("Default value for the In input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? Input { get; set; }
     }
 
     public class ShaderGraphSlotDefinitionData

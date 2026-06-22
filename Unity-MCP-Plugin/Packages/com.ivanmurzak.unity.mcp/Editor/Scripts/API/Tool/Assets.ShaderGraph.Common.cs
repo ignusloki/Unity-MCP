@@ -914,6 +914,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.InvertColorsNode", StringComparison.Ordinal))
                 node.InvertColors = ParseInvertColorsNodeSettings(root);
 
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.ExponentialNode", StringComparison.Ordinal))
+                node.Exponential = ParseExponentialNodeSettings(root);
+
             return node;
         }
 
@@ -1086,6 +1089,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             };
         }
 
+        static ShaderGraphExponentialNodeSettingsData ParseExponentialNodeSettings(JsonElement root)
+        {
+            var baseValue = GetInt(root, "m_ExponentialBase");
+
+            return new ShaderGraphExponentialNodeSettingsData
+            {
+                BaseValue = baseValue,
+                Base = FormatExponentialBase(baseValue)
+            };
+        }
+
         static void PopulateSlotDerivedNodeSettings(ShaderGraphNodeDefinitionData node)
         {
             if (node.GradientNoise != null)
@@ -1128,6 +1142,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 node.Remap.InMinMax = ParseSlotVector2Value(node, "In Min Max");
                 node.Remap.OutMinMax = ParseSlotVector2Value(node, "Out Min Max");
             }
+
+            if (node.Exponential != null)
+                node.Exponential.Input = ParseSlotVector4Value(node, "In");
         }
 
         static float? ParseSlotFloatValue(ShaderGraphNodeDefinitionData node, string slotDisplayName)
@@ -1582,6 +1599,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 0 => "linear01",
                 1 => "raw",
                 2 => "eye",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatExponentialBase(int? value)
+        {
+            return value switch
+            {
+                0 => "baseE",
+                1 => "base2",
                 null => null,
                 _ => $"unknown({value})"
             };

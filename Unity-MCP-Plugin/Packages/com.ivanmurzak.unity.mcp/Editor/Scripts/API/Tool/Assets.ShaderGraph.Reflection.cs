@@ -264,6 +264,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {
+                    ApiName = "camera",
+                    DisplayName = "Camera",
+                    TypeName = "UnityEditor.ShaderGraph.CameraNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 232f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
                     ApiName = "sceneColor",
                     DisplayName = "Scene Color",
                     TypeName = "UnityEditor.ShaderGraph.SceneColorNode",
@@ -341,6 +349,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     TypeName = "UnityEditor.ShaderGraph.SaturateNode",
                     DefaultWidth = 208f,
                     DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "exponential",
+                    DisplayName = "Exponential",
+                    TypeName = "UnityEditor.ShaderGraph.ExponentialNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 96f
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {
@@ -532,6 +548,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         {
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
             AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            ReloadOpenShaderGraphWindows(assetPath);
+            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+        }
+
+        static void FinalizeShaderGraphExternalDiskWrite(string assetPath)
+        {
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
             ReloadOpenShaderGraphWindows(assetPath);
             com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();

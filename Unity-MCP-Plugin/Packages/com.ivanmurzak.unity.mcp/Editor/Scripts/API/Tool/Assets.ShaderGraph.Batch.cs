@@ -90,6 +90,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (!File.Exists(fullPath))
                 throw new FileNotFoundException($"Physical file does not exist at '{fullPath}'.", fullPath);
 
+            // Batch rollback must be anchored to the file that is actually on disk at
+            // batch entry, not to any Shader Graph object Unity may still have cached.
+            FinalizeShaderGraphExternalDiskWrite(assetPath);
+
             var snapshot = File.ReadAllBytes(fullPath);
             var snapshotHash = ComputeBatchSnapshotHash(snapshot);
             // E-1 fingerprint: capture pre-batch counts so the rollback message can ship them. If the
@@ -156,9 +160,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     // Without this, the importer can short-circuit on equal mtime and keep its cached
                     // GraphData, which surfaces as "property already exists" on a clean retry.
                     File.SetLastWriteTimeUtc(fullPath, DateTime.UtcNow);
-                    // FinalizeShaderGraphMutation drops the importer's in-memory GraphData and
-                    // reloads any open ShaderGraph window against the restored bytes.
-                    FinalizeShaderGraphMutation(assetPath);
+                    // Do not call SaveAssets here: a dirty Shader Graph editor window can flush stale
+                    // GraphData over the restored bytes. Import/reload directly from disk instead.
+                    FinalizeShaderGraphExternalDiskWrite(assetPath);
 
                     // E-2 hash verification: confirm the on-disk bytes match the snapshot we just
                     // wrote. If something stomped the file between WriteAllBytes and the import (most
@@ -167,7 +171,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     var postRollbackBytes = File.ReadAllBytes(fullPath);
                     var postRollbackHash = ComputeBatchSnapshotHash(postRollbackBytes);
                     rollbackNote = string.Equals(snapshotHash, postRollbackHash, StringComparison.Ordinal)
-                        ? $"Asset rolled back to pre-batch content; retries are safe. Snapshot hash {snapshotHash}."
+                        ? $"Asset rolled back to exact pre-batch disk content; retries are safe. Snapshot hash {snapshotHash}."
                         : $"WARNING: rollback verification FAILED. Snapshot hash {snapshotHash} but on-disk hash {postRollbackHash} after restore. " +
                           $"Something stomped the restored bytes (most likely a dirty Shader Graph editor window). Close the open Shader Graph editor before retrying.";
                 }
