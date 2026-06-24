@@ -30,16 +30,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ReadOnlyHint = true,
             IdempotentHint = true
         )]
-        [AiSkillDescription("Find Shader Graph assets by reusing Unity asset search and filtering to '.shadergraph' files.")]
-        [AiSkillBody("Find Shader Graph assets in the project and installed packages. " +
-            "The search uses Unity's asset database filter semantics and then narrows results to '.shadergraph' source files.\n\n" +
+        [AiSkillDescription("Find Shader Graph and Sub Graph assets by reusing Unity asset search and filtering to '.shadergraph' and '.shadersubgraph' files.")]
+        [AiSkillBody("Find Shader Graph and Sub Graph assets in the project and installed packages. " +
+            "The search uses Unity's asset database filter semantics and then narrows results to '.shadergraph' and '.shadersubgraph' source files.\n\n" +
             "## Inputs\n\n" +
             "- `filter` — optional Unity asset search filter.\n" +
             "- `searchInFolders` — optional folder roots under `Assets/` or `Packages/`.\n" +
             "- `maxResults` — caps returned assets.\n\n" +
             "## Notes\n\n" +
             "Use this tool before '" + AssetsShaderGraphGetDataToolId + "' when you need a valid graph asset reference.")]
-        [Description("Find Shader Graph assets in the project and installed packages.")]
+        [Description("Find Shader Graph and Sub Graph assets in the project and installed packages.")]
         public List<AssetObjectRef> Find
         (
             [Description("Optional Unity asset search filter string.")]
@@ -61,7 +61,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
                 return assetGuids
                     .Select(AssetDatabase.GUIDToAssetPath)
-                    .Where(IsShaderGraphAssetPath)
+                    .Where(IsShaderGraphFamilyAssetPath)
                     .Take(maxResults)
                     .Select(assetPath =>
                     {

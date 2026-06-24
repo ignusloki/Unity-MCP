@@ -51,11 +51,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             AssetsShaderGraphSetBlocksToolId,
             Title = "Assets / Shader Graph / Set Blocks"
         )]
-        [AiSkillDescription("Set the ordered built-in Shader Graph vertex or fragment block stack, then re-import the graph and return diagnostics.")]
+        [AiSkillDescription("Set the ordered built-in Shader Graph vertex or fragment block stack, then re-import the graph and return diagnostics. Not supported for Sub Graphs.")]
         [AiSkillBody("Set the ordered built-in block stack for one Shader Graph context.\n\n" +
+            "**Not supported for Sub Graphs (.shadersubgraph).** Sub Graphs use a SubGraphOutputNode instead of the master block stack. This tool rejects Sub Graph assets with a clear error.\n\n" +
             "This is a full replacement list for the selected context's supported built-in blocks. Missing requested blocks are created with Unity-compatible default slots. Existing supported blocks not in the requested list are removed only when unconnected, unless `allowRemovingConnectedBlocks` is true.\n\n" +
             "## Inputs\n\n" +
-            "- `assetRef` — reference to a '.shadergraph' asset.\n" +
+            "- `assetRef` — reference to a '.shadergraph' asset (not '.shadersubgraph').\n" +
             "- `blocks.context` = `vertex` | `fragment`.\n" +
             "- `blocks.blocks` — ordered descriptors or aliases.\n" +
             "- `blocks.allowRemovingConnectedBlocks` — when true, remove connected block edges while removing blocks.\n\n" +
@@ -106,6 +107,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
+            if (IsSubGraphAssetPath(assetPath))
+                throw new InvalidOperationException(
+                    "Sub Graphs do not use the master block stack — modify the SubGraphOutputNode instead. See Phase 2.");
             if (!IsShaderGraphAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 

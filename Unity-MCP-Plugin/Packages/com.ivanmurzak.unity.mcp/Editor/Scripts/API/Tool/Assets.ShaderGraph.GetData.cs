@@ -29,7 +29,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             IdempotentHint = true
         )]
         [AiSkillDescription("Get Shader Graph source summary, compiled shader state, and import diagnostics.")]
-        [AiSkillBody("Get Shader Graph data from a '.shadergraph' asset. " +
+        [AiSkillBody("Get Shader Graph data from a '.shadergraph' or '.shadersubgraph' asset. " +
             "Returns source-file summary information, compiled shader state, optional shader properties and messages, and optional diagnostics.\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n" +

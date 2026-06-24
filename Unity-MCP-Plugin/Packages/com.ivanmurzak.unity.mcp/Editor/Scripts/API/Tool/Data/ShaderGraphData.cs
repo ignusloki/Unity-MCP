@@ -22,8 +22,11 @@ namespace AIGD
         [Description("Project-relative asset path of the Shader Graph source file.")]
         public string? AssetPath { get; set; }
 
-        [Description("Source file extension, typically '.shadergraph'.")]
+        [Description("Source file extension ('.shadergraph' or '.shadersubgraph').")]
         public string? SourceFileExtension { get; set; }
+
+        [Description("True when the asset is a Sub Graph (.shadersubgraph). Sub Graphs produce a SubGraphAsset instead of a Shader, so ShaderResolved is always false for them.")]
+        public bool IsSubGraph { get; set; }
 
         [Description("Whether the Shader Graph source file was successfully parsed.")]
         public bool SourceParsed { get; set; }
@@ -107,8 +110,11 @@ namespace AIGD
     [Description("Compact post-import summary returned by Shader Graph mutation tools by default. Use the includeStructure / includeGraph flags to opt in to the full Structure or Graph payloads.")]
     public class ShaderGraphSummaryData
     {
-        [Description("Whether Unity resolved the imported Shader Graph to a Shader asset after the mutation.")]
+        [Description("Whether Unity resolved the imported Shader Graph to a Shader asset after the mutation. Always false for Sub Graphs.")]
         public bool ShaderResolved { get; set; }
+
+        [Description("True when the asset is a Sub Graph (.shadersubgraph).")]
+        public bool IsSubGraph { get; set; }
 
         [Description("Whether the compiled shader currently reports any errors after the mutation.")]
         public bool HasErrors { get; set; }

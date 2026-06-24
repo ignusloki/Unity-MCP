@@ -84,7 +84,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeProperties)
         {
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
             var sourceNodeObjectId = node.NodeObjectId?.Trim();

@@ -44,7 +44,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         internal static ShaderGraphSettingsData BuildShaderGraphSettingsData(AssetObjectRef assetRef)
         {
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
             var asset = assetRef.FindAssetObject();
@@ -66,7 +66,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 throw new ArgumentNullException(nameof(settings));
 
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
             if (!HasAnyUpdates(settings))

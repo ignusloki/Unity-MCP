@@ -3504,6 +3504,121 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void SubGraph_Phase1_FullFlow_CreateMutateAndReferenceFromMainGraph()
+        {
+            var subGraphPath = $"{TestFolder}/Validation_SubGraph_Phase1.shadersubgraph";
+            var mainGraphPath = CreateShaderGraphAssetCopy("Validation_SubGraph_Phase1_Main.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+
+                // --- Create sub-graph ---
+                var createResult = tool.CreateSubGraph(subGraphPath);
+                Assert.IsNotNull(createResult, "CreateSubGraph should return ShaderGraphData.");
+                Assert.IsTrue(createResult.IsSubGraph, "Created asset should be flagged as a sub-graph.");
+                Assert.IsFalse(createResult.ShaderResolved, "Sub-graphs do not produce a Shader, so ShaderResolved should be false.");
+                Assert.IsFalse(createResult.HasErrors, "Freshly created sub-graph should not have errors.");
+
+                // --- Get structure of the blank sub-graph ---
+                var subGraphRef = new AssetObjectRef(subGraphPath);
+                var structure = tool.GetStructure(subGraphRef);
+                Assert.IsNotNull(structure, "GetStructure should return data for a sub-graph.");
+                Assert.IsTrue(structure.Nodes!.Any(n => n.Type == "UnityEditor.ShaderGraph.SubGraphOutputNode"),
+                    "Blank sub-graph should contain a SubGraphOutputNode.");
+
+                // --- Add 3 nodes to the sub-graph ---
+                var addNode = tool.AddNode(subGraphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "add", PositionX = -400f, PositionY = 0f },
+                    includeStructure: true);
+                Assert.AreEqual("UnityEditor.ShaderGraph.AddNode", addNode.Node!.Type);
+
+                var multiplyNode = tool.AddNode(subGraphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -200f, PositionY = 0f },
+                    includeStructure: true);
+                Assert.AreEqual("UnityEditor.ShaderGraph.MultiplyNode", multiplyNode.Node!.Type);
+
+                var saturateNode = tool.AddNode(subGraphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "saturate", PositionX = 0f, PositionY = 0f },
+                    includeStructure: true);
+                Assert.AreEqual("UnityEditor.ShaderGraph.SaturateNode", saturateNode.Node!.Type);
+
+                // --- Connect 2 edges: Add→Multiply, Multiply→Saturate ---
+                var addOut = addNode.Node.Slots!.First(s => s.DisplayName == "Out");
+                var multiplyInA = multiplyNode.Node.Slots!.First(s => s.DisplayName == "A");
+                tool.ConnectEdge(subGraphRef, new ShaderGraphConnectEdgeInput
+                {
+                    OutputNodeObjectId = addNode.Node.ObjectId,
+                    OutputSlotObjectId = addOut.ObjectId,
+                    InputNodeObjectId = multiplyNode.Node.ObjectId,
+                    InputSlotObjectId = multiplyInA.ObjectId
+                });
+
+                var multiplyOut = multiplyNode.Node.Slots!.First(s => s.DisplayName == "Out");
+                var saturateIn = saturateNode.Node.Slots!.First(s => s.DisplayName == "In");
+                tool.ConnectEdge(subGraphRef, new ShaderGraphConnectEdgeInput
+                {
+                    OutputNodeObjectId = multiplyNode.Node.ObjectId,
+                    OutputSlotObjectId = multiplyOut.ObjectId,
+                    InputNodeObjectId = saturateNode.Node.ObjectId,
+                    InputSlotObjectId = saturateIn.ObjectId
+                });
+
+                // --- Add 1 property to the sub-graph ---
+                var prop = tool.AddProperty(subGraphRef, new ShaderGraphAddPropertyInput
+                {
+                    PropertyType = "float",
+                    DisplayName = "Intensity",
+                    OverrideReferenceName = "_Intensity"
+                });
+                Assert.IsNotNull(prop.Property, "AddProperty should return the created property.");
+
+                // --- Verify sub-graph structure after mutations ---
+                var mutatedStructure = tool.GetStructure(subGraphRef);
+                Assert.IsTrue(mutatedStructure.Nodes!.Count >= 4, "Sub-graph should have at least 4 nodes (output + 3 added).");
+                Assert.IsTrue(mutatedStructure.Edges!.Count >= 2, "Sub-graph should have at least 2 edges.");
+                Assert.IsTrue(mutatedStructure.Properties!.Any(p => p.Name == "Intensity"),
+                    "Sub-graph should contain the Intensity property.");
+
+                // --- Verify set-blocks is rejected on sub-graphs ---
+                var setBlocksEx = Assert.Throws<InvalidOperationException>(() =>
+                    tool.SetBlocks(subGraphRef, new ShaderGraphSetBlocksInput
+                    {
+                        Context = "fragment",
+                        Blocks = new List<string> { "baseColor" }
+                    }));
+                StringAssert.Contains("Sub Graphs do not use the master block stack", setBlocksEx!.Message);
+
+                // --- Reference the sub-graph from a main graph ---
+                var mainShader = AssetDatabase.LoadAssetAtPath<Shader>(mainGraphPath);
+                Assert.IsNotNull(mainShader, "Main graph shader should resolve.");
+                var mainRef = new AssetObjectRef(mainShader);
+
+                var subGraphNode = tool.AddNode(mainRef,
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "subGraph",
+                        SubGraphAssetPath = subGraphPath,
+                        PositionX = -300f,
+                        PositionY = 200f
+                    },
+                    includeStructure: true,
+                    includeGraph: true);
+
+                Assert.AreEqual("UnityEditor.ShaderGraph.SubGraphNode", subGraphNode.Node!.Type);
+                Assert.IsNotNull(subGraphNode.Graph, "Main graph data should be returned.");
+                Assert.IsTrue(subGraphNode.Graph!.ShaderResolved,
+                    "Main graph should still resolve a Shader after adding a SubGraphNode.");
+                Assert.IsFalse(subGraphNode.Graph.HasErrors,
+                    "Main graph should not have errors after adding a SubGraphNode referencing the sub-graph.");
+            }
+            finally
+            {
+                CleanupTestAsset(subGraphPath);
+                CleanupTestAsset(mainGraphPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_UpdateNodeSettings_UpdatesDissolveTrialSettings()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_DissolveTrial.shadergraph");

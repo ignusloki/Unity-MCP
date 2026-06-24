@@ -413,6 +413,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     TypeName = "UnityEditor.ShaderGraph.ReciprocalNode",
                     DefaultWidth = 208f,
                     DefaultHeight = 96f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "subGraph",
+                    DisplayName = "Sub Graph",
+                    TypeName = "UnityEditor.ShaderGraph.SubGraphNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 96f
                 }
             };
 
@@ -534,7 +542,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 ?? throw new InvalidOperationException("Failed to create a Shader Graph GraphData instance.");
 
             bindings.AssetGuidProperty.SetValue(graphData, AssetDatabase.AssetPathToGUID(assetPath));
-            bindings.IsSubGraphProperty.SetValue(graphData, false);
+            bindings.IsSubGraphProperty.SetValue(graphData, IsSubGraphAssetPath(assetPath));
             bindings.MessageManagerProperty.SetValue(graphData, null);
 
             var sourceText = File.ReadAllText(fullPath);
@@ -549,6 +557,43 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 Bindings = bindings,
                 GraphData = graphData
             };
+        }
+
+        static void WireSubGraphNodeAsset(
+            ShaderGraphReflectionBindings bindings,
+            object subGraphNodeObject,
+            string? subGraphAssetPath,
+            string? subGraphAssetGuid)
+        {
+            if (string.IsNullOrEmpty(subGraphAssetPath) && string.IsNullOrEmpty(subGraphAssetGuid))
+                throw new ArgumentException("When nodeType is 'subGraph', either SubGraphAssetPath or SubGraphAssetGuid must be provided.");
+
+            string resolvedPath;
+            if (!string.IsNullOrEmpty(subGraphAssetPath))
+            {
+                resolvedPath = subGraphAssetPath!;
+            }
+            else
+            {
+                resolvedPath = AssetDatabase.GUIDToAssetPath(subGraphAssetGuid!);
+                if (string.IsNullOrEmpty(resolvedPath))
+                    throw new ArgumentException($"No asset found for SubGraphAssetGuid '{subGraphAssetGuid}'.");
+            }
+
+            if (!IsSubGraphAssetPath(resolvedPath))
+                throw new ArgumentException($"SubGraphAssetPath must point to a '.shadersubgraph' file, got '{resolvedPath}'.");
+
+            var subGraphAsset = AssetDatabase.LoadMainAssetAtPath(resolvedPath);
+            if (subGraphAsset == null)
+                throw new ArgumentException($"Failed to load SubGraphAsset at '{resolvedPath}'. Ensure the file exists and has been imported.");
+
+            var subGraphNodeType = subGraphNodeObject.GetType();
+            var assetProperty = subGraphNodeType.GetProperty("asset",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (assetProperty == null)
+                throw new InvalidOperationException("Could not resolve 'asset' property on SubGraphNode.");
+
+            assetProperty.SetValue(subGraphNodeObject, subGraphAsset);
         }
 
         static void SaveShaderGraphReflectionDocument(ShaderGraphReflectionDocument document)

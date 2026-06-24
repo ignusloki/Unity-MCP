@@ -30,7 +30,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             IdempotentHint = true
         )]
         [AiSkillDescription("Read a filtered subset of a Shader Graph source file. Returns just the slice you need (statsOnly, propertiesOnly, by node id/type/displayName, by edge endpoints) so you do not pay tokens for the whole graph.")]
-        [AiSkillBody("Filtered read of a '.shadergraph' asset.\n\n" +
+        [AiSkillBody("Filtered read of a '.shadergraph' or '.shadersubgraph' asset.\n\n" +
             "## When to call this instead of '" + AssetsShaderGraphGetStructureToolId + "'\n\n" +
             "- You only need counts → set StatsOnly = true (cheapest).\n" +
             "- You only need blackboard data → set PropertiesOnly = true.\n" +

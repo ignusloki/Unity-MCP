@@ -49,7 +49,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, camera, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, exponential, invertColors, vector2, uv, sine, cosine, negate, fresnelEffect, reciprocal.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, camera, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, exponential, invertColors, vector2, uv, sine, cosine, negate, fresnelEffect, reciprocal, subGraph.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]
@@ -57,6 +57,12 @@ namespace AIGD
 
         [Description("Serialized Y position for the new node. Default: 0.")]
         public float? PositionY { get; set; }
+
+        [Description("Project-relative asset path of the '.shadersubgraph' file to reference. Required when nodeType is 'subGraph'. The sub-graph asset must already exist and be imported.")]
+        public string? SubGraphAssetPath { get; set; }
+
+        [Description("GUID of the '.shadersubgraph' asset to reference. Alternative to SubGraphAssetPath — when both are provided, SubGraphAssetPath takes precedence.")]
+        public string? SubGraphAssetGuid { get; set; }
     }
 
     [Description("Structured input for duplicating a supported Shader Graph node by serialized node id.")]

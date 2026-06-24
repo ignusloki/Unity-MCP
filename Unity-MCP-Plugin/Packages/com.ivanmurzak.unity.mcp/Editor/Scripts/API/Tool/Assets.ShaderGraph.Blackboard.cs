@@ -556,7 +556,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static string ResolveShaderGraphAssetPath(AssetObjectRef assetRef)
         {
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
             return assetPath;

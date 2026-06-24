@@ -49,6 +49,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         internal static bool IsShaderGraphAssetPath(string assetPath)
             => assetPath.EndsWith(".shadergraph", StringComparison.OrdinalIgnoreCase);
 
+        internal static bool IsSubGraphAssetPath(string assetPath)
+            => assetPath.EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase);
+
+        internal static bool IsShaderGraphFamilyAssetPath(string assetPath)
+            => IsShaderGraphAssetPath(assetPath) || IsSubGraphAssetPath(assetPath);
+
         internal static string ResolveAssetPath(AssetObjectRef assetRef)
         {
             var asset = assetRef.FindAssetObject();
@@ -72,17 +78,18 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeDiagnostics)
         {
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
+            var isSubGraph = IsSubGraphAssetPath(assetPath);
             var asset = assetRef.FindAssetObject();
-            var shader = asset as Shader ?? AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+            var shader = isSubGraph ? null : (asset as Shader ?? AssetDatabase.LoadAssetAtPath<Shader>(assetPath));
             var importer = AssetImporter.GetAtPath(assetPath);
             var sourceInfo = ReadSourceInfo(assetPath);
             var resolvedAsset = asset ?? (UnityEngine.Object?)shader ?? AssetDatabase.LoadMainAssetAtPath(assetPath);
 
-            var diagnostics = BuildDiagnostics(assetPath, sourceInfo, importer, shader);
-            var hasErrors = (shader != null && ShaderUtil.ShaderHasError(shader))
+            var diagnostics = BuildDiagnostics(assetPath, sourceInfo, importer, shader, isSubGraph);
+            var hasErrors = (!isSubGraph && shader != null && ShaderUtil.ShaderHasError(shader))
                 || HasErrorDiagnostics(diagnostics);
 
             var data = new ShaderGraphData
@@ -90,6 +97,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 Reference = resolvedAsset == null ? null : new AssetObjectRef(resolvedAsset),
                 AssetPath = assetPath,
                 SourceFileExtension = Path.GetExtension(assetPath),
+                IsSubGraph = isSubGraph,
                 SourceParsed = sourceInfo.SourceParsed,
                 ImporterType = importer?.GetType().FullName,
                 ShaderName = shader?.name,
@@ -98,7 +106,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 HasErrors = hasErrors,
                 GraphVersion = sourceInfo.GraphVersion,
                 GraphType = sourceInfo.GraphType,
-                ShaderMenuPath = sourceInfo.ShaderMenuPath,
+                ShaderMenuPath = isSubGraph ? null : sourceInfo.ShaderMenuPath,
                 GraphPropertyCount = sourceInfo.GraphPropertyCount,
                 KeywordCount = sourceInfo.KeywordCount,
                 DropdownCount = sourceInfo.DropdownCount,
@@ -125,7 +133,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         internal static ShaderGraphStructureData BuildShaderGraphStructureData(AssetObjectRef assetRef)
         {
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
             var asset = assetRef.FindAssetObject();
@@ -138,15 +146,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         internal static ShaderGraphSummaryData BuildShaderGraphSummary(AssetObjectRef assetRef)
         {
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
+            var isSubGraph = IsSubGraphAssetPath(assetPath);
             var asset = assetRef.FindAssetObject();
-            var shader = asset as Shader ?? AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+            var shader = isSubGraph ? null : (asset as Shader ?? AssetDatabase.LoadAssetAtPath<Shader>(assetPath));
             var importer = AssetImporter.GetAtPath(assetPath);
             var sourceInfo = ReadSourceInfo(assetPath);
 
-            var fullDiagnostics = BuildDiagnostics(assetPath, sourceInfo, importer, shader);
+            var fullDiagnostics = BuildDiagnostics(assetPath, sourceInfo, importer, shader, isSubGraph);
             var filtered = fullDiagnostics
                 .Where(d => !string.Equals(d.Severity, "Info", StringComparison.Ordinal))
                 .ToList();
@@ -154,7 +163,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return new ShaderGraphSummaryData
             {
                 ShaderResolved = shader != null,
-                HasErrors = (shader != null && ShaderUtil.ShaderHasError(shader))
+                IsSubGraph = isSubGraph,
+                HasErrors = (!isSubGraph && shader != null && ShaderUtil.ShaderHasError(shader))
                     || HasErrorDiagnostics(fullDiagnostics),
                 NodeCount = sourceInfo.NodeCount,
                 EdgeCount = sourceInfo.EdgeCount,
@@ -239,7 +249,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             string assetPath,
             ShaderGraphSourceInfo sourceInfo,
             AssetImporter? importer,
-            Shader? shader)
+            Shader? shader,
+            bool isSubGraph = false)
         {
             var diagnostics = new List<ShaderGraphDiagnosticData>();
 
@@ -300,7 +311,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     });
                 }
 
-                if (sourceInfo.ActiveTargetCount == 0)
+                if (!isSubGraph && sourceInfo.ActiveTargetCount == 0)
                 {
                     diagnostics.Add(new ShaderGraphDiagnosticData
                     {
@@ -312,6 +323,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 }
 
                 AddSerializedGraphValidationDiagnostics(diagnostics, assetPath);
+            }
+
+            if (isSubGraph)
+            {
+                if (diagnostics.Count == 0)
+                {
+                    diagnostics.Add(new ShaderGraphDiagnosticData
+                    {
+                        Code = "OK",
+                        Severity = "Info",
+                        Message = $"Sub Graph '{assetPath}' imported successfully.",
+                        Hint = "The sub-graph is ready for use from a parent Shader Graph."
+                    });
+                }
+                return diagnostics;
             }
 
             if (shader == null)

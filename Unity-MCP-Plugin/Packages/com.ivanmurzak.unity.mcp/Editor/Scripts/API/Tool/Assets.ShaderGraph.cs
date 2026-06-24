@@ -26,13 +26,19 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         internal const string CleanUrpUnlitTemplateAssetPath =
             "Packages/com.ivanmurzak.unity.mcp/Editor/Templates/Unlit URP Clean.shadergraph";
 
+        internal const string DefaultSubGraphTemplateAssetPath =
+            "Packages/com.ivanmurzak.unity.mcp/Editor/Templates/Blank SubGraph.shadersubgraph";
+
         public static class Error
         {
             public static string AssetPathMustEndWithShaderGraph(string assetPath)
                 => $"Asset path must end with '.shadergraph'. Path: '{assetPath}'.";
 
+            public static string AssetPathMustEndWithShaderSubGraph(string assetPath)
+                => $"Asset path must end with '.shadersubgraph'. Path: '{assetPath}'.";
+
             public static string AssetIsNotShaderGraph(string assetPath)
-                => $"Asset is not a Shader Graph source file. Expected '.shadergraph'. Path: '{assetPath}'.";
+                => $"Asset is not a Shader Graph source file. Expected '.shadergraph' or '.shadersubgraph'. Path: '{assetPath}'.";
 
             public static string TemplateAssetNotFound(string templateAssetPath)
                 => $"Shader Graph template asset was not found. Path: '{templateAssetPath}'.";

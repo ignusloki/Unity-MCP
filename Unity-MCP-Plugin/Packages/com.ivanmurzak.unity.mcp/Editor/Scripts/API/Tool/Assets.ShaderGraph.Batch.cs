@@ -80,7 +80,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ShaderGraphBatchInput batch)
         {
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
             var operations = batch.Operations ?? new List<ShaderGraphBatchOperationInput>();

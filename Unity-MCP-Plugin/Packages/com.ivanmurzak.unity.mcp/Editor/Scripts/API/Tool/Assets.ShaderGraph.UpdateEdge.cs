@@ -298,7 +298,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
             var document = LoadMutableDocument(assetPath);
@@ -437,7 +437,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeProperties)
         {
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
             var document = LoadMutableDocument(assetPath);
@@ -489,7 +489,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeProperties)
         {
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
             var document = LoadMutableDocument(assetPath);
@@ -600,7 +600,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeProperties)
         {
             var assetPath = ResolveAssetPath(assetRef);
-            if (!IsShaderGraphAssetPath(assetPath))
+            if (!IsShaderGraphFamilyAssetPath(assetPath))
                 throw new ArgumentException(Error.AssetIsNotShaderGraph(assetPath), nameof(assetRef));
 
             var document = LoadMutableDocument(assetPath);

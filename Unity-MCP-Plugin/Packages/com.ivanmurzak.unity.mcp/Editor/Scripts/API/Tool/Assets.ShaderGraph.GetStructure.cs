@@ -29,7 +29,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             IdempotentHint = true
         )]
         [AiSkillDescription("Get a read-only structural view of a Shader Graph source file, including blackboard properties, nodes, slots, edges, contexts, and active targets.")]
-        [AiSkillBody("Get a read-only structural view of a '.shadergraph' asset. " +
+        [AiSkillBody("Get a read-only structural view of a '.shadergraph' or '.shadersubgraph' asset. " +
             "Returns blackboard properties, node definitions, slot definitions, edge connections, active targets, and vertex/fragment block contexts.\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n\n" +
