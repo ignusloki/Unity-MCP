@@ -405,6 +405,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     TypeName = "UnityEditor.ShaderGraph.FresnelEffectNode",
                     DefaultWidth = 208f,
                     DefaultHeight = 96f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "reciprocal",
+                    DisplayName = "Reciprocal",
+                    TypeName = "UnityEditor.ShaderGraph.ReciprocalNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 96f
                 }
             };
 

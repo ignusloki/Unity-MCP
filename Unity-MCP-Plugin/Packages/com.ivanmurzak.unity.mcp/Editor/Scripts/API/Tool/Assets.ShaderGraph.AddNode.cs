@@ -32,7 +32,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         [AiSkillDescription("Add a safe allowlisted Shader Graph node, then re-import the graph and return the created node and diagnostics.")]
         [AiSkillBody("Add a safe allowlisted node to a '.shadergraph' asset.\n\n" +
             "Current ShaderGraph node support is intentionally explicit:\n" +
-            "- node types: `add`, `subtract`, `multiply`, `divide`, `power`, `lerp`, `oneMinus`, `fraction`, `split`, `combine`, `sampleTexture2D`, `tilingAndOffset`, `branch`, `viewDirection`, `viewVector`, `normalVector`, `position`, `object`, `transform`, `gradientNoise`, `simpleNoise`, `screenPosition`, `sceneDepth`, `camera`, `sceneColor`, `comparison`, `normalFromHeight`, `blend`, `remap`, `swizzle`, `time`, `smoothstep`, `step`, `saturate`, `exponential`, `invertColors`, `vector2`, `uv`, `sine`, `cosine`, `negate`, `fresnelEffect`\n" +
+            "- node types: `add`, `subtract`, `multiply`, `divide`, `power`, `lerp`, `oneMinus`, `fraction`, `split`, `combine`, `sampleTexture2D`, `tilingAndOffset`, `branch`, `viewDirection`, `viewVector`, `normalVector`, `position`, `object`, `transform`, `gradientNoise`, `simpleNoise`, `screenPosition`, `sceneDepth`, `camera`, `sceneColor`, `comparison`, `normalFromHeight`, `blend`, `remap`, `swizzle`, `time`, `smoothstep`, `step`, `saturate`, `exponential`, `invertColors`, `vector2`, `uv`, `sine`, `cosine`, `negate`, `fresnelEffect`, `reciprocal`\n" +
             "- node creation only, no automatic edge wiring\n" +
             "- uses Unity's own Shader Graph graph APIs through reflection, then re-imports the asset\n\n" +
             "## Response shape\n\n" +

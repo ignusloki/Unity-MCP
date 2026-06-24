@@ -57,6 +57,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `screenPosition`: `mode` (`default` or `raw`)\n" +
             "- `sceneDepth`: `samplingMode` (`linear01`, `raw`, or `eye`)\n" +
             "- `exponential`: `base` (`baseE` or `base2`) and default `input` slot value\n" +
+            "- `reciprocal`: `method` (`default` or `fast`) and default `input` slot value\n" +
             "- `comparison`: `comparisonType`\n" +
             "- `normalFromHeight`: `outputSpace`\n" +
             "- `blend`: `blendMode`\n" +
@@ -337,6 +338,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "UnityEditor.ShaderGraph.ExponentialNode":
                     ApplyExponentialNodeSettings(document.Bindings, nodeObject, node.Exponential, changedFields);
                     break;
+                case "UnityEditor.ShaderGraph.ReciprocalNode":
+                    ApplyReciprocalNodeSettings(document.Bindings, nodeObject, node.Reciprocal, changedFields);
+                    break;
                 default:
                     throw new InvalidOperationException(
                         $"Node '{nodeType}' does not yet support typed node settings updates.");
@@ -490,7 +494,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasUnaryVectorUpdates(node.Sine)
                || HasUnaryVectorUpdates(node.Cosine)
                || HasUnaryVectorUpdates(node.Negate)
-               || HasExponentialUpdates(node.Exponential);
+               || HasExponentialUpdates(node.Exponential)
+               || HasReciprocalUpdates(node.Reciprocal);
 
         static int CountSerializedNodeSettingsUpdatePayloads(ShaderGraphUpdateNodeSettingsInput node)
         {
@@ -529,6 +534,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasUnaryVectorUpdates(node.Cosine)) count++;
             if (HasUnaryVectorUpdates(node.Negate)) count++;
             if (HasExponentialUpdates(node.Exponential)) count++;
+            if (HasReciprocalUpdates(node.Reciprocal)) count++;
             return count;
         }
 
@@ -664,6 +670,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             => exponential != null
                && (!string.IsNullOrWhiteSpace(exponential.Base)
                    || HasVector4Updates(exponential.Input));
+
+        static bool HasReciprocalUpdates(ShaderGraphReciprocalNodeSettingsUpdateInput? reciprocal)
+            => reciprocal != null
+               && (!string.IsNullOrWhiteSpace(reciprocal.Method)
+                   || HasVector4Updates(reciprocal.Input));
 
         static bool HasVector2Updates(ShaderGraphVector2ValueUpdateInput? value)
             => value != null && (value.X.HasValue || value.Y.HasValue);
@@ -1346,6 +1357,26 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 changedFields);
 
             SetSlotVector4(bindings, nodeObject, "In", exponential.Input, "node.exponential.input", changedFields);
+        }
+
+        static void ApplyReciprocalNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphReciprocalNodeSettingsUpdateInput? reciprocal,
+            List<string> changedFields)
+        {
+            if (reciprocal == null)
+                throw new InvalidOperationException("Reciprocal nodes require a `reciprocal` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_ReciprocalMethod",
+                reciprocal.Method,
+                "node.reciprocal.method",
+                new[] { "default", "fast" },
+                changedFields);
+
+            SetSlotVector4(bindings, nodeObject, "In", reciprocal.Input, "node.reciprocal.input", changedFields);
         }
 
         static void SetTransformConversionSpaces(

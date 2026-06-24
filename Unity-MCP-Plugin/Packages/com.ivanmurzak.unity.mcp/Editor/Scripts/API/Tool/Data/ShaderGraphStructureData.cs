@@ -280,6 +280,9 @@ namespace AIGD
 
         [Description("Resolved Exponential settings when the node is a supported Exponential node.")]
         public ShaderGraphExponentialNodeSettingsData? Exponential { get; set; }
+
+        [Description("Resolved Reciprocal settings when the node is a supported Reciprocal node.")]
+        public ShaderGraphReciprocalNodeSettingsData? Reciprocal { get; set; }
     }
 
     public class ShaderGraphSampleTexture2DNodeSettingsData
@@ -541,6 +544,18 @@ namespace AIGD
 
         [Description("Formatted exponential base when recognized.")]
         public string? Base { get; set; }
+
+        [Description("Default value for the In input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? Input { get; set; }
+    }
+
+    public class ShaderGraphReciprocalNodeSettingsData
+    {
+        [Description("Serialized reciprocal method enum value.")]
+        public int? MethodValue { get; set; }
+
+        [Description("Formatted reciprocal method when recognized.")]
+        public string? Method { get; set; }
 
         [Description("Default value for the In input slot when readable.")]
         public ShaderGraphVector4SlotValueData? Input { get; set; }

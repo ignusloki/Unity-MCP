@@ -49,7 +49,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, camera, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, exponential, invertColors, vector2, uv, sine, cosine, negate.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, camera, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, exponential, invertColors, vector2, uv, sine, cosine, negate, fresnelEffect, reciprocal.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]
@@ -198,6 +198,9 @@ namespace AIGD
 
         [Description("Structured settings updates for an Exponential node.")]
         public ShaderGraphExponentialNodeSettingsUpdateInput? Exponential { get; set; }
+
+        [Description("Structured settings updates for a Reciprocal node.")]
+        public ShaderGraphReciprocalNodeSettingsUpdateInput? Reciprocal { get; set; }
     }
 
     [Description("Structured settings updates for a Sample Texture 2D node.")]
@@ -510,6 +513,16 @@ namespace AIGD
     {
         [Description("Exponential base. Supported values: baseE, base2.")]
         public string? Base { get; set; }
+
+        [Description("Default value for the In input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
+    }
+
+    [Description("Structured settings updates for a Reciprocal node.")]
+    public class ShaderGraphReciprocalNodeSettingsUpdateInput
+    {
+        [Description("Reciprocal method. Supported values: default, fast.")]
+        public string? Method { get; set; }
 
         [Description("Default value for the In input slot.")]
         public ShaderGraphVector4ValueUpdateInput? Input { get; set; }

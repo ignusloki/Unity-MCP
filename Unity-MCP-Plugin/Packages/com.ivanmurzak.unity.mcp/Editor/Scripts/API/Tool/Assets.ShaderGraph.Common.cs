@@ -917,6 +917,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.ExponentialNode", StringComparison.Ordinal))
                 node.Exponential = ParseExponentialNodeSettings(root);
 
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.ReciprocalNode", StringComparison.Ordinal))
+                node.Reciprocal = ParseReciprocalNodeSettings(root);
+
             return node;
         }
 
@@ -1100,6 +1103,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             };
         }
 
+        static ShaderGraphReciprocalNodeSettingsData ParseReciprocalNodeSettings(JsonElement root)
+        {
+            var methodValue = GetInt(root, "m_ReciprocalMethod");
+
+            return new ShaderGraphReciprocalNodeSettingsData
+            {
+                MethodValue = methodValue,
+                Method = FormatReciprocalMethod(methodValue)
+            };
+        }
+
         static void PopulateSlotDerivedNodeSettings(ShaderGraphNodeDefinitionData node)
         {
             if (node.GradientNoise != null)
@@ -1145,6 +1159,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             if (node.Exponential != null)
                 node.Exponential.Input = ParseSlotVector4Value(node, "In");
+
+            if (node.Reciprocal != null)
+                node.Reciprocal.Input = ParseSlotVector4Value(node, "In");
         }
 
         static float? ParseSlotFloatValue(ShaderGraphNodeDefinitionData node, string slotDisplayName)
@@ -1610,6 +1627,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 0 => "baseE",
                 1 => "base2",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatReciprocalMethod(int? value)
+        {
+            return value switch
+            {
+                0 => "default",
+                1 => "fast",
                 null => null,
                 _ => $"unknown({value})"
             };

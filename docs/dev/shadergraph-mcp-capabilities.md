@@ -275,6 +275,8 @@ Node lifecycle mutation results include normalized summary fields:
     - `sine` (`Sine`)
     - `cosine` (`Cosine`)
     - `negate` (`Negate`)
+    - `fresnelEffect` (`Fresnel Effect`)
+    - `reciprocal` (`Reciprocal`)
 - `assets-shadergraph-duplicate-node`
   - Duplicates a supported existing node by serialized `nodeObjectId`.
   - Supports `PropertyNode` plus the same allowlisted node families as `assets-shadergraph-add-node`.
@@ -445,6 +447,13 @@ Node lifecycle mutation results include normalized summary fields:
     - `input.z`
     - `input.w`
   - Supported Exponential bases: `baseE`, `base2`.
+  - Supported `Reciprocal` fields:
+    - `method`
+    - `input.x`
+    - `input.y`
+    - `input.z`
+    - `input.w`
+  - Supported Reciprocal methods: `default`, `fast`.
   - Supported `Invert Colors` fields:
     - `red`
     - `green`

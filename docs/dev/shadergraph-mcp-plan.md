@@ -489,6 +489,9 @@ Implementation plan:
 - Slice 7H.2: add `exponential` to `assets-shadergraph-add-node` as `UnityEditor.ShaderGraph.ExponentialNode`; readback exposes `base` and input literal default. Implemented.
 - Slice 7H.3: add typed `assets-shadergraph-update-node-settings` support for `Exponential.base` (`baseE`, `base2`) and `Exponential.In` literal defaults, with loud rejection for unknown bases. Implemented.
 - Slice 7H.4: add focused editor coverage for add/readback, update/readback, duplicate/move/delete, invalid setting rejection, reimport diagnostics, and an end-to-end WorldSpaceDepthFade path. Implemented.
+- Slice 7I.1: add `fresnelEffect` to `assets-shadergraph-add-node` as `UnityEditor.ShaderGraph.FresnelEffectNode`. Implemented.
+- Slice 7J.1: add `reciprocal` to `assets-shadergraph-add-node` as `UnityEditor.ShaderGraph.ReciprocalNode`; readback exposes `method` and input literal default. Implemented.
+- Slice 7J.2: add typed `assets-shadergraph-update-node-settings` support for `Reciprocal.method` (`default`, `fast`) and `Reciprocal.In` literal defaults, with loud rejection for unknown methods. Implemented.
 
 Validation requirements:
 

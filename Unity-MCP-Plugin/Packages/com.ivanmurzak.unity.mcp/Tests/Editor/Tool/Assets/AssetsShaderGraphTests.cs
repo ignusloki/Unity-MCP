@@ -3417,6 +3417,93 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_AddNode_AddsReciprocalNode()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode_Reciprocal.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var reciprocal = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "reciprocal", PositionX = -620f, PositionY = 100f },
+                    includeStructure: true);
+
+                Assert.AreEqual("UnityEditor.ShaderGraph.ReciprocalNode", reciprocal.Node!.Type);
+                Assert.AreEqual("Reciprocal", reciprocal.Node.Name);
+                Assert.IsTrue(reciprocal.Node.Slots!.Any(slot => slot.DisplayName == "In"));
+                Assert.IsTrue(reciprocal.Node.Slots.Any(slot => slot.DisplayName == "Out"));
+                Assert.AreEqual("default", reciprocal.Node.Reciprocal!.Method);
+
+                var fastResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = reciprocal.Node.ObjectId,
+                        Reciprocal = new ShaderGraphReciprocalNodeSettingsUpdateInput
+                        {
+                            Method = "fast",
+                            Input = new ShaderGraphVector4ValueUpdateInput { X = 2f, Y = 0f, Z = 0f, W = 0f }
+                        }
+                    });
+                Assert.AreEqual("fast", fastResult.Node!.Reciprocal!.Method);
+                Assert.AreEqual(2f, fastResult.Node.Reciprocal.Input!.X ?? 0f, 0.0001f);
+                AssertSlotFloat(fastResult.Node, "In", 2f);
+
+                var defaultResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = reciprocal.Node.ObjectId,
+                        Reciprocal = new ShaderGraphReciprocalNodeSettingsUpdateInput { Method = "default" }
+                    },
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+                Assert.AreEqual("default", defaultResult.Node!.Reciprocal!.Method);
+
+                var unsupportedMethod = Assert.Throws<ArgumentException>(() => tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = reciprocal.Node.ObjectId,
+                        Reciprocal = new ShaderGraphReciprocalNodeSettingsUpdateInput { Method = "precise" }
+                    }));
+                StringAssert.Contains("Supported values: default, fast", unsupportedMethod!.Message);
+
+                var divide = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "divide", PositionX = -900f, PositionY = 100f },
+                    includeStructure: true);
+                var divideOut = divide.Node!.Slots!.First(s => s.DisplayName == "Out");
+                var reciprocalIn = reciprocal.Node.Slots!.First(s => s.DisplayName == "In");
+
+                var edgeResult = tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = divide.Node.ObjectId,
+                        OutputSlotObjectId = divideOut.ObjectId,
+                        InputNodeObjectId = reciprocal.Node.ObjectId,
+                        InputSlotObjectId = reciprocalIn.ObjectId,
+                        ReplaceExistingInputConnection = true
+                    },
+                    includeGraph: true);
+
+                Assert.IsNotNull(edgeResult.Graph);
+                Assert.IsTrue(edgeResult.Graph!.ShaderResolved, "Connecting an edge to Reciprocal node should keep the Shader Graph import valid.");
+                Assert.IsFalse(edgeResult.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Connecting an edge to Reciprocal should not introduce import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_UpdateNodeSettings_UpdatesDissolveTrialSettings()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_DissolveTrial.shadergraph");
