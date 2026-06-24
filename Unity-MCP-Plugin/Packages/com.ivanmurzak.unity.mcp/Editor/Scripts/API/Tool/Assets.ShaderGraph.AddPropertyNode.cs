@@ -85,7 +85,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
             if (!IsShaderGraphAssetPath(assetPath))
@@ -126,6 +127,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             AddNodeReferenceToRoot(document.Root, nodeObjectId);
 
             WriteMutableDocument(document);
+
+            if (deferImport)
+            {
+                return new ShaderGraphNodeMutationResultData
+                {
+                    Operation = "addPropertyNode",
+                    NodeObjectId = nodeObjectId,
+                    ChangedFields = new List<string>
+                    {
+                        "node.added",
+                        "node.slot.added"
+                    }
+                };
+            }
+
             FinalizeShaderGraphMutation(assetPath);
 
             var graphRef = new AssetObjectRef(assetPath);

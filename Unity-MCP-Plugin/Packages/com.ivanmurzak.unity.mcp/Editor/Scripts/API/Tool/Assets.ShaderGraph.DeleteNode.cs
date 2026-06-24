@@ -84,7 +84,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
             if (!IsShaderGraphAssetPath(assetPath))
@@ -114,6 +115,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             InvokeShaderGraphMethod(document.Bindings.RemoveNodeMethod, document.GraphData, nodeObject);
             SaveShaderGraphReflectionDocument(document);
+
+            var changedFields = new List<string> { "node.deleted" };
+            if (removedEdgeCount > 0)
+                changedFields.Add("edge.autoRemoved");
+
+            if (deferImport)
+            {
+                return new ShaderGraphNodeMutationResultData
+                {
+                    Operation = "delete",
+                    NodeObjectId = nodeObjectId,
+                    ChangedFields = changedFields
+                };
+            }
+
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
@@ -125,10 +141,6 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 throw new InvalidOperationException(
                     $"Deleted Shader Graph node '{nodeObjectId}' was still present after re-import.");
             }
-
-            var changedFields = new List<string> { "node.deleted" };
-            if (removedEdgeCount > 0)
-                changedFields.Add("edge.autoRemoved");
 
             return new ShaderGraphNodeMutationResultData
             {

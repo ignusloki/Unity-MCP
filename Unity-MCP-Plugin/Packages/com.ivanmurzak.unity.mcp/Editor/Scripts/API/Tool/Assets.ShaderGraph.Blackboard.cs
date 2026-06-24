@@ -209,7 +209,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveShaderGraphAssetPath(assetRef);
             var document = LoadMutableDocument(assetPath);
@@ -255,7 +256,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             RemoveObjectById(document, propertyObjectId);
 
-            WriteAndFinalizeDeletePropertyMutation(document, originalSourceText);
+            WriteAndFinalizeDeletePropertyMutation(document, originalSourceText, deferImport);
+
+            if (deferImport)
+            {
+                return new ShaderGraphPropertyMutationResultData
+                {
+                    Operation = "delete",
+                    PropertyObjectId = propertyObjectId,
+                    ChangedFields = BuildDeletePropertyChangedFields(removedNodeIds.Count, removedEdgeCount)
+                };
+            }
 
             return BuildDeletePropertyMutationResult(
                 assetPath,
@@ -271,21 +282,25 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeProperties);
         }
 
-        static void WriteAndFinalizeDeletePropertyMutation(ShaderGraphMutableDocument document, string originalSourceText)
+        static void WriteAndFinalizeDeletePropertyMutation(ShaderGraphMutableDocument document, string originalSourceText, bool deferImport = false)
         {
             try
             {
                 WriteMutableDocument(document);
-                FinalizeShaderGraphMutation(document.AssetPath);
+                if (!deferImport)
+                    FinalizeShaderGraphMutation(document.AssetPath);
             }
             catch (Exception ex)
             {
                 try
                 {
                     File.WriteAllText(document.FullPath, originalSourceText);
-                    AssetDatabase.ImportAsset(document.AssetPath, ImportAssetOptions.ForceSynchronousImport);
-                    AssetDatabase.SaveAssets();
-                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                    if (!deferImport)
+                    {
+                        AssetDatabase.ImportAsset(document.AssetPath, ImportAssetOptions.ForceSynchronousImport);
+                        AssetDatabase.SaveAssets();
+                        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                    }
                 }
                 catch (Exception rollbackEx)
                 {

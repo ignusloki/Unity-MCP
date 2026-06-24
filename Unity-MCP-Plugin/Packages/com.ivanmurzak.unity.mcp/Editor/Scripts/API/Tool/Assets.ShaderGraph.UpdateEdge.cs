@@ -294,7 +294,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
             if (!IsShaderGraphAssetPath(assetPath))
@@ -318,7 +319,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     includeStructure,
                     includeGraph,
                     includeMessages,
-                    includeProperties);
+                    includeProperties,
+                    deferImport);
             }
 
             ValidateEdgeCompatibility(outputSlot, inputSlot);
@@ -328,6 +330,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 if (edge.AllowExisting == true)
                 {
+                    if (deferImport)
+                    {
+                        return new ShaderGraphEdgeMutationResultData
+                        {
+                            ChangedFields = new List<string> { "edge.alreadyExists" },
+                            Edge = CreateEdgeDefinition(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId),
+                            AlreadyExisted = true
+                        };
+                    }
+
                     var graphRefIdempotent = new AssetObjectRef(assetPath);
                     return new ShaderGraphEdgeMutationResultData
                     {
@@ -370,12 +382,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             edgesArray.Add(CreateEdgeObject(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId));
 
             WriteMutableDocument(document);
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
 
-            var graphRef = new AssetObjectRef(assetPath);
             var changedFields = new List<string>();
             var removedEdges = new List<ShaderGraphEdgeDefinitionData>();
             if (removedEdge != null)
@@ -386,6 +393,22 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             }
 
             changedFields.Add("edge.connected");
+
+            if (deferImport)
+            {
+                return new ShaderGraphEdgeMutationResultData
+                {
+                    ChangedFields = changedFields,
+                    Edge = CreateEdgeDefinition(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId)
+                };
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+
+            var graphRef = new AssetObjectRef(assetPath);
 
             return new ShaderGraphEdgeMutationResultData
             {
@@ -1092,7 +1115,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var sourceNodeId = outputSlot.NodeObjectId;
             var sourceSlotId = outputSlot.SlotObjectId;
@@ -1100,12 +1124,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             var targetSlotId = inputSlot.SlotObjectId;
 
             var split = AddShaderGraphNode(assetRef, new ShaderGraphAddNodeInput { NodeType = "split" },
-                includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+                includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false, deferImport: deferImport);
             var splitId = split.NodeObjectId
                 ?? throw new InvalidOperationException("AutoNarrowVector3ToUV: Split node creation did not return an ObjectId.");
 
             var combine = AddShaderGraphNode(assetRef, new ShaderGraphAddNodeInput { NodeType = "combine" },
-                includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+                includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false, deferImport: deferImport);
             var combineId = combine.NodeObjectId
                 ?? throw new InvalidOperationException("AutoNarrowVector3ToUV: Combine node creation did not return an ObjectId.");
 
@@ -1118,26 +1142,42 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     Node = new ShaderGraphNodeRef { ObjectId = splitId },
                     DisplayName = "In"
                 }
-            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false, deferImport: deferImport);
 
             var splitRToCombineR = ConnectShaderGraphEdge(assetRef, new ShaderGraphConnectEdgeInput
             {
                 OutputSlot = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = splitId },   DisplayName = "R" },
                 InputSlot  = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = combineId }, DisplayName = "R" }
-            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false, deferImport: deferImport);
 
             var splitGToCombineG = ConnectShaderGraphEdge(assetRef, new ShaderGraphConnectEdgeInput
             {
                 OutputSlot = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = splitId },   DisplayName = "G" },
                 InputSlot  = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = combineId }, DisplayName = "G" }
-            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false, deferImport: deferImport);
 
             var combineRGToTarget = ConnectShaderGraphEdge(assetRef, new ShaderGraphConnectEdgeInput
             {
                 OutputSlot = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = combineId }, DisplayName = "RG" },
                 InputNodeObjectId = targetNodeId,
                 InputSlotObjectId = targetSlotId
-            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false);
+            }, includeStructure: false, includeGraph: false, includeMessages: false, includeProperties: false, deferImport: deferImport);
+
+            if (deferImport)
+            {
+                return new ShaderGraphEdgeMutationResultData
+                {
+                    ChangedFields = new List<string> { "edge.connected", "edge.autoNarrowedVector3ToUV" },
+                    Edge = combineRGToTarget.Edge,
+                    AutoCreatedNodeObjectIds = new List<string> { splitId, combineId },
+                    AutoCreatedEdges = new List<ShaderGraphEdgeDefinitionData>
+                    {
+                        sourceToSplit.Edge!,
+                        splitRToCombineR.Edge!,
+                        splitGToCombineG.Edge!
+                    }
+                };
+            }
 
             var graphRef = new AssetObjectRef(assetPath);
             return new ShaderGraphEdgeMutationResultData

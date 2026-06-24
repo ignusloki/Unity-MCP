@@ -150,6 +150,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 results.Add(result);
             }
 
+            if (!anyFailure || !stopOnError)
+                FinalizeShaderGraphMutation(assetPath);
+
             if (anyFailure && stopOnError && firstFailure != null)
             {
                 string rollbackNote;
@@ -315,7 +318,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeStructure: false,
                 includeGraph: false,
                 includeMessages: false,
-                includeProperties: false);
+                includeProperties: false,
+                deferImport: true);
 
             result.Operation = addResult.Operation;
             result.ObjectId = addResult.NodeObjectId;
@@ -342,7 +346,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeStructure: false,
                 includeGraph: false,
                 includeMessages: false,
-                includeProperties: false);
+                includeProperties: false,
+                deferImport: true);
 
             result.Operation = updateResult.Operation;
             result.ObjectId = updateResult.NodeObjectId;
@@ -366,7 +371,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeStructure: false,
                 includeGraph: false,
                 includeMessages: false,
-                includeProperties: false);
+                includeProperties: false,
+                deferImport: true);
 
             result.Operation = deleteResult.Operation;
             result.ObjectId = deleteResult.NodeObjectId;
@@ -388,7 +394,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeStructure: false,
                 includeGraph: false,
                 includeMessages: false,
-                includeProperties: false);
+                includeProperties: false,
+                deferImport: true);
 
             result.Operation = addResult.Operation;
             result.ObjectId = addResult.PropertyObjectId;
@@ -415,7 +422,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeStructure: false,
                 includeGraph: false,
                 includeMessages: false,
-                includeProperties: false);
+                includeProperties: false,
+                deferImport: true);
 
             result.Operation = updateResult.Operation;
             result.ObjectId = updateResult.PropertyObjectId;
@@ -439,7 +447,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeStructure: false,
                 includeGraph: false,
                 includeMessages: false,
-                includeProperties: false);
+                includeProperties: false,
+                deferImport: true);
 
             result.Operation = deleteResult.Operation;
             result.ObjectId = deleteResult.PropertyObjectId;
@@ -470,7 +479,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeStructure: false,
                 includeGraph: false,
                 includeMessages: false,
-                includeProperties: false);
+                includeProperties: false,
+                deferImport: true);
 
             result.Operation = addResult.Operation;
             result.ObjectId = addResult.NodeObjectId;
@@ -497,7 +507,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeStructure: false,
                 includeGraph: false,
                 includeMessages: false,
-                includeProperties: false);
+                includeProperties: false,
+                deferImport: true);
 
             result.Operation = "connect";
             result.ChangedFields = connectResult.ChangedFields;
@@ -521,7 +532,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeStructure: false,
                 includeGraph: false,
                 includeMessages: false,
-                includeProperties: false);
+                includeProperties: false,
+                deferImport: true);
 
             result.Operation = moveResult.Operation;
             result.ObjectId = moveResult.NodeObjectId;
@@ -541,7 +553,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 op.SetSettings,
                 includeGraph: false,
                 includeMessages: false,
-                includeProperties: false);
+                includeProperties: false,
+                deferImport: true);
 
             result.Operation = "setSettings";
             result.ObjectId = null;
@@ -562,7 +575,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeStructure: false,
                 includeGraph: false,
                 includeMessages: false,
-                includeProperties: false);
+                includeProperties: false,
+                deferImport: true);
 
             result.Operation = "setBlocks";
             result.ObjectId = null;

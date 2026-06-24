@@ -102,7 +102,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
             if (!IsShaderGraphAssetPath(assetPath))
@@ -194,7 +195,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 contextObject["m_Blocks"] = CreateReferenceArray(desiredBlockIds);
                 WriteMutableDocument(document);
-                FinalizeShaderGraphMutation(assetPath);
+                if (!deferImport)
+                    FinalizeShaderGraphMutation(assetPath);
+            }
+
+            if (deferImport)
+            {
+                return new ShaderGraphBlockMutationResultData
+                {
+                    Operation = "setBlocks",
+                    Context = contextName,
+                    CreatedBlockNodeIds = createdBlockNodeIds,
+                    RemovedBlockNodeIds = removedBlockNodeIds,
+                    RemovedEdgeCount = removedEdgeCount,
+                    ChangedFields = changedFields
+                };
             }
 
             var graphRef = new AssetObjectRef(assetPath);

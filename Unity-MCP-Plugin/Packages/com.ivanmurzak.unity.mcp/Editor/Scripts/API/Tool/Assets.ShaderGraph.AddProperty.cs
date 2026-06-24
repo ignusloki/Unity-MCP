@@ -88,7 +88,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
             if (!IsShaderGraphAssetPath(assetPath))
@@ -147,6 +148,18 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 property.CategoryIndex);
 
             WriteMutableDocument(document);
+
+            if (deferImport)
+            {
+                return new ShaderGraphPropertyMutationResultData
+                {
+                    Operation = "add",
+                    PropertyObjectId = propertyObjectId,
+                    PropertyReferenceName = effectiveReferenceName,
+                    ChangedFields = new List<string> { "property.added" }
+                };
+            }
+
             FinalizeShaderGraphMutation(assetPath);
 
             var graphRef = new AssetObjectRef(assetPath);

@@ -88,7 +88,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
             if (!IsShaderGraphAssetPath(assetPath))
@@ -110,15 +111,27 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ApplyGenericPropertyUpdates(propertyObject, property, propertyObjects, changedFields);
             ApplyTypedPropertyUpdates(propertyObject, property, changedFields);
 
+            var updatedPropertyId = GetString(propertyObject, "m_ObjectId");
+
             if (changedFields.Count > 0)
             {
                 WriteMutableDocument(document);
-                FinalizeShaderGraphMutation(assetPath);
+                if (!deferImport)
+                    FinalizeShaderGraphMutation(assetPath);
+            }
+
+            if (deferImport)
+            {
+                return new ShaderGraphPropertyMutationResultData
+                {
+                    Operation = "update",
+                    PropertyObjectId = updatedPropertyId,
+                    ChangedFields = changedFields
+                };
             }
 
             var graphRef = new AssetObjectRef(assetPath);
             var structure = BuildShaderGraphStructureData(graphRef);
-            var updatedPropertyId = GetString(propertyObject, "m_ObjectId");
             var updatedProperty = structure.Properties?
                 .FirstOrDefault(p => string.Equals(p.ObjectId, updatedPropertyId, StringComparison.Ordinal));
 

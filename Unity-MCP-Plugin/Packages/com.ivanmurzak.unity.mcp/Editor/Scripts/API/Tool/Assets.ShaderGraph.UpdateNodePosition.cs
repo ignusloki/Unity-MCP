@@ -85,7 +85,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
             if (!IsShaderGraphAssetPath(assetPath))
@@ -133,10 +134,23 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (changedFields.Count > 0)
             {
                 WriteMutableDocument(document);
-                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-                com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+                if (!deferImport)
+                {
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                    com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+                }
+            }
+
+            if (deferImport)
+            {
+                return new ShaderGraphNodeMutationResultData
+                {
+                    Operation = "updatePosition",
+                    NodeObjectId = nodeObjectId,
+                    ChangedFields = changedFields
+                };
             }
 
             var graphRef = new AssetObjectRef(assetPath);

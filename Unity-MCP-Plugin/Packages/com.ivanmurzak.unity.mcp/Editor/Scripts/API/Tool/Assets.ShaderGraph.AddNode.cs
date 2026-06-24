@@ -85,7 +85,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
             if (!IsShaderGraphAssetPath(assetPath))
@@ -105,9 +106,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             InvokeShaderGraphMethod(document.Bindings.ValidateGraphMethod, document.GraphData);
 
             SaveShaderGraphReflectionDocument(document);
-            FinalizeShaderGraphMutation(assetPath);
 
             var createdNodeObjectId = GetShaderGraphNodeObjectId(document.Bindings, createdNodeObject);
+
+            if (deferImport)
+            {
+                return new ShaderGraphNodeMutationResultData
+                {
+                    Operation = "add",
+                    NodeObjectId = createdNodeObjectId,
+                    ChangedFields = new List<string> { "node.added" }
+                };
+            }
+
+            FinalizeShaderGraphMutation(assetPath);
+
             var graphRef = new AssetObjectRef(assetPath);
             var structure = BuildShaderGraphStructureData(graphRef);
             var addedNode = structure.Nodes?

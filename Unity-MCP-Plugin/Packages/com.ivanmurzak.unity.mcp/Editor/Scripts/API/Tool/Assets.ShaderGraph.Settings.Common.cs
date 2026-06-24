@@ -59,7 +59,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ShaderGraphSettingsUpdateInput settings,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             if (settings == null)
                 throw new ArgumentNullException(nameof(settings));
@@ -92,10 +93,21 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (changedFields.Count > 0)
             {
                 WriteMutableDocument(document);
-                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-                EditorUtils.RepaintAllEditorWindows();
+                if (!deferImport)
+                {
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                    EditorUtils.RepaintAllEditorWindows();
+                }
+            }
+
+            if (deferImport)
+            {
+                return new ShaderGraphSettingsMutationResultData
+                {
+                    ChangedFields = changedFields
+                };
             }
 
             var graphRef = new AssetObjectRef(assetPath);

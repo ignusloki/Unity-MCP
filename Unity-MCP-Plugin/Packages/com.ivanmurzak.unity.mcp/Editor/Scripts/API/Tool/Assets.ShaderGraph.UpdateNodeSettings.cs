@@ -113,7 +113,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
             if (!IsShaderGraphAssetPath(assetPath))
@@ -145,8 +146,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             }
 
             return hasSampleTexture2DUpdates
-                ? UpdateSampleTexture2DNodeSettings(assetRef, node, includeStructure, includeGraph, includeMessages, includeProperties)
-                : UpdateSerializedNodeSettings(assetRef, node, includeStructure, includeGraph, includeMessages, includeProperties);
+                ? UpdateSampleTexture2DNodeSettings(assetRef, node, includeStructure, includeGraph, includeMessages, includeProperties, deferImport)
+                : UpdateSerializedNodeSettings(assetRef, node, includeStructure, includeGraph, includeMessages, includeProperties, deferImport);
         }
 
         static ShaderGraphNodeMutationResultData UpdateSampleTexture2DNodeSettings(
@@ -155,7 +156,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
             var nodeObjectId = node.NodeObjectId!.Trim();
@@ -173,11 +175,34 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             ApplySampleTexture2DNodeSettings(document.Bindings, nodeObject, node.SampleTexture2D!, changedFields);
 
             if (changedFields.Count == 0)
+            {
+                if (deferImport)
+                {
+                    return new ShaderGraphNodeMutationResultData
+                    {
+                        Operation = "updateSettings",
+                        NodeObjectId = nodeObjectId,
+                        NoOp = true,
+                        ChangedFields = changedFields
+                    };
+                }
                 return BuildNodeSettingsNoOpResult(assetPath, nodeObjectId, includeStructure, includeGraph, includeMessages, includeProperties);
+            }
 
             InvokeShaderGraphMethod(document.Bindings.ValidateGraphMethod, document.GraphData);
             SaveShaderGraphReflectionDocument(document);
             ApplySampleTexture2DTextureSlotSourceUpdates(assetPath, nodeObjectId, node.SampleTexture2D!);
+
+            if (deferImport)
+            {
+                return new ShaderGraphNodeMutationResultData
+                {
+                    Operation = "updateSettings",
+                    NodeObjectId = nodeObjectId,
+                    ChangedFields = changedFields
+                };
+            }
+
             FinalizeShaderGraphMutation(assetPath);
 
             return BuildNodeSettingsMutationResult(
@@ -196,7 +221,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             bool includeStructure,
             bool includeGraph,
             bool includeMessages,
-            bool includeProperties)
+            bool includeProperties,
+            bool deferImport = false)
         {
             var assetPath = ResolveAssetPath(assetRef);
             var nodeObjectId = node.NodeObjectId!.Trim();
@@ -317,10 +343,33 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             }
 
             if (changedFields.Count == 0)
+            {
+                if (deferImport)
+                {
+                    return new ShaderGraphNodeMutationResultData
+                    {
+                        Operation = "updateSettings",
+                        NodeObjectId = nodeObjectId,
+                        NoOp = true,
+                        ChangedFields = changedFields
+                    };
+                }
                 return BuildNodeSettingsNoOpResult(assetPath, nodeObjectId, includeStructure, includeGraph, includeMessages, includeProperties);
+            }
 
             InvokeShaderGraphMethod(document.Bindings.ValidateGraphMethod, document.GraphData);
             SaveShaderGraphReflectionDocument(document);
+
+            if (deferImport)
+            {
+                return new ShaderGraphNodeMutationResultData
+                {
+                    Operation = "updateSettings",
+                    NodeObjectId = nodeObjectId,
+                    ChangedFields = changedFields
+                };
+            }
+
             FinalizeShaderGraphMutation(assetPath);
 
             return BuildNodeSettingsMutationResult(
