@@ -3619,6 +3619,290 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void SubGraph_Phase2_SetOutputs_SetsAndReconciles()
+        {
+            var subGraphPath = $"{TestFolder}/Validation_SubGraph_Phase2_SetOutputs.shadersubgraph";
+            var mainGraphPath = CreateShaderGraphAssetCopy("Validation_SubGraph_Phase2_Main.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+
+                // Create sub-graph with empty preset (no output slots)
+                var createResult = tool.CreateSubGraph(subGraphPath, outputPreset: "empty");
+                Assert.IsNotNull(createResult);
+                Assert.IsTrue(createResult.IsSubGraph);
+
+                // --- First setOutputs: declare Tint (Color) + Mask (Float) ---
+                var subGraphRef = new AssetObjectRef(subGraphPath);
+                var setResult1 = tool.SetOutputs(subGraphRef,
+                    new ShaderGraphSetSubGraphOutputsInput
+                    {
+                        Outputs = new List<ShaderGraphSubGraphOutputSlotInput>
+                        {
+                            new() { Name = "Tint", Type = "Color", X = 1, Y = 1, Z = 1, W = 1 },
+                            new() { Name = "Mask", Type = "Float", FloatValue = 1.0f }
+                        },
+                        RemoveMissing = true
+                    },
+                    includeStructure: true);
+
+                Assert.AreEqual("setOutputs", setResult1.Operation);
+                Assert.AreEqual(2, setResult1.OutputResults!.Count);
+                Assert.AreEqual("added", setResult1.OutputResults[0].Action);
+                Assert.AreEqual("Tint", setResult1.OutputResults[0].Name);
+                Assert.AreEqual("added", setResult1.OutputResults[1].Action);
+                Assert.AreEqual("Mask", setResult1.OutputResults[1].Name);
+
+                var tintSlotId = setResult1.OutputResults[0].SlotId;
+                var maskSlotId = setResult1.OutputResults[1].SlotId;
+
+                // --- Second setOutputs: keep Mask (preserved), change Tint to Vector3 (replaced), add WorldOffset (new) ---
+                var setResult2 = tool.SetOutputs(subGraphRef,
+                    new ShaderGraphSetSubGraphOutputsInput
+                    {
+                        Outputs = new List<ShaderGraphSubGraphOutputSlotInput>
+                        {
+                            new() { Name = "Mask", Type = "Float" },
+                            new() { Name = "Tint", Type = "Vector3" },
+                            new() { Name = "WorldOffset", Type = "Vector3", X = 0, Y = 1, Z = 0 }
+                        },
+                        RemoveMissing = true
+                    },
+                    includeStructure: true);
+
+                Assert.AreEqual(3, setResult2.OutputResults!.Count);
+
+                var maskResult = setResult2.OutputResults.First(r => r.Name == "Mask");
+                Assert.AreEqual("kept", maskResult.Action);
+                Assert.AreEqual(maskSlotId, maskResult.SlotId, "Unchanged slot ID should survive reconciliation.");
+
+                var tintResult = setResult2.OutputResults.First(r => r.Name == "Tint");
+                Assert.AreEqual("replaced", tintResult.Action);
+
+                var offsetResult = setResult2.OutputResults.First(r => r.Name == "WorldOffset");
+                Assert.AreEqual("added", offsetResult.Action);
+
+                // --- Reference the mutated sub-graph from a main graph and verify it compiles ---
+                var mainShader = AssetDatabase.LoadAssetAtPath<Shader>(mainGraphPath);
+                Assert.IsNotNull(mainShader, "Main graph shader should resolve.");
+                var mainRef = new AssetObjectRef(mainShader);
+
+                var subGraphNode = tool.AddNode(mainRef,
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "subGraph",
+                        SubGraphAssetPath = subGraphPath,
+                        PositionX = -300f,
+                        PositionY = 200f
+                    },
+                    includeStructure: true,
+                    includeGraph: true);
+
+                Assert.AreEqual("UnityEditor.ShaderGraph.SubGraphNode", subGraphNode.Node!.Type);
+                Assert.IsTrue(subGraphNode.Graph!.ShaderResolved,
+                    "Main graph should compile after adding a SubGraphNode referencing the mutated sub-graph.");
+            }
+            finally
+            {
+                CleanupTestAsset(subGraphPath);
+                CleanupTestAsset(mainGraphPath);
+            }
+        }
+
+        [Test]
+        public void SubGraph_Phase2_SetOutputs_RejectsShaderGraph()
+        {
+            var mainGraphPath = CreateShaderGraphAssetCopy("Validation_SubGraph_Phase2_RejectMain.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+                var mainShader = AssetDatabase.LoadAssetAtPath<Shader>(mainGraphPath);
+                Assert.IsNotNull(mainShader);
+                var mainRef = new AssetObjectRef(mainShader);
+
+                var ex = Assert.Throws<InvalidOperationException>(() =>
+                    tool.SetOutputs(mainRef, new ShaderGraphSetSubGraphOutputsInput
+                    {
+                        Outputs = new List<ShaderGraphSubGraphOutputSlotInput>
+                        {
+                            new() { Name = "Out", Type = "Float" }
+                        }
+                    }));
+                StringAssert.Contains("Sub Graph outputs are only mutable on .shadersubgraph assets", ex!.Message);
+            }
+            finally
+            {
+                CleanupTestAsset(mainGraphPath);
+            }
+        }
+
+        [Test]
+        public void SubGraph_Phase2_SetOutputs_RejectsUnsupportedTypes()
+        {
+            var subGraphPath = $"{TestFolder}/Validation_SubGraph_Phase2_UnsupportedType.shadersubgraph";
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.CreateSubGraph(subGraphPath, outputPreset: "empty");
+
+                var subGraphRef = new AssetObjectRef(subGraphPath);
+                var ex = Assert.Throws<ArgumentException>(() =>
+                    tool.SetOutputs(subGraphRef, new ShaderGraphSetSubGraphOutputsInput
+                    {
+                        Outputs = new List<ShaderGraphSubGraphOutputSlotInput>
+                        {
+                            new() { Name = "Tex", Type = "Texture2D" }
+                        }
+                    }));
+                StringAssert.Contains("Phase 3", ex!.Message);
+            }
+            finally
+            {
+                CleanupTestAsset(subGraphPath);
+            }
+        }
+
+        [Test]
+        public void SubGraph_Phase2_NestedSubGraphs_CompileEndToEnd()
+        {
+            var innerPath = $"{TestFolder}/Validation_SubGraph_Phase2_Inner.shadersubgraph";
+            var outerPath = $"{TestFolder}/Validation_SubGraph_Phase2_Outer.shadersubgraph";
+            var mainGraphPath = CreateShaderGraphAssetCopy("Validation_SubGraph_Phase2_NestedMain.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+
+                // Create inner sub-graph with one Float output
+                tool.CreateSubGraph(innerPath, outputPreset: "single-float");
+                var innerRef = new AssetObjectRef(innerPath);
+
+                // Add an Add node and connect to the output
+                var addNode = tool.AddNode(innerRef,
+                    new ShaderGraphAddNodeInput { NodeType = "add", PositionX = -200f, PositionY = 0f },
+                    includeStructure: true);
+
+                var innerStructure = tool.GetStructure(innerRef);
+                var outputNode = innerStructure.Nodes!.First(n => n.Type == "UnityEditor.ShaderGraph.SubGraphOutputNode");
+                var outputSlot = outputNode.Slots!.First();
+                var addOut = addNode.Node!.Slots!.First(s => s.DisplayName == "Out");
+
+                tool.ConnectEdge(innerRef, new ShaderGraphConnectEdgeInput
+                {
+                    OutputNodeObjectId = addNode.Node.ObjectId,
+                    OutputSlotObjectId = addOut.ObjectId,
+                    InputNodeObjectId = outputNode.ObjectId,
+                    InputSlotObjectId = outputSlot.ObjectId
+                });
+
+                // Create outer sub-graph with one Float output
+                tool.CreateSubGraph(outerPath, outputPreset: "single-float");
+                var outerRef = new AssetObjectRef(outerPath);
+
+                // Add a SubGraphNode referencing inner
+                var innerNode = tool.AddNode(outerRef,
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "subGraph",
+                        SubGraphAssetPath = innerPath,
+                        PositionX = -200f,
+                        PositionY = 0f
+                    },
+                    includeStructure: true);
+
+                // Connect inner's output to outer's output node
+                var outerStructure = tool.GetStructure(outerRef);
+                var outerOutputNode = outerStructure.Nodes!.First(n => n.Type == "UnityEditor.ShaderGraph.SubGraphOutputNode");
+                var outerOutputSlot = outerOutputNode.Slots!.First();
+                var innerOutSlot = innerNode.Node!.Slots!.First(s => s.DisplayName == "Out");
+
+                tool.ConnectEdge(outerRef, new ShaderGraphConnectEdgeInput
+                {
+                    OutputNodeObjectId = innerNode.Node.ObjectId,
+                    OutputSlotObjectId = innerOutSlot.ObjectId,
+                    InputNodeObjectId = outerOutputNode.ObjectId,
+                    InputSlotObjectId = outerOutputSlot.ObjectId
+                });
+
+                // Reference outer from main graph
+                var mainShader = AssetDatabase.LoadAssetAtPath<Shader>(mainGraphPath);
+                Assert.IsNotNull(mainShader, "Main graph shader should resolve.");
+                var mainRef = new AssetObjectRef(mainShader);
+
+                var outerSubGraphNode = tool.AddNode(mainRef,
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "subGraph",
+                        SubGraphAssetPath = outerPath,
+                        PositionX = -300f,
+                        PositionY = 200f
+                    },
+                    includeStructure: true,
+                    includeGraph: true);
+
+                Assert.AreEqual("UnityEditor.ShaderGraph.SubGraphNode", outerSubGraphNode.Node!.Type);
+                Assert.IsTrue(outerSubGraphNode.Graph!.ShaderResolved,
+                    "Main graph should compile with a nested sub-graph chain (inner → outer → main).");
+                Assert.IsFalse(outerSubGraphNode.Graph.HasErrors,
+                    "Main graph should have no errors with a nested sub-graph chain.");
+            }
+            finally
+            {
+                CleanupTestAsset(innerPath);
+                CleanupTestAsset(outerPath);
+                CleanupTestAsset(mainGraphPath);
+            }
+        }
+
+        [Test]
+        public void SubGraph_Phase2_CreateSubGraph_OutputPresets()
+        {
+            var singleColorPath = $"{TestFolder}/Validation_Preset_SingleColor.shadersubgraph";
+            var singleFloatPath = $"{TestFolder}/Validation_Preset_SingleFloat.shadersubgraph";
+            var singleVector3Path = $"{TestFolder}/Validation_Preset_SingleVector3.shadersubgraph";
+            var emptyPath = $"{TestFolder}/Validation_Preset_Empty.shadersubgraph";
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+
+                // single-color preset
+                var colorResult = tool.CreateSubGraph(singleColorPath, outputPreset: "single-color");
+                Assert.IsNotNull(colorResult);
+                Assert.IsTrue(colorResult.IsSubGraph);
+                var colorStructure = tool.GetStructure(new AssetObjectRef(singleColorPath));
+                var colorOutputNode = colorStructure.Nodes!.First(n => n.Type == "UnityEditor.ShaderGraph.SubGraphOutputNode");
+                Assert.AreEqual(1, colorOutputNode.Slots!.Count, "single-color preset should have 1 output slot.");
+
+                // single-float preset
+                var floatResult = tool.CreateSubGraph(singleFloatPath, outputPreset: "single-float");
+                Assert.IsNotNull(floatResult);
+                var floatStructure = tool.GetStructure(new AssetObjectRef(singleFloatPath));
+                var floatOutputNode = floatStructure.Nodes!.First(n => n.Type == "UnityEditor.ShaderGraph.SubGraphOutputNode");
+                Assert.AreEqual(1, floatOutputNode.Slots!.Count, "single-float preset should have 1 output slot.");
+
+                // single-vector3 preset
+                var vec3Result = tool.CreateSubGraph(singleVector3Path, outputPreset: "single-vector3");
+                Assert.IsNotNull(vec3Result);
+                var vec3Structure = tool.GetStructure(new AssetObjectRef(singleVector3Path));
+                var vec3OutputNode = vec3Structure.Nodes!.First(n => n.Type == "UnityEditor.ShaderGraph.SubGraphOutputNode");
+                Assert.AreEqual(1, vec3OutputNode.Slots!.Count, "single-vector3 preset should have 1 output slot.");
+
+                // empty preset
+                var emptyResult = tool.CreateSubGraph(emptyPath, outputPreset: "empty");
+                Assert.IsNotNull(emptyResult);
+                var emptyStructure = tool.GetStructure(new AssetObjectRef(emptyPath));
+                var emptyOutputNode = emptyStructure.Nodes!.First(n => n.Type == "UnityEditor.ShaderGraph.SubGraphOutputNode");
+                Assert.AreEqual(0, emptyOutputNode.Slots!.Count, "empty preset should have 0 output slots.");
+            }
+            finally
+            {
+                CleanupTestAsset(singleColorPath);
+                CleanupTestAsset(singleFloatPath);
+                CleanupTestAsset(singleVector3Path);
+                CleanupTestAsset(emptyPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_UpdateNodeSettings_UpdatesDissolveTrialSettings()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_UpdateNodeSettings_DissolveTrial.shadergraph");

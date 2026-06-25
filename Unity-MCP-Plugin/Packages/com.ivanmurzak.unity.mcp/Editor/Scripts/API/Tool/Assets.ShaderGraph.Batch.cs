@@ -31,7 +31,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             Title = "Assets / Shader Graph / Batch"
         )]
         [AiSkillDescription("Apply an ordered list of Shader Graph mutation operations against one '.shadergraph' asset in a single MCP call. Reduces per-op round-trips and supports batch-local aliases.")]
-        [AiSkillBody("Apply an ordered list of Shader Graph mutation operations to a '.shadergraph' asset in one MCP round-trip.\n\n" +
+        [AiSkillBody("Apply an ordered list of Shader Graph mutation operations to a '.shadergraph' or '.shadersubgraph' asset in one MCP round-trip.\n\n" +
             "Supported operation kinds:\n" +
             "- `addNode`\n" +
             "- `updateNodeSettings` (accepts a `Node` selector: Alias / DisplayName / ObjectId)\n" +
@@ -43,7 +43,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `connectEdge`\n" +
             "- `updateNodePosition`\n" +
             "- `setSettings`\n" +
-            "- `setBlocks`\n\n" +
+            "- `setBlocks`\n" +
+            "- `setOutputs` (Sub Graph only — declares the output port contract of SubGraphOutputNode)\n\n" +
             "## Aliases\n\n" +
             "Each `addNode`, `addProperty`, and `addPropertyNode` envelope accepts an optional `Alias`. Aliases are batch-local and let later ops reference the newly created object without serialized ids:\n\n" +
             "- `ConnectEdge.OutputSlot.Node.Alias = \"noise\"` matches an earlier `addNode` envelope with `Alias=\"noise\"`.\n" +
@@ -297,9 +298,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "setblocks":
                     RunBatchSetBlocks(assetRef, op, result);
                     break;
+                case "setoutputs":
+                    RunBatchSetOutputs(assetRef, op, result);
+                    break;
                 default:
                     throw new ArgumentException(
-                        $"Unsupported batch operation kind '{op.Kind}'. Supported values: addNode, updateNodeSettings, deleteNode, addProperty, updateProperty, deleteProperty, addPropertyNode, connectEdge, updateNodePosition, setSettings, setBlocks.");
+                        $"Unsupported batch operation kind '{op.Kind}'. Supported values: addNode, updateNodeSettings, deleteNode, addProperty, updateProperty, deleteProperty, addPropertyNode, connectEdge, updateNodePosition, setSettings, setBlocks, setOutputs.");
             }
         }
 
@@ -581,6 +585,28 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             result.Operation = "setBlocks";
             result.ObjectId = null;
             result.ChangedFields = blocksResult.ChangedFields;
+        }
+
+        static void RunBatchSetOutputs(
+            AssetObjectRef assetRef,
+            ShaderGraphBatchOperationInput op,
+            ShaderGraphBatchOperationResultData result)
+        {
+            if (op.SetOutputs == null)
+                throw new ArgumentException("op.SetOutputs payload is required for kind=setOutputs.");
+
+            var outputsResult = SetSubGraphOutputs(
+                assetRef,
+                op.SetOutputs,
+                includeStructure: false,
+                includeGraph: false,
+                includeMessages: false,
+                includeProperties: false,
+                deferImport: true);
+
+            result.Operation = "setOutputs";
+            result.ObjectId = null;
+            result.ChangedFields = outputsResult.ChangedFields;
         }
 
         // ---- Resolution helpers ----

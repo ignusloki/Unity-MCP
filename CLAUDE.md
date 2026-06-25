@@ -11,10 +11,6 @@ The MCP server is NOT in this repo — the plugin consumes the shared [GameDev-M
 - Bump version: `.\commands\bump-version.ps1 <version>`
 - CI/CD pipelines live in `.github/workflows/`.
 
-## Project Constitution
-
-Non-negotiable principles and architecture constraints: [`.specify/memory/constitution.md`](.specify/memory/constitution.md). You MUST read the constitution before performing any code review.
-
 ## Find Detail In
 
 - [docs/claude/architecture.md](docs/claude/architecture.md) — System architecture: SignalR bridge, main-thread execution, deterministic port hashing

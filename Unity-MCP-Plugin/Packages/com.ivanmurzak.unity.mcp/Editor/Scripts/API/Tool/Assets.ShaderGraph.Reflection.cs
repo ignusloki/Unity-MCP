@@ -51,6 +51,18 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             public PropertyInfo PositionProperty { get; set; } = null!;
             public PropertyInfo ObjectIdProperty { get; set; } = null!;
             public PropertyInfo CanDeleteNodeProperty { get; set; } = null!;
+
+            public PropertyInfo OutputNodeProperty { get; set; } = null!;
+            public Type MaterialSlotType { get; set; } = null!;
+            public MethodInfo AddSlotMethod { get; set; } = null!;
+            public MethodInfo RemoveSlotMethod { get; set; } = null!;
+            public Type SlotTypeEnum { get; set; } = null!;
+            public Type ShaderStageCapabilityEnum { get; set; } = null!;
+            public Type ConcreteSlotValueTypeEnum { get; set; } = null!;
+            public PropertyInfo SlotIdProperty { get; set; } = null!;
+            public PropertyInfo SlotDisplayNameProperty { get; set; } = null!;
+            public PropertyInfo SlotConcreteValueTypeProperty { get; set; } = null!;
+            public FieldInfo SlotRawDisplayNameField { get; set; } = null!;
         }
 
         sealed class ShaderGraphReflectionDocument
@@ -402,7 +414,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 {
                     ApiName = "fresnelEffect",
                     DisplayName = "Fresnel Effect",
-                    TypeName = "UnityEditor.ShaderGraph.FresnelEffectNode",
+                    TypeName = "UnityEditor.ShaderGraph.FresnelNode",
                     DefaultWidth = 208f,
                     DefaultHeight = 96f
                 },
@@ -507,6 +519,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     && method.GetParameters().Length == 4)
                 .MakeGenericMethod(graphDataType);
 
+            var materialSlotType = RequireType("UnityEditor.ShaderGraph.MaterialSlot");
+            var slotTypeEnum = RequireType("UnityEditor.Graphing.SlotType");
+            var stageCapEnum = RequireType("UnityEditor.ShaderGraph.ShaderStageCapability");
+            var concreteSlotValueTypeEnum = RequireType("UnityEditor.ShaderGraph.ConcreteSlotValueType");
+
             s_shaderGraphReflectionBindings = new ShaderGraphReflectionBindings
             {
                 ShaderGraphEditorAssembly = assembly,
@@ -525,7 +542,27 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 DrawStateProperty = RequireProperty(abstractMaterialNodeType, "drawState"),
                 PositionProperty = RequireProperty(RequireProperty(abstractMaterialNodeType, "drawState").PropertyType, "position"),
                 ObjectIdProperty = RequireProperty(jsonObjectType, "objectId"),
-                CanDeleteNodeProperty = RequireProperty(abstractMaterialNodeType, "canDeleteNode")
+                CanDeleteNodeProperty = RequireProperty(abstractMaterialNodeType, "canDeleteNode"),
+
+                OutputNodeProperty = RequireProperty(graphDataType, "outputNode"),
+                MaterialSlotType = materialSlotType,
+                AddSlotMethod = abstractMaterialNodeType.GetMethod("AddSlot",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, new[] { materialSlotType, typeof(bool) }, null)
+                    ?? throw new InvalidOperationException("AbstractMaterialNode.AddSlot(MaterialSlot, bool) not found."),
+                RemoveSlotMethod = abstractMaterialNodeType.GetMethod("RemoveSlot",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, new[] { typeof(int) }, null)
+                    ?? throw new InvalidOperationException("AbstractMaterialNode.RemoveSlot(int) not found."),
+                SlotTypeEnum = slotTypeEnum,
+                ShaderStageCapabilityEnum = stageCapEnum,
+                ConcreteSlotValueTypeEnum = concreteSlotValueTypeEnum,
+                SlotIdProperty = RequireProperty(materialSlotType, "id"),
+                SlotDisplayNameProperty = RequireProperty(materialSlotType, "displayName"),
+                SlotConcreteValueTypeProperty = RequireProperty(materialSlotType, "concreteValueType"),
+                SlotRawDisplayNameField = materialSlotType.GetField("m_DisplayName",
+                    BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?? throw new InvalidOperationException("MaterialSlot.m_DisplayName field not found.")
             };
 
             return s_shaderGraphReflectionBindings;

@@ -29,6 +29,28 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         internal const string DefaultSubGraphTemplateAssetPath =
             "Packages/com.ivanmurzak.unity.mcp/Editor/Templates/Blank SubGraph.shadersubgraph";
 
+        const string SubGraphPresetSingleColor =
+            "Packages/com.ivanmurzak.unity.mcp/Editor/Templates/SubGraphPresets/SingleColor.shadersubgraph";
+        const string SubGraphPresetSingleFloat =
+            "Packages/com.ivanmurzak.unity.mcp/Editor/Templates/SubGraphPresets/SingleFloat.shadersubgraph";
+        const string SubGraphPresetSingleVector3 =
+            "Packages/com.ivanmurzak.unity.mcp/Editor/Templates/SubGraphPresets/SingleVector3.shadersubgraph";
+        const string SubGraphPresetEmpty =
+            "Packages/com.ivanmurzak.unity.mcp/Editor/Templates/SubGraphPresets/Empty.shadersubgraph";
+
+        static string ResolveSubGraphPresetPath(string? presetName)
+        {
+            return (presetName ?? "single-color").ToLowerInvariant() switch
+            {
+                "single-color"   => SubGraphPresetSingleColor,
+                "single-float"   => SubGraphPresetSingleFloat,
+                "single-vector3" => SubGraphPresetSingleVector3,
+                "empty"          => SubGraphPresetEmpty,
+                _ => throw new System.ArgumentException(
+                    $"Unknown outputPreset '{presetName}'. Supported values: single-color, single-float, single-vector3, empty.")
+            };
+        }
+
         public static class Error
         {
             public static string AssetPathMustEndWithShaderGraph(string assetPath)

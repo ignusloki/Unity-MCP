@@ -30,7 +30,7 @@ namespace AIGD
     [Description("One operation in a Shader Graph batch. Set Kind plus exactly one matching payload. Operations execute in declaration order against the live asset.")]
     public class ShaderGraphBatchOperationInput
     {
-        [Description("Operation kind. Supported values: addNode, updateNodeSettings, deleteNode, addProperty, updateProperty, deleteProperty, addPropertyNode, connectEdge, updateNodePosition, setSettings, setBlocks.")]
+        [Description("Operation kind. Supported values: addNode, updateNodeSettings, deleteNode, addProperty, updateProperty, deleteProperty, addPropertyNode, connectEdge, updateNodePosition, setSettings, setBlocks, setOutputs.")]
         public string? Kind { get; set; }
 
         [Description("Batch-local alias to assign to the object created by this op (addNode, addProperty, addPropertyNode). Other op kinds ignore Alias. Aliases stay in scope only within the current batch.")]
@@ -68,6 +68,9 @@ namespace AIGD
 
         [Description("Operation payload for kind=setBlocks. Replaces the supported built-in block stack for one context (vertex or fragment).")]
         public ShaderGraphSetBlocksInput? SetBlocks { get; set; }
+
+        [Description("Operation payload for kind=setOutputs. Declares the output port contract of a Sub Graph's SubGraphOutputNode. Only valid on '.shadersubgraph' assets.")]
+        public ShaderGraphSetSubGraphOutputsInput? SetOutputs { get; set; }
     }
 
     [Description("Consolidated result of a Shader Graph batch invocation.")]

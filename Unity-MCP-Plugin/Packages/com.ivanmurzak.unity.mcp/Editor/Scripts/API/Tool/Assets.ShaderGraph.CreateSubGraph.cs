@@ -29,24 +29,31 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             AssetsShaderSubGraphCreateToolId,
             Title = "Assets / Sub Graph / Create"
         )]
-        [AiSkillDescription("Create a new Sub Graph (.shadersubgraph) asset by cloning a known-good template.")]
+        [AiSkillDescription("Create a new Sub Graph (.shadersubgraph) asset by cloning a known-good template or preset.")]
         [AiSkillBody("Create a new Sub Graph asset by cloning a template '.shadersubgraph' file, creating missing folders, and forcing import.\n\n" +
             "Sub Graphs are reusable shader function graphs that can be referenced from a parent '.shadergraph' via the 'subGraph' node type in 'assets-shadergraph-add-node'. " +
             "They produce a SubGraphAsset (not a Shader), so 'ShaderResolved' is always false in the returned data — check 'IsSubGraph' instead.\n\n" +
             "## Inputs\n\n" +
             "- `assetPath` — destination under `Assets/` ending with '.shadersubgraph'.\n" +
-            "- `templateAssetPath` — optional source template path. Defaults to a built-in blank sub-graph template with one Vector4 output.\n" +
+            "- `outputPreset` — optional preset name. Selects a built-in template with a specific output slot layout. " +
+            "Supported values: 'single-color' (one Color output named 'Out', default), 'single-float' (one Float output named 'Out'), " +
+            "'single-vector3' (one Vector3 output named 'Out'), 'empty' (zero output slots — use with 'assets-shadersubgraph-set-outputs' to define the output contract). " +
+            "When omitted, defaults to 'single-color'. Ignored when 'templateAssetPath' is provided.\n" +
+            "- `templateAssetPath` — optional source template path. Overrides 'outputPreset' when provided.\n" +
             "- `overwrite` — when true, replace an existing destination file.\n\n" +
             "## Behavior\n\n" +
             "Copies the template source file, imports it synchronously, and returns Shader Graph data for the created asset. " +
             "After creation, use 'assets-shadergraph-add-node', 'assets-shadergraph-add-property', and 'assets-shadergraph-connect-edge' to build the sub-graph's node network. " +
+            "Use 'assets-shadersubgraph-set-outputs' to define or change the sub-graph's output port contract. " +
             "Then reference this sub-graph from a parent graph using 'assets-shadergraph-add-node' with nodeType='subGraph' and SubGraphAssetPath pointing at the created file.")]
-        [Description("Create a new Sub Graph (.shadersubgraph) asset by cloning a template.")]
+        [Description("Create a new Sub Graph (.shadersubgraph) asset by cloning a template or preset.")]
         public ShaderGraphData CreateSubGraph
         (
             [Description("Destination asset path. Must start with 'Assets/' and end with '.shadersubgraph'.")]
             string assetPath,
-            [Description("Optional template asset path. Defaults to the built-in blank Sub Graph template (one Vector4 output, no nodes, no properties).")]
+            [Description("Optional preset name selecting a built-in template. Values: 'single-color' (default), 'single-float', 'single-vector3', 'empty'. Ignored when templateAssetPath is provided.")]
+            string? outputPreset = null,
+            [Description("Optional template asset path. Overrides 'outputPreset' when provided.")]
             string? templateAssetPath = null,
             [Description("When true, replace an existing destination file. Default: false")]
             bool? overwrite = false
@@ -65,7 +72,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
                 var resolvedTemplateAssetPath = !string.IsNullOrEmpty(templateAssetPath)
                     ? templateAssetPath!
-                    : DefaultSubGraphTemplateAssetPath;
+                    : ResolveSubGraphPresetPath(outputPreset);
 
                 var templatePhysicalPath = ResolvePhysicalAssetPath(resolvedTemplateAssetPath);
                 if (!File.Exists(templatePhysicalPath))
