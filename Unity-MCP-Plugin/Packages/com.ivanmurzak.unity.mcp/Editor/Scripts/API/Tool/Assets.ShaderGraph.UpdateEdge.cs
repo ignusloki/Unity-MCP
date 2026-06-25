@@ -100,6 +100,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports compatible UV/vector2 slot pairs\n" +
             "- supports scalar outputs into Shader Graph vector2 inputs such as `Float Property -> Tiling And Offset.Tiling`\n" +
             "- supports scalar `Vector1MaterialSlot` outputs broadcasting into Shader Graph UV inputs such as `Time.Time -> Simple Noise.UV`\n" +
+            "- supports scalar `Vector1MaterialSlot` outputs broadcasting into RGB color inputs such as `Depth Fade.Exponential -> Unlit Base Color`\n" +
             "- supports vector2-resolved `DynamicVectorMaterialSlot` outputs into Shader Graph UV inputs such as `Add.Out -> Tiling And Offset.UV`\n" +
             "- supports Screen Position vector4 output and dynamic vector outputs into Shader Graph screen-position UV inputs such as Scene Color UV and Scene Depth UV\n" +
             "- supports compatible Vector3/Position slot pairs\n" +
@@ -847,6 +848,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 && string.Equals(inputType, "UnityEditor.ShaderGraph.UVMaterialSlot", StringComparison.Ordinal))
                 return;
 
+            // Scalar broadcast into RGB color inputs: Unity expands the scalar to grayscale RGB.
+            // Validated against the StylizedWater2 Depth Fade SubGraph output -> Unlit Base Color path.
+            if (string.Equals(outputType, "UnityEditor.ShaderGraph.Vector1MaterialSlot", StringComparison.Ordinal)
+                && string.Equals(inputType, "UnityEditor.ShaderGraph.ColorRGBMaterialSlot", StringComparison.Ordinal))
+                return;
+
             if (IsDynamicVectorSlotType(outputType) && Vector2LikeSlotTypes.Contains(inputType))
                 return;
 
@@ -1215,11 +1222,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (edge.OutputSlot == null && edge.InputSlot == null)
                 return;
 
-            var structure = BuildShaderGraphStructureData(graphRef);
+            var assetPath = ResolveAssetPath(graphRef);
+            var document = LoadMutableDocument(assetPath);
 
             if (edge.OutputSlot != null)
             {
-                var resolved = ResolveSlotRef(edge.OutputSlot, structure, aliases, "edge.outputSlot");
+                var resolved = ResolveSerializedSlotRef(
+                    edge.OutputSlot,
+                    document,
+                    aliases,
+                    expectedSlotType: 1,
+                    "edge.outputSlot");
                 edge.OutputNodeObjectId = resolved.NodeObjectId;
                 edge.OutputSlotObjectId = resolved.SlotObjectId;
                 edge.OutputSlot = null;
@@ -1227,11 +1240,133 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             if (edge.InputSlot != null)
             {
-                var resolved = ResolveSlotRef(edge.InputSlot, structure, aliases, "edge.inputSlot");
+                var resolved = ResolveSerializedSlotRef(
+                    edge.InputSlot,
+                    document,
+                    aliases,
+                    expectedSlotType: 0,
+                    "edge.inputSlot");
                 edge.InputNodeObjectId = resolved.NodeObjectId;
                 edge.InputSlotObjectId = resolved.SlotObjectId;
                 edge.InputSlot = null;
             }
+        }
+
+        static NodeSlotContext ResolveSerializedSlotRef(
+            ShaderGraphSlotRef slotRef,
+            ShaderGraphMutableDocument document,
+            ShaderGraphAliasBag? aliases,
+            int expectedSlotType,
+            string fieldPath)
+        {
+            if (!string.IsNullOrWhiteSpace(slotRef.ObjectId))
+            {
+                var slotObjectId = slotRef.ObjectId!.Trim();
+                var ownerIds = document.ObjectsById.Values
+                    .Where(obj => GetIdArray(obj, "m_Slots").Contains(slotObjectId, StringComparer.Ordinal))
+                    .Select(obj => GetString(obj, "m_ObjectId"))
+                    .Where(id => !string.IsNullOrEmpty(id))
+                    .Cast<string>()
+                    .ToList();
+
+                if (ownerIds.Count == 0)
+                    throw new InvalidOperationException(
+                        $"{fieldPath}.ObjectId '{slotObjectId}' did not match any serialized slot in the current graph.");
+                if (ownerIds.Count > 1)
+                    throw new InvalidOperationException(
+                        $"{fieldPath}.ObjectId '{slotObjectId}' is referenced by multiple nodes.");
+
+                return ResolveNodeSlot(document, ownerIds[0], slotObjectId, expectedSlotType);
+            }
+
+            if (slotRef.Node == null)
+                throw new ArgumentException(
+                    $"{fieldPath}.Node is required when resolving a slot by DisplayName.");
+
+            if (string.IsNullOrWhiteSpace(slotRef.DisplayName))
+                throw new ArgumentException(
+                    $"{fieldPath} must specify either ObjectId or both Node and DisplayName.");
+
+            var nodeObjectId = ResolveSerializedNodeRef(slotRef.Node, document, aliases, $"{fieldPath}.Node");
+            if (!document.ObjectsById.TryGetValue(nodeObjectId, out var nodeObject))
+                throw new InvalidOperationException(
+                    $"{fieldPath}.Node resolved to '{nodeObjectId}' but that node was not found in the serialized graph.");
+
+            var displayName = slotRef.DisplayName!.Trim();
+            var matchingSlotIds = GetIdArray(nodeObject, "m_Slots")
+                .Where(slotObjectId =>
+                    document.ObjectsById.TryGetValue(slotObjectId, out var slotObject)
+                    && string.Equals(GetString(slotObject, "m_DisplayName"), displayName, StringComparison.Ordinal))
+                .ToList();
+
+            if (matchingSlotIds.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"{fieldPath}.DisplayName '{displayName}' did not match any serialized slot on node " +
+                    $"'{GetString(nodeObject, "m_Name") ?? nodeObjectId}'.");
+            }
+
+            if (matchingSlotIds.Count > 1)
+            {
+                throw new InvalidOperationException(
+                    $"{fieldPath}.DisplayName '{displayName}' is ambiguous on node " +
+                    $"'{GetString(nodeObject, "m_Name") ?? nodeObjectId}': {matchingSlotIds.Count} slots share that name.");
+            }
+
+            return ResolveNodeSlot(document, nodeObjectId, matchingSlotIds[0], expectedSlotType);
+        }
+
+        static string ResolveSerializedNodeRef(
+            ShaderGraphNodeRef nodeRef,
+            ShaderGraphMutableDocument document,
+            ShaderGraphAliasBag? aliases,
+            string fieldPath)
+        {
+            if (!string.IsNullOrWhiteSpace(nodeRef.ObjectId))
+                return nodeRef.ObjectId!.Trim();
+
+            if (!string.IsNullOrWhiteSpace(nodeRef.Alias))
+            {
+                var alias = nodeRef.Alias!.Trim();
+                if (aliases == null || !aliases.Nodes.TryGetValue(alias, out var nodeObjectId))
+                {
+                    throw new InvalidOperationException(
+                        $"{fieldPath}.Alias '{alias}' was not registered earlier in this batch.");
+                }
+
+                return nodeObjectId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(nodeRef.DisplayName))
+            {
+                var displayName = nodeRef.DisplayName!.Trim();
+                var matchingNodeIds = document.ObjectsById.Values
+                    .Where(obj =>
+                        GetIdArray(obj, "m_Slots").Count > 0
+                        && string.Equals(GetString(obj, "m_Name"), displayName, StringComparison.Ordinal))
+                    .Select(obj => GetString(obj, "m_ObjectId"))
+                    .Where(id => !string.IsNullOrEmpty(id))
+                    .Cast<string>()
+                    .ToList();
+
+                if (matchingNodeIds.Count == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"{fieldPath}.DisplayName '{displayName}' did not match any serialized node in the current graph.");
+                }
+
+                if (matchingNodeIds.Count > 1)
+                {
+                    throw new InvalidOperationException(
+                        $"{fieldPath}.DisplayName '{displayName}' is ambiguous: " +
+                        $"{matchingNodeIds.Count} nodes share that name. Use ObjectId or Alias instead.");
+                }
+
+                return matchingNodeIds[0];
+            }
+
+            throw new ArgumentException(
+                $"{fieldPath} must specify one of: ObjectId, Alias, or DisplayName.");
         }
     }
 }

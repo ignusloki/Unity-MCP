@@ -504,6 +504,41 @@ Validation evidence:
 - `dotnet build Assembly-CSharp.csproj -v minimal` passed on 2026-06-20 from `Unity-test/TestShadergraph` with 0 errors and pre-existing Unity/API warnings.
 - Live MCP validation created [Codex_WorldSpaceDepthFade.shadergraph](/Users/suporte/Unity-MCP/Unity-test/TestShadergraph/Assets/Unity-MCP-Test/Trials/WorldSpaceDepthFade/Codex_WorldSpaceDepthFade.shadergraph) and wired the reference path: `ViewVector(World) -> Negate -> Divide.A`, `ScreenPosition(Raw) -> Split.A -> Divide.B`, `ScreenPosition(Raw) -> SceneDepth(Eye).UV`, `Divide.Out * SceneDepth.Out`, `Camera.Position` world-position reconstruction, `Position(World)` subtraction, `Split.G -> Negate -> Divide`, and `Exponential(BaseE) -> Saturate -> Alpha`. Final summary: `ShaderResolved=true`, `HasErrors=false`, 116 nodes, 125 edges.
 
+## Epic 7K: StylizedWater2 Scalar-To-RGB Edge Gap
+
+Status:
+
+- Implemented in code on `custom/trial-stylized-water2`.
+- `dotnet build Assembly-CSharp.csproj -v minimal` passed on 2026-06-25 with 0 errors.
+- `dotnet build com.IvanMurzak.Unity.MCP.Editor.Tests.csproj -v minimal` passed on 2026-06-25 with 0 errors and existing Unity deprecation/nullability warnings.
+- Focused Unity editor tests are implemented but their execution is pending because the open `StylizedWater1` scene has unsaved changes and Unity's test runner refuses to start until it is saved or closed.
+- Live single-op and batch validation passed against the exact StylizedWater2 trial graph for the scalar-to-RGB slice.
+
+Purpose:
+
+- Close the StylizedWater2 trial blocker reported by `Unity-test/TestShadergraph/Assets/Unity-MCP-Test/Trials/StylizedWater2/TRIAL_REPORT.md`.
+- Allow Unity's valid grayscale scalar expansion for `Vector1MaterialSlot -> ColorRGBMaterialSlot` without inserting workaround nodes.
+
+Slices:
+
+- Slice 7K.1: add one explicit compatibility rule for `Vector1MaterialSlot -> ColorRGBMaterialSlot`. Implemented.
+- Slice 7K.2: cover direct single-op `connectEdge` with successful structure readback, shader resolution, and diagnostics. Implemented.
+- Slice 7K.3: cover a real referenced SubGraph Float output into Unlit Base Color through alias-based `assets-shadergraph-batch`. Implemented.
+- Slice 7K.4: preserve strict rejection for genuinely incompatible resource-to-color edges such as `Texture2DMaterialSlot -> ColorRGBMaterialSlot`. Implemented.
+- Slice 7K.5: update the public connect-edge tool description and capability/debt docs. Implemented.
+- Slice 7K.6: fix batch alias/display-name slot resolution so dynamic binary operands preserve their exact serialized slot identity. Implemented.
+- Slice 7K.7: add order-sensitive batch regression coverage for `Split.G -> Divide.A` and Float Property `Distance -> Divide.B`, including raw slot IDs, structure readback after reimport, and parity with the single-operation API. Implemented.
+
+Validation evidence:
+
+- `Validation_ConnectEdge_Vector1ToColorRgb.shadergraph`: focused editor test authors a Float property node directly into Unlit Base Color, then checks edge readback, `ShaderResolved=true`, and no error diagnostics.
+- `Validation_Batch_SubGraphFloatToColorRgb.shadergraph` plus `Validation_StylizedWater2_DepthFade.shadersubgraph`: focused editor test creates a referenced single-Float SubGraph node in a batch, resolves it by alias, connects `Out -> Unlit Base Color`, and checks the final full structure and graph summary.
+- `Validation_ConnectEdge_Texture2DToColorRgbReject.shadergraph`: focused editor test verifies the narrow promotion does not admit Texture2D resource outputs into RGB inputs.
+- Live validation used `Assets/Unity-MCP-Test/Trials/StylizedWater2/DepthFade.shadersubgraph`: alias-based batch authoring connected `Depth Fade.Exponential` (`Vector1MaterialSlot`) to Unlit Base Color (`ColorRGBMaterialSlot`) with `ShaderResolved=true`, `HasErrors=false`, 7 nodes, and 1 edge.
+- A direct single-op connection from the same SubGraph Float output to Emission also imported with `ShaderResolved=true` and `HasErrors=false`; that temporary edge was disconnected after validation.
+- Focused editor-test execution remains pending as described in Status; live import evidence is complete.
+- `ShaderGraph_BatchConnectEdge_PreservesDynamicBinaryInputIdentity(true/false)` covers both `A then B` and `B then A` operation order. The dedicated editor test assembly compiles with 0 errors. Unity EditMode execution was attempted on 2026-06-25 but the test runner refused to start because `Assets/Unity-MCP-Test/Trials/StylizedWater1/StylizedWater1.unity` has unsaved changes.
+
 ## Epic 8A: Slim Default Mutation Responses
 
 Status:

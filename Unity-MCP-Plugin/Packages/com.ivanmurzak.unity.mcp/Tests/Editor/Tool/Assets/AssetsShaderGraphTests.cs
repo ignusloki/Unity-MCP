@@ -7959,6 +7959,428 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_ConnectEdge_AllowsVector1ScalarBroadcastIntoColorRgbInput()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ConnectEdge_Vector1ToColorRgb.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var scalarProperty = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Depth Fade",
+                        OverrideReferenceName = "_DepthFade",
+                        FloatValue = 0.5f
+                    });
+                var scalarPropertyNode = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyObjectId = scalarProperty.Property!.ObjectId,
+                        PositionX = -500f,
+                        PositionY = -60f
+                    },
+                    includeStructure: true);
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var scalarNode = structure.Nodes!.Single(node => node.ObjectId == scalarPropertyNode.Node!.ObjectId);
+                var baseColorBlock = structure.Nodes.Single(node =>
+                    node.SerializedDescriptor == "SurfaceDescription.BaseColor");
+                var scalarOut = scalarNode.Slots!.Single(slot => slot.SlotType == 1);
+                var baseColor = FindSlot(baseColorBlock, "Base Color");
+
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector1MaterialSlot", scalarOut.Type);
+                Assert.AreEqual("UnityEditor.ShaderGraph.ColorRGBMaterialSlot", baseColor.Type);
+
+                var connect = tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = scalarNode.ObjectId,
+                        OutputSlotObjectId = scalarOut.ObjectId,
+                        InputNodeObjectId = baseColorBlock.ObjectId,
+                        InputSlotObjectId = baseColor.ObjectId,
+                        ReplaceExistingInputConnection = true
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true);
+
+                Assert.IsTrue(connect.Structure!.Edges!.Any(edge =>
+                    edge.OutputNodeId == scalarNode.ObjectId
+                    && edge.OutputSlotId == scalarOut.SlotId
+                    && edge.InputNodeId == baseColorBlock.ObjectId
+                    && edge.InputSlotId == baseColor.SlotId));
+                Assert.IsTrue(connect.GraphSummary!.ShaderResolved);
+                Assert.IsFalse(connect.GraphSummary.HasErrors);
+                Assert.IsFalse(connect.Graph!.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Scalar -> RGB broadcast should import and compile without Shader Graph errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_BatchConnectEdge_AllowsSubGraphFloatOutputIntoColorRgbInput()
+        {
+            var subGraphPath = $"{TestFolder}/Validation_StylizedWater2_DepthFade.shadersubgraph";
+            var mainGraphPath = CreateShaderGraphAssetCopy("Validation_Batch_SubGraphFloatToColorRgb.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.CreateSubGraph(subGraphPath, outputPreset: "single-float");
+
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(mainGraphPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{mainGraphPath}'.");
+
+                var structureBefore = tool.GetStructure(new AssetObjectRef(shader));
+                var baseColorBlock = structureBefore.Nodes!.Single(node =>
+                    node.SerializedDescriptor == "SurfaceDescription.BaseColor");
+
+                var batch = tool.Batch(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphBatchInput
+                    {
+                        ResponseMode = ShaderGraphResponseMode.Full,
+                        Operations = new List<ShaderGraphBatchOperationInput>
+                        {
+                            new()
+                            {
+                                Kind = "addNode",
+                                Alias = "depthFade",
+                                AddNode = new ShaderGraphAddNodeInput
+                                {
+                                    NodeType = "subGraph",
+                                    SubGraphAssetPath = subGraphPath,
+                                    PositionX = -500f,
+                                    PositionY = -60f
+                                }
+                            },
+                            new()
+                            {
+                                Kind = "connectEdge",
+                                ConnectEdge = new ShaderGraphConnectEdgeInput
+                                {
+                                    OutputSlot = new ShaderGraphSlotRef
+                                    {
+                                        Node = new ShaderGraphNodeRef { Alias = "depthFade" },
+                                        DisplayName = "Out"
+                                    },
+                                    InputSlot = new ShaderGraphSlotRef
+                                    {
+                                        Node = new ShaderGraphNodeRef { ObjectId = baseColorBlock.ObjectId },
+                                        DisplayName = "Base Color"
+                                    },
+                                    ReplaceExistingInputConnection = true
+                                }
+                            }
+                        }
+                    });
+
+                Assert.IsTrue(batch.Success);
+                Assert.AreEqual(2, batch.CompletedOperationCount);
+                Assert.IsTrue(batch.AliasMap!.TryGetValue("depthFade", out var subGraphNodeId));
+
+                var subGraphNode = batch.Structure!.Nodes!.Single(node => node.ObjectId == subGraphNodeId);
+                var subGraphOut = FindSlot(subGraphNode, "Out");
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector1MaterialSlot", subGraphOut.Type,
+                    "The SubGraph Float output should remain a serialized Vector1MaterialSlot.");
+                Assert.IsTrue(batch.Structure.Edges!.Any(edge =>
+                    edge.OutputNodeId == subGraphNode.ObjectId
+                    && edge.OutputSlotId == subGraphOut.SlotId
+                    && edge.InputNodeId == baseColorBlock.ObjectId
+                    && edge.InputSlotId == FindSlot(baseColorBlock, "Base Color").SlotId));
+                Assert.IsTrue(batch.GraphSummary!.ShaderResolved);
+                Assert.IsFalse(batch.GraphSummary.HasErrors,
+                    "The batch-authored SubGraph Float -> Base Color edge should compile cleanly.");
+            }
+            finally
+            {
+                CleanupTestAsset(subGraphPath);
+                CleanupTestAsset(mainGraphPath);
+            }
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void ShaderGraph_BatchConnectEdge_PreservesDynamicBinaryInputIdentity(bool connectAFirst)
+        {
+            var orderName = connectAFirst ? "AThenB" : "BThenA";
+            var batchPath = CreateShaderGraphAssetCopy($"Validation_Batch_DivideOperands_{orderName}.shadergraph");
+            var singlePath = CreateShaderGraphAssetCopy($"Validation_Single_DivideOperands_{orderName}.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+                var batchShader = AssetDatabase.LoadAssetAtPath<Shader>(batchPath);
+                Assert.IsNotNull(batchShader, $"Expected Shader asset to resolve at '{batchPath}'.");
+
+                var connectA = new ShaderGraphBatchOperationInput
+                {
+                    Kind = "connectEdge",
+                    ConnectEdge = new ShaderGraphConnectEdgeInput
+                    {
+                        OutputSlot = new ShaderGraphSlotRef
+                        {
+                            Node = new ShaderGraphNodeRef { Alias = "depthSplit" },
+                            DisplayName = "G"
+                        },
+                        InputSlot = new ShaderGraphSlotRef
+                        {
+                            Node = new ShaderGraphNodeRef { Alias = "linearDivide" },
+                            DisplayName = "A"
+                        }
+                    }
+                };
+                var connectB = new ShaderGraphBatchOperationInput
+                {
+                    Kind = "connectEdge",
+                    ConnectEdge = new ShaderGraphConnectEdgeInput
+                    {
+                        OutputSlot = new ShaderGraphSlotRef
+                        {
+                            Node = new ShaderGraphNodeRef { Alias = "distance" },
+                            DisplayName = "Distance"
+                        },
+                        InputSlot = new ShaderGraphSlotRef
+                        {
+                            Node = new ShaderGraphNodeRef { Alias = "linearDivide" },
+                            DisplayName = "B"
+                        }
+                    }
+                };
+                var batchOperations = new List<ShaderGraphBatchOperationInput>
+                {
+                    new()
+                    {
+                        Kind = "addProperty",
+                        Alias = "distanceProperty",
+                        AddProperty = new ShaderGraphAddPropertyInput
+                        {
+                            PropertyType = "float",
+                            DisplayName = "Distance",
+                            OverrideReferenceName = "_Distance",
+                            FloatValue = 2f
+                        }
+                    },
+                    new()
+                    {
+                        Kind = "addPropertyNode",
+                        Alias = "distance",
+                        AddPropertyNode = new ShaderGraphAddPropertyNodeInput
+                        {
+                            Property = new ShaderGraphPropertyRef { Alias = "distanceProperty" },
+                            PositionX = -700f,
+                            PositionY = 100f
+                        }
+                    },
+                    new()
+                    {
+                        Kind = "addNode",
+                        Alias = "depthSplit",
+                        AddNode = new ShaderGraphAddNodeInput
+                        {
+                            NodeType = "split",
+                            PositionX = -700f,
+                            PositionY = -100f
+                        }
+                    },
+                    new()
+                    {
+                        Kind = "addNode",
+                        Alias = "linearDivide",
+                        AddNode = new ShaderGraphAddNodeInput
+                        {
+                            NodeType = "divide",
+                            PositionX = -400f,
+                            PositionY = 0f
+                        }
+                    }
+                };
+                batchOperations.Add(connectAFirst ? connectA : connectB);
+                batchOperations.Add(connectAFirst ? connectB : connectA);
+
+                var batchResult = tool.Batch(
+                    new AssetObjectRef(batchShader),
+                    new ShaderGraphBatchInput
+                    {
+                        Operations = batchOperations,
+                        ResponseMode = ShaderGraphResponseMode.Full
+                    });
+
+                Assert.IsTrue(batchResult.Success);
+                Assert.AreEqual(6, batchResult.CompletedOperationCount);
+                var batchDivideId = batchResult.AliasMap!["linearDivide"];
+                var batchSplitId = batchResult.AliasMap["depthSplit"];
+                var batchDistanceId = batchResult.AliasMap["distance"];
+                AssertDivideOperandTopology(
+                    batchPath,
+                    batchResult.Structure!,
+                    batchDivideId,
+                    batchSplitId,
+                    batchDistanceId);
+
+                AssetDatabase.ImportAsset(batchPath, ImportAssetOptions.ForceSynchronousImport);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                var batchAfterReimport = tool.GetStructure(new AssetObjectRef(batchPath));
+                AssertDivideOperandTopology(
+                    batchPath,
+                    batchAfterReimport,
+                    batchDivideId,
+                    batchSplitId,
+                    batchDistanceId);
+                Assert.IsTrue(batchResult.GraphSummary!.ShaderResolved);
+                Assert.IsFalse(batchResult.GraphSummary.HasErrors);
+
+                var singleShader = AssetDatabase.LoadAssetAtPath<Shader>(singlePath);
+                Assert.IsNotNull(singleShader, $"Expected Shader asset to resolve at '{singlePath}'.");
+                var distanceProperty = tool.AddProperty(
+                    new AssetObjectRef(singleShader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "float",
+                        DisplayName = "Distance",
+                        OverrideReferenceName = "_Distance",
+                        FloatValue = 2f
+                    });
+                var distanceNode = tool.AddPropertyNode(
+                    new AssetObjectRef(singleShader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyObjectId = distanceProperty.Property!.ObjectId,
+                        PositionX = -700f,
+                        PositionY = 100f
+                    });
+                var splitNode = tool.AddNode(
+                    new AssetObjectRef(singleShader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "split",
+                        PositionX = -700f,
+                        PositionY = -100f
+                    });
+                var divideNode = tool.AddNode(
+                    new AssetObjectRef(singleShader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "divide",
+                        PositionX = -400f,
+                        PositionY = 0f
+                    });
+
+                void ConnectSingle(string outputNodeId, string outputSlot, string inputSlot)
+                    => tool.ConnectEdge(
+                        new AssetObjectRef(singleShader),
+                        new ShaderGraphConnectEdgeInput
+                        {
+                            OutputSlot = new ShaderGraphSlotRef
+                            {
+                                Node = new ShaderGraphNodeRef { ObjectId = outputNodeId },
+                                DisplayName = outputSlot
+                            },
+                            InputSlot = new ShaderGraphSlotRef
+                            {
+                                Node = new ShaderGraphNodeRef { ObjectId = divideNode.Node!.ObjectId },
+                                DisplayName = inputSlot
+                            }
+                        });
+
+                if (connectAFirst)
+                {
+                    ConnectSingle(splitNode.Node!.ObjectId!, "G", "A");
+                    ConnectSingle(distanceNode.Node!.ObjectId!, "Distance", "B");
+                }
+                else
+                {
+                    ConnectSingle(distanceNode.Node!.ObjectId!, "Distance", "B");
+                    ConnectSingle(splitNode.Node!.ObjectId!, "G", "A");
+                }
+
+                var singleStructure = tool.GetStructure(new AssetObjectRef(singleShader));
+                AssertDivideOperandTopology(
+                    singlePath,
+                    singleStructure,
+                    divideNode.Node!.ObjectId!,
+                    splitNode.Node!.ObjectId!,
+                    distanceNode.Node!.ObjectId!);
+
+                var singleData = tool.GetData(
+                    new AssetObjectRef(singleShader),
+                    includeMessages: true,
+                    includeProperties: false,
+                    includeDiagnostics: true);
+                Assert.IsTrue(singleData.ShaderResolved);
+                Assert.IsFalse(singleData.HasErrors);
+                Assert.IsFalse(singleData.Diagnostics!.Any(d => d.Severity == "Error"));
+            }
+            finally
+            {
+                CleanupTestAsset(batchPath);
+                CleanupTestAsset(singlePath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ConnectEdge_RejectsTexture2DOutputIntoColorRgbInput()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ConnectEdge_Texture2DToColorRgbReject.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var property = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "texture2D",
+                        DisplayName = "Incompatible Texture",
+                        OverrideReferenceName = "_IncompatibleTexture"
+                    });
+                var propertyNode = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyObjectId = property.Property!.ObjectId,
+                        PositionX = -500f,
+                        PositionY = -60f
+                    },
+                    includeStructure: true);
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var textureNode = structure.Nodes!.Single(node => node.ObjectId == propertyNode.Node!.ObjectId);
+                var baseColorBlock = structure.Nodes.Single(node =>
+                    node.SerializedDescriptor == "SurfaceDescription.BaseColor");
+                var textureOut = textureNode.Slots!.Single(slot => slot.SlotType == 1);
+
+                var exception = Assert.Throws<InvalidOperationException>(() =>
+                    tool.ConnectEdge(
+                        new AssetObjectRef(shader),
+                        new ShaderGraphConnectEdgeInput
+                        {
+                            OutputNodeObjectId = textureNode.ObjectId,
+                            OutputSlotObjectId = textureOut.ObjectId,
+                            InputNodeObjectId = baseColorBlock.ObjectId,
+                            InputSlotObjectId = FindSlot(baseColorBlock, "Base Color").ObjectId,
+                            ReplaceExistingInputConnection = true
+                        }));
+
+                StringAssert.Contains("Unsupported slot compatibility", exception!.Message);
+                StringAssert.Contains("Texture2D", exception.Message);
+                StringAssert.Contains("ColorRGBMaterialSlot", exception.Message);
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_ConnectEdge_AllowsVector4OutputIntoUvInput()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_ConnectEdge_Vector4ToUv.shadergraph");
@@ -8256,6 +8678,52 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             var slot = node.Slots!.FirstOrDefault(s => string.Equals(s.DisplayName, displayName, StringComparison.Ordinal));
             Assert.IsNotNull(slot, $"Expected slot '{displayName}' on node '{node.Name ?? node.ObjectId}'.");
             return slot!;
+        }
+
+        static void AssertDivideOperandTopology(
+            string assetPath,
+            ShaderGraphStructureData structure,
+            string divideNodeId,
+            string splitNodeId,
+            string distanceNodeId)
+        {
+            var divideNode = structure.Nodes!.Single(node => node.ObjectId == divideNodeId);
+            var splitNode = structure.Nodes.Single(node => node.ObjectId == splitNodeId);
+            var distanceNode = structure.Nodes.Single(node => node.ObjectId == distanceNodeId);
+            var divideA = FindSlot(divideNode, "A");
+            var divideB = FindSlot(divideNode, "B");
+            var splitG = FindSlot(splitNode, "G");
+            var distanceOut = distanceNode.Slots!.Single(slot => slot.SlotType == 1);
+
+            Assert.AreEqual(0, divideA.SlotId, "Divide.A must retain serialized slot id 0.");
+            Assert.AreEqual(1, divideB.SlotId, "Divide.B must retain serialized slot id 1.");
+            Assert.IsTrue(structure.Edges!.Any(edge =>
+                edge.OutputNodeId == splitNodeId
+                && edge.OutputSlotId == splitG.SlotId
+                && edge.InputNodeId == divideNodeId
+                && edge.InputSlotId == 0),
+                "Split.G must remain connected to Divide.A.");
+            Assert.IsTrue(structure.Edges.Any(edge =>
+                edge.OutputNodeId == distanceNodeId
+                && edge.OutputSlotId == distanceOut.SlotId
+                && edge.InputNodeId == divideNodeId
+                && edge.InputSlotId == 1),
+                "Distance must remain connected to Divide.B.");
+
+            var root = ReadShaderGraphJsonObjects(assetPath)[0];
+            var rawEdges = root["m_Edges"]!.AsArray();
+            Assert.IsTrue(rawEdges.Any(edge =>
+                edge?["m_OutputSlot"]?["m_Node"]?["m_Id"]?.GetValue<string>() == splitNodeId
+                && edge?["m_OutputSlot"]?["m_SlotId"]?.GetValue<int>() == splitG.SlotId
+                && edge?["m_InputSlot"]?["m_Node"]?["m_Id"]?.GetValue<string>() == divideNodeId
+                && edge?["m_InputSlot"]?["m_SlotId"]?.GetValue<int>() == 0),
+                "Raw Shader Graph serialization must preserve Split.G -> Divide.A (slot 0).");
+            Assert.IsTrue(rawEdges.Any(edge =>
+                edge?["m_OutputSlot"]?["m_Node"]?["m_Id"]?.GetValue<string>() == distanceNodeId
+                && edge?["m_OutputSlot"]?["m_SlotId"]?.GetValue<int>() == distanceOut.SlotId
+                && edge?["m_InputSlot"]?["m_Node"]?["m_Id"]?.GetValue<string>() == divideNodeId
+                && edge?["m_InputSlot"]?["m_SlotId"]?.GetValue<int>() == 1),
+                "Raw Shader Graph serialization must preserve Distance -> Divide.B (slot 1).");
         }
 
         static ShaderGraphEdgeMutationResultData ConnectSlots(

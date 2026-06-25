@@ -18,6 +18,8 @@ The following items are no longer active debt:
 
 - Direct `Power` node support. `PowerNode` can now be created and configured.
 - Scalar `Vector1MaterialSlot -> UVMaterialSlot` broadcast. This now supports paths such as `Time.Time -> Simple Noise.UV`.
+- Scalar `Vector1MaterialSlot -> ColorRGBMaterialSlot` broadcast. This now supports Float node and SubGraph outputs feeding RGB inputs such as `Depth Fade.Exponential -> Unlit Base Color` without inserting a Combine node.
+- Batch dynamic-binary input reversal. Alias/display-name `connectEdge` resolution now binds directly to serialized slot objects and preserves operand identities such as `Divide.A = 0` and `Divide.B = 1` in either operation order.
 - Direct `Vector4MaterialSlot -> UVMaterialSlot` truncation. This remains supported for Unity's documented `.xy` vector truncation behavior.
 - Reflection-outline, object-outline, water-core, behavior, dissolve, and distortion trial node families that have already been implemented and validated through live MCP use.
 - WorldSpaceDepthFade `Camera` and `Exponential` blockers. MCP can now create/read `CameraNode`, create/read/update `ExponentialNode`, wire the reference world-space depth fade path, and validate the graph with no ShaderGraph diagnostics errors.
