@@ -65,7 +65,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `vector2`: default `x` and `y` slot values\n" +
             "- `smoothstep`: default `edge1`, `edge2`, and `input` slot values\n" +
             "- `invertColors`: `red`, `green`, and `blue` channel toggles; `alpha` is rejected because the current Unity Shader Graph package does not serialize it safely\n" +
-            "- `sine`, `cosine`, `negate`: default `input` slot value\n\n" +
+            "- `sine`, `cosine`, `negate`: default `input` slot value\n" +
+            "- `customFunction`: `functionName`, `sourceType` ('string' or 'file'), `functionBody` (inline HLSL), `functionSourcePath` (path to .hlsl)\n\n" +
             "## Response shape\n\n" +
             "By default returns a slim diff: `Operation`, `NodeObjectId`, `NodeType`, `Node`, `ChangedFields`, and `GraphSummary`. " +
             "Set `includeStructure: true` to also receive the full read-only `Structure` block, `includeGraph: true` for the full post-import `Graph` block.\n\n" +
@@ -341,6 +342,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "UnityEditor.ShaderGraph.ReciprocalNode":
                     ApplyReciprocalNodeSettings(document.Bindings, nodeObject, node.Reciprocal, changedFields);
                     break;
+                case "UnityEditor.ShaderGraph.CustomFunctionNode":
+                    ApplyCustomFunctionNodeSettings(document.Bindings, nodeObject, node.CustomFunction, changedFields);
+                    break;
                 default:
                     throw new InvalidOperationException(
                         $"Node '{nodeType}' does not yet support typed node settings updates.");
@@ -495,7 +499,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasUnaryVectorUpdates(node.Cosine)
                || HasUnaryVectorUpdates(node.Negate)
                || HasExponentialUpdates(node.Exponential)
-               || HasReciprocalUpdates(node.Reciprocal);
+               || HasReciprocalUpdates(node.Reciprocal)
+               || HasCustomFunctionUpdates(node.CustomFunction);
 
         static int CountSerializedNodeSettingsUpdatePayloads(ShaderGraphUpdateNodeSettingsInput node)
         {
@@ -535,6 +540,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasUnaryVectorUpdates(node.Negate)) count++;
             if (HasExponentialUpdates(node.Exponential)) count++;
             if (HasReciprocalUpdates(node.Reciprocal)) count++;
+            if (HasCustomFunctionUpdates(node.CustomFunction)) count++;
             return count;
         }
 
@@ -675,6 +681,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             => reciprocal != null
                && (!string.IsNullOrWhiteSpace(reciprocal.Method)
                    || HasVector4Updates(reciprocal.Input));
+
+        static bool HasCustomFunctionUpdates(ShaderGraphCustomFunctionNodeSettingsUpdateInput? cf)
+            => cf != null
+               && (!string.IsNullOrWhiteSpace(cf.FunctionName)
+                   || !string.IsNullOrWhiteSpace(cf.SourceType)
+                   || !string.IsNullOrWhiteSpace(cf.FunctionBody)
+                   || !string.IsNullOrWhiteSpace(cf.FunctionSourcePath));
 
         static bool HasVector2Updates(ShaderGraphVector2ValueUpdateInput? value)
             => value != null && (value.X.HasValue || value.Y.HasValue);
@@ -2179,6 +2192,79 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             throw new ArgumentException(
                 $"Unsupported value '{value}' for {fieldPath}. Supported values: {supportedValues}.");
+        }
+
+        static void ApplyCustomFunctionNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphCustomFunctionNodeSettingsUpdateInput? customFunction,
+            List<string> changedFields)
+        {
+            if (customFunction == null)
+                throw new InvalidOperationException("Custom Function nodes require a `customFunction` settings payload.");
+
+            var nodeType = nodeObject.GetType();
+            if (!string.Equals(nodeType.FullName, "UnityEditor.ShaderGraph.CustomFunctionNode", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Node '{nodeType.FullName}' does not support customFunction settings updates.");
+            }
+
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+
+            if (!string.IsNullOrWhiteSpace(customFunction.FunctionName))
+            {
+                var field = nodeType.GetField("m_FunctionName", flags);
+                if (field != null)
+                {
+                    field.SetValue(nodeObject, customFunction.FunctionName);
+                    changedFields.Add("node.customFunction.functionName");
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(customFunction.SourceType))
+            {
+                var hlslSourceTypeEnum = bindings.ShaderGraphEditorAssembly
+                    .GetType("UnityEditor.ShaderGraph.Drawing.HlslSourceType", throwOnError: true)!;
+                var sourceTypeValue = customFunction.SourceType!.ToLowerInvariant() switch
+                {
+                    "string" => Enum.Parse(hlslSourceTypeEnum, "String"),
+                    "file"   => Enum.Parse(hlslSourceTypeEnum, "File"),
+                    _        => throw new ArgumentException(
+                        $"Unsupported SourceType '{customFunction.SourceType}'. Use 'string' or 'file'.")
+                };
+
+                var field = nodeType.GetField("m_SourceType", flags);
+                if (field != null)
+                {
+                    field.SetValue(nodeObject, sourceTypeValue);
+                    changedFields.Add("node.customFunction.sourceType");
+                }
+            }
+
+            if (customFunction.FunctionBody != null)
+            {
+                var field = nodeType.GetField("m_FunctionBody", flags);
+                if (field != null)
+                {
+                    field.SetValue(nodeObject, customFunction.FunctionBody);
+                    changedFields.Add("node.customFunction.functionBody");
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(customFunction.FunctionSourcePath))
+            {
+                var guid = AssetDatabase.AssetPathToGUID(customFunction.FunctionSourcePath!);
+                if (string.IsNullOrEmpty(guid))
+                    throw new ArgumentException($"No asset found at FunctionSourcePath '{customFunction.FunctionSourcePath}'.");
+
+                var field = nodeType.GetField("m_FunctionSource", flags);
+                if (field != null)
+                {
+                    field.SetValue(nodeObject, guid);
+                    changedFields.Add("node.customFunction.functionSource");
+                }
+            }
         }
     }
 }

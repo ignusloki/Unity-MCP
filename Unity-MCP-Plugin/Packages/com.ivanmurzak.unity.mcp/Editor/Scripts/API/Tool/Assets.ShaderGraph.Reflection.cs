@@ -433,6 +433,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     TypeName = "UnityEditor.ShaderGraph.SubGraphNode",
                     DefaultWidth = 208f,
                     DefaultHeight = 96f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "customFunction",
+                    DisplayName = "Custom Function",
+                    TypeName = "UnityEditor.ShaderGraph.CustomFunctionNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 200f
                 }
             };
 
@@ -631,6 +639,187 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 throw new InvalidOperationException("Could not resolve 'asset' property on SubGraphNode.");
 
             assetProperty.SetValue(subGraphNodeObject, subGraphAsset);
+        }
+
+        static void WireCustomFunctionNode(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphAddNodeInput input)
+        {
+            if (string.IsNullOrWhiteSpace(input.FunctionName))
+                throw new ArgumentException("FunctionName is required when nodeType is 'customFunction'.");
+
+            if (input.Outputs == null || input.Outputs.Count == 0)
+                throw new ArgumentException("At least one output slot is required for a Custom Function node.");
+
+            var nodeType = nodeObject.GetType();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+
+            var sourceTypeStr = input.SourceType?.ToLowerInvariant() ?? "string";
+            var hlslSourceTypeEnum = bindings.ShaderGraphEditorAssembly
+                .GetType("UnityEditor.ShaderGraph.Drawing.HlslSourceType", throwOnError: true)!;
+            var sourceTypeValue = sourceTypeStr switch
+            {
+                "string" => Enum.Parse(hlslSourceTypeEnum, "String"),
+                "file"   => Enum.Parse(hlslSourceTypeEnum, "File"),
+                _        => throw new ArgumentException($"Unsupported SourceType '{input.SourceType}'. Use 'string' or 'file'.")
+            };
+
+            nodeType.GetField("m_SourceType", flags)?.SetValue(nodeObject, sourceTypeValue);
+            nodeType.GetField("m_FunctionName", flags)?.SetValue(nodeObject, input.FunctionName);
+
+            if (sourceTypeStr == "string")
+            {
+                nodeType.GetField("m_FunctionBody", flags)?.SetValue(nodeObject, input.FunctionBody ?? string.Empty);
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(input.FunctionSourcePath))
+                    throw new ArgumentException("FunctionSourcePath is required when SourceType is 'file'.");
+
+                var guid = AssetDatabase.AssetPathToGUID(input.FunctionSourcePath!);
+                if (string.IsNullOrEmpty(guid))
+                    throw new ArgumentException($"No asset found at FunctionSourcePath '{input.FunctionSourcePath}'.");
+
+                nodeType.GetField("m_FunctionSource", flags)?.SetValue(nodeObject, guid);
+            }
+
+            var slotId = 0;
+            if (input.Inputs != null)
+            {
+                foreach (var slot in input.Inputs)
+                {
+                    ValidateCustomFunctionSlotInput(slot, "input");
+                    AddCustomFunctionSlot(bindings, nodeObject, slotId++, slot, isOutput: false);
+                }
+            }
+
+            foreach (var slot in input.Outputs)
+            {
+                ValidateCustomFunctionSlotInput(slot, "output");
+                AddCustomFunctionSlot(bindings, nodeObject, slotId++, slot, isOutput: true);
+            }
+        }
+
+        static void ValidateCustomFunctionSlotInput(ShaderGraphCustomFunctionSlotInput slot, string direction)
+        {
+            if (string.IsNullOrWhiteSpace(slot.Name))
+                throw new ArgumentException($"Custom Function {direction} slot Name is required.");
+            if (string.IsNullOrWhiteSpace(slot.Type))
+                throw new ArgumentException($"Custom Function {direction} slot Type is required for slot '{slot.Name}'.");
+        }
+
+        static void AddCustomFunctionSlot(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            int slotId,
+            ShaderGraphCustomFunctionSlotInput slot,
+            bool isOutput)
+        {
+            var slotTypeName = MapCustomFunctionSlotTypeName(slot.Type!);
+            var slotType = bindings.ShaderGraphEditorAssembly.GetType(slotTypeName, throwOnError: false)
+                ?? throw new InvalidOperationException($"Slot type '{slotTypeName}' could not be resolved.");
+
+            var direction = isOutput
+                ? Enum.Parse(bindings.SlotTypeEnum, "Output")
+                : Enum.Parse(bindings.SlotTypeEnum, "Input");
+            var allStage = Enum.Parse(bindings.ShaderStageCapabilityEnum, "All");
+            var name = slot.Name!;
+
+            var normalizedType = slot.Type!.ToLowerInvariant();
+            object newSlot;
+            switch (normalizedType)
+            {
+                case "float":
+                case "vector1":
+                    newSlot = Activator.CreateInstance(slotType, new object[]
+                    {
+                        slotId, name, name, direction,
+                        0f,
+                        allStage, "", false, false
+                    })!;
+                    break;
+                case "vector2":
+                    newSlot = Activator.CreateInstance(slotType, new object[]
+                    {
+                        slotId, name, name, direction,
+                        Vector2.zero,
+                        allStage, "X", "Y", false, false
+                    })!;
+                    break;
+                case "vector3":
+                    newSlot = Activator.CreateInstance(slotType, new object[]
+                    {
+                        slotId, name, name, direction,
+                        Vector3.zero,
+                        allStage, "X", "Y", "Z", false
+                    })!;
+                    break;
+                case "vector4":
+                    newSlot = Activator.CreateInstance(slotType, new object[]
+                    {
+                        slotId, name, name, direction,
+                        Vector4.zero,
+                        allStage, "X", "Y", "Z", "W", false
+                    })!;
+                    break;
+                case "boolean":
+                    newSlot = Activator.CreateInstance(slotType, new object[]
+                    {
+                        slotId, name, name, direction,
+                        false,
+                        allStage, false
+                    })!;
+                    break;
+                case "matrix2":
+                case "matrix3":
+                case "matrix4":
+                    newSlot = Activator.CreateInstance(slotType, new object[]
+                    {
+                        slotId, name, name, direction,
+                        allStage
+                    })!;
+                    break;
+                case "texture2d":
+                case "texture2darray":
+                case "texture3d":
+                case "cubemap":
+                case "samplerstate":
+                    newSlot = Activator.CreateInstance(slotType, new object[]
+                    {
+                        slotId, name, name, direction,
+                        allStage
+                    })!;
+                    break;
+                default:
+                    throw new ArgumentException($"Unsupported Custom Function slot type '{slot.Type}'.");
+            }
+
+            InvokeShaderGraphMethod(bindings.AddSlotMethod, nodeObject, newSlot, false);
+        }
+
+        static string MapCustomFunctionSlotTypeName(string type)
+        {
+            return type.ToLowerInvariant() switch
+            {
+                "float" or "vector1"  => "UnityEditor.ShaderGraph.Vector1MaterialSlot",
+                "vector2"             => "UnityEditor.ShaderGraph.Vector2MaterialSlot",
+                "vector3"             => "UnityEditor.ShaderGraph.Vector3MaterialSlot",
+                "vector4"             => "UnityEditor.ShaderGraph.Vector4MaterialSlot",
+                "boolean"             => "UnityEditor.ShaderGraph.BooleanMaterialSlot",
+                "matrix2"             => "UnityEditor.ShaderGraph.Matrix2MaterialSlot",
+                "matrix3"             => "UnityEditor.ShaderGraph.Matrix3MaterialSlot",
+                "matrix4"             => "UnityEditor.ShaderGraph.Matrix4MaterialSlot",
+                "texture2d"           => "UnityEditor.ShaderGraph.Texture2DMaterialSlot",
+                "texture2darray"      => "UnityEditor.ShaderGraph.Texture2DArrayMaterialSlot",
+                "texture3d"           => "UnityEditor.ShaderGraph.Texture3DMaterialSlot",
+                "cubemap"             => "UnityEditor.ShaderGraph.CubemapMaterialSlot",
+                "samplerstate"        => "UnityEditor.ShaderGraph.SamplerStateMaterialSlot",
+                _                     => throw new ArgumentException(
+                    $"Unsupported Custom Function slot type '{type}'. " +
+                    "Supported: float, vector1, vector2, vector3, vector4, boolean, " +
+                    "matrix2, matrix3, matrix4, texture2D, texture2DArray, texture3D, cubemap, samplerState.")
+            };
         }
 
         static void SaveShaderGraphReflectionDocument(ShaderGraphReflectionDocument document)

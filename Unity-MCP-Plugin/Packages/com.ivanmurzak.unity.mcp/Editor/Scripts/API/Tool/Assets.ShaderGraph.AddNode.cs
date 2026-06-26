@@ -32,13 +32,18 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         [AiSkillDescription("Add a safe allowlisted Shader Graph node, then re-import the graph and return the created node and diagnostics.")]
         [AiSkillBody("Add a safe allowlisted node to a '.shadergraph' or '.shadersubgraph' asset.\n\n" +
             "Current ShaderGraph node support is intentionally explicit:\n" +
-            "- node types: `add`, `subtract`, `multiply`, `divide`, `power`, `lerp`, `oneMinus`, `fraction`, `split`, `combine`, `sampleTexture2D`, `tilingAndOffset`, `branch`, `viewDirection`, `viewVector`, `normalVector`, `position`, `object`, `transform`, `gradientNoise`, `simpleNoise`, `screenPosition`, `sceneDepth`, `camera`, `sceneColor`, `comparison`, `normalFromHeight`, `blend`, `remap`, `swizzle`, `time`, `smoothstep`, `step`, `saturate`, `exponential`, `invertColors`, `vector2`, `uv`, `sine`, `cosine`, `negate`, `fresnelEffect`, `reciprocal`, `subGraph`\n" +
+            "- node types: `add`, `subtract`, `multiply`, `divide`, `power`, `lerp`, `oneMinus`, `fraction`, `split`, `combine`, `sampleTexture2D`, `tilingAndOffset`, `branch`, `viewDirection`, `viewVector`, `normalVector`, `position`, `object`, `transform`, `gradientNoise`, `simpleNoise`, `screenPosition`, `sceneDepth`, `camera`, `sceneColor`, `comparison`, `normalFromHeight`, `blend`, `remap`, `swizzle`, `time`, `smoothstep`, `step`, `saturate`, `exponential`, `invertColors`, `vector2`, `uv`, `sine`, `cosine`, `negate`, `fresnelEffect`, `reciprocal`, `subGraph`, `customFunction`\n" +
             "- node creation only, no automatic edge wiring\n" +
             "- uses Unity's own Shader Graph graph APIs through reflection, then re-imports the asset\n\n" +
             "## subGraph node type\n\n" +
             "When `nodeType` is `subGraph`, provide either `SubGraphAssetPath` (project-relative path to a `.shadersubgraph`) or `SubGraphAssetGuid` " +
             "to reference an existing sub-graph asset. The sub-graph must already exist and be imported. " +
             "The node's input/output slots are derived from the referenced sub-graph's properties and outputs.\n\n" +
+            "## customFunction node type\n\n" +
+            "When `nodeType` is `customFunction`, provide `FunctionName` (required), `SourceType` ('string' or 'file'), " +
+            "and either `FunctionBody` (inline HLSL) or `FunctionSourcePath` (path to .hlsl file). " +
+            "Define input/output slots via `Inputs` and `Outputs` arrays — at least one output is required. " +
+            "Supported slot types: float, vector2, vector3, vector4, boolean, matrix2, matrix3, matrix4, texture2D, texture2DArray, texture3D, cubemap, samplerState.\n\n" +
             "## Response shape\n\n" +
             "By default returns a slim diff: `Operation`, `NodeObjectId`, `NodeType`, `Node`, `ChangedFields`, and `GraphSummary` (ShaderResolved, HasErrors, NodeCount, EdgeCount, error/warning diagnostics). " +
             "Set `includeStructure: true` to also receive the full read-only `Structure` block. " +
@@ -46,7 +51,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "Use `assets-shadergraph-get-structure` / `assets-shadergraph-get-data` for standalone reads.\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' or '.shadersubgraph' asset.\n" +
-            "- `node` — allowlisted node type plus the requested node position. For `subGraph`, also supply `SubGraphAssetPath` or `SubGraphAssetGuid`.\n" +
+            "- `node` — allowlisted node type plus the requested node position. For `subGraph`, also supply `SubGraphAssetPath` or `SubGraphAssetGuid`. For `customFunction`, supply `FunctionName`, `SourceType`, `FunctionBody`/`FunctionSourcePath`, `Inputs`, and `Outputs`.\n" +
             "- `includeStructure` — include the full read-only Structure block in the response. Default: false.\n" +
             "- `includeGraph` — include the full post-import Graph block in the response. Default: false.\n" +
             "- `includeMessages` — include shader compiler messages in returned graph data (only meaningful when includeGraph is true).\n" +
@@ -102,6 +107,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             if (string.Equals(definition.ApiName, "subGraph", StringComparison.Ordinal))
                 WireSubGraphNodeAsset(document.Bindings, createdNodeObject, node.SubGraphAssetPath, node.SubGraphAssetGuid);
+
+            if (string.Equals(definition.ApiName, "customFunction", StringComparison.Ordinal))
+                WireCustomFunctionNode(document.Bindings, createdNodeObject, node);
 
             InvokeShaderGraphMethod(document.Bindings.AddNodeMethod, document.GraphData, createdNodeObject, false);
             SetShaderGraphNodePosition(

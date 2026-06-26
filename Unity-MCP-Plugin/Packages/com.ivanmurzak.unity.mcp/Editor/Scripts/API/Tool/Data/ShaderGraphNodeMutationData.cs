@@ -49,7 +49,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, camera, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, exponential, invertColors, vector2, uv, sine, cosine, negate, fresnelEffect, reciprocal, subGraph.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, camera, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, exponential, invertColors, vector2, uv, sine, cosine, negate, fresnelEffect, reciprocal, subGraph, customFunction.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]
@@ -63,6 +63,34 @@ namespace AIGD
 
         [Description("GUID of the '.shadersubgraph' asset to reference. Alternative to SubGraphAssetPath — when both are provided, SubGraphAssetPath takes precedence.")]
         public string? SubGraphAssetGuid { get; set; }
+
+        [Description("Function name for a Custom Function node. Required when nodeType is 'customFunction'. This becomes the generated HLSL function name (e.g. 'ReconstructWorldPosition').")]
+        public string? FunctionName { get; set; }
+
+        [Description("HLSL source mode for a Custom Function node. Supported values: 'string' (inline HLSL body) or 'file' (reference an external .hlsl file). Default: 'string'.")]
+        public string? SourceType { get; set; }
+
+        [Description("Inline HLSL function body for a Custom Function node (when SourceType is 'string'). Write only the body statements — the function signature is generated automatically.")]
+        public string? FunctionBody { get; set; }
+
+        [Description("Project-relative asset path to an .hlsl file for a Custom Function node (when SourceType is 'file'). The file must already exist in the project.")]
+        public string? FunctionSourcePath { get; set; }
+
+        [Description("Input slot definitions for a Custom Function node. Each entry defines a named input with a type.")]
+        public List<ShaderGraphCustomFunctionSlotInput>? Inputs { get; set; }
+
+        [Description("Output slot definitions for a Custom Function node. At least one output is required. Each entry defines a named output with a type.")]
+        public List<ShaderGraphCustomFunctionSlotInput>? Outputs { get; set; }
+    }
+
+    [Description("Defines a single input or output slot for a Custom Function node.")]
+    public class ShaderGraphCustomFunctionSlotInput
+    {
+        [Description("Display name for the slot (e.g. 'UV', 'Out').")]
+        public string? Name { get; set; }
+
+        [Description("Value type for the slot. Supported values: float (or vector1), vector2, vector3, vector4, boolean, matrix2, matrix3, matrix4, texture2D, texture2DArray, texture3D, cubemap, samplerState.")]
+        public string? Type { get; set; }
     }
 
     [Description("Structured input for duplicating a supported Shader Graph node by serialized node id.")]
@@ -207,6 +235,9 @@ namespace AIGD
 
         [Description("Structured settings updates for a Reciprocal node.")]
         public ShaderGraphReciprocalNodeSettingsUpdateInput? Reciprocal { get; set; }
+
+        [Description("Structured settings updates for a Custom Function node.")]
+        public ShaderGraphCustomFunctionNodeSettingsUpdateInput? CustomFunction { get; set; }
     }
 
     [Description("Structured settings updates for a Sample Texture 2D node.")]
@@ -532,6 +563,22 @@ namespace AIGD
 
         [Description("Default value for the In input slot.")]
         public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
+    }
+
+    [Description("Structured settings updates for a Custom Function node.")]
+    public class ShaderGraphCustomFunctionNodeSettingsUpdateInput
+    {
+        [Description("Function name (e.g. 'ReconstructWorldPosition'). Generates the HLSL function signature.")]
+        public string? FunctionName { get; set; }
+
+        [Description("HLSL source mode. Supported values: 'string' (inline body) or 'file' (reference .hlsl file).")]
+        public string? SourceType { get; set; }
+
+        [Description("Inline HLSL function body (when SourceType is 'string'). Write only the body statements.")]
+        public string? FunctionBody { get; set; }
+
+        [Description("Project-relative asset path to an .hlsl file (when SourceType is 'file').")]
+        public string? FunctionSourcePath { get; set; }
     }
 
     [Description("Result of mutating a Shader Graph node and re-importing the graph.")]

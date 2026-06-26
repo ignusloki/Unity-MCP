@@ -102,7 +102,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports scalar `Vector1MaterialSlot` outputs broadcasting into Shader Graph UV inputs such as `Time.Time -> Simple Noise.UV`\n" +
             "- supports scalar `Vector1MaterialSlot` outputs broadcasting into RGB color inputs such as `Depth Fade.Exponential -> Unlit Base Color`\n" +
             "- supports vector2-resolved `DynamicVectorMaterialSlot` outputs into Shader Graph UV inputs such as `Add.Out -> Tiling And Offset.UV`\n" +
-            "- supports Screen Position vector4 output and dynamic vector outputs into Shader Graph screen-position UV inputs such as Scene Color UV and Scene Depth UV\n" +
+            "- supports Vector4, Vector2, Screen Position, and dynamic vector outputs into Shader Graph screen-position UV inputs such as Scene Color UV and Scene Depth UV (e.g. a sub-graph Vector4 property → SceneDepth.UV)\n" +
             "- supports compatible Vector3/Position slot pairs\n" +
             "- supports Vector3 outputs into Shader Graph normal inputs such as `Normal From Height.Out -> Fragment NormalWS`\n" +
             "- supports compatible color/vector slot pairs such as Color property outputs into Base Color\n" +
@@ -863,12 +863,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 && string.Equals(inputType, "UnityEditor.ShaderGraph.UVMaterialSlot", StringComparison.Ordinal))
                 return;
 
-            if (string.Equals(GetString(outputSlot.NodeObject, "m_Type"), "UnityEditor.ShaderGraph.ScreenPositionNode", StringComparison.Ordinal)
-                && string.Equals(outputType, "UnityEditor.ShaderGraph.Vector4MaterialSlot", StringComparison.Ordinal)
+            if ((string.Equals(outputType, "UnityEditor.ShaderGraph.Vector4MaterialSlot", StringComparison.Ordinal)
+                 || string.Equals(outputType, "UnityEditor.ShaderGraph.Vector2MaterialSlot", StringComparison.Ordinal))
                 && ScreenPositionInputSlotTypes.Contains(inputType))
-            {
                 return;
-            }
 
             if (IsDynamicVectorSlotType(outputType) && ScreenPositionInputSlotTypes.Contains(inputType))
                 return;

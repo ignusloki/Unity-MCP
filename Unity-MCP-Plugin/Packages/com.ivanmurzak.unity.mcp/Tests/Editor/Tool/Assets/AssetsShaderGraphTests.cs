@@ -8432,6 +8432,142 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             }
         }
 
+        [Test]
+        public void ShaderGraph_AddNode_AddsCustomFunctionNodeWithInlineHlsl()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_CustomFunction_Inline.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var result = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "customFunction",
+                        PositionX = -400f,
+                        PositionY = 0f,
+                        FunctionName = "MyPassthrough",
+                        SourceType = "string",
+                        FunctionBody = "Out = In;",
+                        Inputs = new List<ShaderGraphCustomFunctionSlotInput>
+                        {
+                            new() { Name = "In", Type = "vector3" }
+                        },
+                        Outputs = new List<ShaderGraphCustomFunctionSlotInput>
+                        {
+                            new() { Name = "Out", Type = "vector3" }
+                        }
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true);
+
+                Assert.IsNotNull(result);
+                Assert.AreEqual("add", result.Operation);
+                Assert.IsNotNull(result.Node);
+                Assert.AreEqual("UnityEditor.ShaderGraph.CustomFunctionNode", result.Node!.Type);
+                Assert.IsNotNull(result.Node.Slots);
+                Assert.IsTrue(result.Node.Slots!.Any(s => s.DisplayName == "In" && s.SlotType == 0),
+                    "Expected an input slot named 'In'.");
+                Assert.IsTrue(result.Node.Slots!.Any(s => s.DisplayName == "Out" && s.SlotType == 1),
+                    "Expected an output slot named 'Out'.");
+                Assert.IsNotNull(result.GraphSummary);
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_AddNode_CustomFunction_RequiresAtLeastOneOutput()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_CustomFunction_NoOutput.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var ex = Assert.Throws<ArgumentException>(() =>
+                    tool.AddNode(
+                        new AssetObjectRef(shader),
+                        new ShaderGraphAddNodeInput
+                        {
+                            NodeType = "customFunction",
+                            FunctionName = "NoOutputs",
+                            SourceType = "string",
+                            FunctionBody = "",
+                            Inputs = new List<ShaderGraphCustomFunctionSlotInput>
+                            {
+                                new() { Name = "In", Type = "float" }
+                            },
+                            Outputs = new List<ShaderGraphCustomFunctionSlotInput>()
+                        }));
+
+                StringAssert.Contains("At least one output", ex!.Message);
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_UpdateNodeSettings_UpdatesCustomFunctionBody()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_CustomFunction_UpdateBody.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var addResult = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "customFunction",
+                        PositionX = -400f,
+                        PositionY = 0f,
+                        FunctionName = "InitialFunc",
+                        SourceType = "string",
+                        FunctionBody = "Out = 0;",
+                        Inputs = new List<ShaderGraphCustomFunctionSlotInput>(),
+                        Outputs = new List<ShaderGraphCustomFunctionSlotInput>
+                        {
+                            new() { Name = "Out", Type = "float" }
+                        }
+                    });
+
+                Assert.IsNotNull(addResult.NodeObjectId);
+
+                var updateResult = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = addResult.NodeObjectId,
+                        CustomFunction = new ShaderGraphCustomFunctionNodeSettingsUpdateInput
+                        {
+                            FunctionName = "UpdatedFunc",
+                            FunctionBody = "Out = 1;"
+                        }
+                    });
+
+                Assert.IsNotNull(updateResult);
+                Assert.IsFalse(updateResult.NoOp);
+                Assert.IsTrue(updateResult.ChangedFields!.Contains("node.customFunction.functionName"));
+                Assert.IsTrue(updateResult.ChangedFields.Contains("node.customFunction.functionBody"));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
         static string CreateShaderGraphAssetCopy(string fileName)
             => CreateShaderGraphAssetCopy(fileName, TemplateAssetPath);
 
@@ -8660,13 +8796,6 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         {
             if (AssetDatabase.LoadMainAssetAtPath(assetPath) != null)
                 AssetDatabase.DeleteAsset(assetPath);
-
-            var physicalFolderPath = Path.GetFullPath(TestFolder);
-            if (Directory.Exists(physicalFolderPath) &&
-                !Directory.EnumerateFileSystemEntries(physicalFolderPath).Any())
-            {
-                AssetDatabase.DeleteAsset(TestFolder);
-            }
 
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
@@ -9024,6 +9153,180 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             Assert.AreEqual(y, value.y, 0.0001f, $"Unexpected Y component for {label}.");
             Assert.AreEqual(z, value.z, 0.0001f, $"Unexpected Z component for {label}.");
             Assert.AreEqual(w, value.w, 0.0001f, $"Unexpected W component for {label}.");
+        }
+
+        [Test]
+        [Ignore("Reproducer for parallel-mutation node duplication (Gap 2). " +
+                "Root cause is transport-side retry on timeout, not concurrent file access — " +
+                "MainThread.Instance.Run serializes all mutations via EditorApplication.update. " +
+                "Un-ignore when an idempotency layer or retry guard is added to the shader-graph tool boundary.")]
+        public void ShaderGraph_ParallelAddNode_DoesNotDuplicateNodes()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ParallelAddNode_NoDuplication.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+                var assetRef = new AssetObjectRef(assetPath);
+                const int parallelCount = 4;
+
+                var tasks = new System.Threading.Tasks.Task<ShaderGraphNodeMutationResultData>[parallelCount];
+                for (var i = 0; i < parallelCount; i++)
+                {
+                    var nodeType = i % 2 == 0 ? "add" : "multiply";
+                    tasks[i] = System.Threading.Tasks.Task.Run(() =>
+                        tool.AddNode(assetRef, new ShaderGraphAddNodeInput { NodeType = nodeType }));
+                }
+
+                System.Threading.Tasks.Task.WaitAll(tasks);
+
+                var returnedIds = tasks.Select(t => t.Result.NodeObjectId).ToList();
+                Assert.AreEqual(parallelCount, returnedIds.Distinct().Count(),
+                    $"Expected {parallelCount} unique NodeObjectIds from {parallelCount} parallel add-node calls, " +
+                    $"but got {returnedIds.Distinct().Count()} unique out of {returnedIds.Count} total.");
+
+                var structure = tool.GetStructure(assetRef);
+                var addedNodeTypes = new[] { "UnityEditor.ShaderGraph.AddNode", "UnityEditor.ShaderGraph.MultiplyNode" };
+                var addedNodes = structure.Nodes!
+                    .Where(n => addedNodeTypes.Contains(n.Type))
+                    .ToList();
+                Assert.AreEqual(parallelCount, addedNodes.Count,
+                    $"Expected exactly {parallelCount} added nodes in the graph, but found {addedNodes.Count}. " +
+                    "If more were found, parallel calls duplicated nodes (likely transport retry).");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ConnectEdge_Vector4ToScreenPositionSlot()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ConnectEdge_Vector4ToScreenPosition.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+
+                var vector4Property = tool.AddProperty(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector4",
+                        DisplayName = "TestUV",
+                        OverrideReferenceName = "_TestUV"
+                    });
+                Assert.IsNotNull(vector4Property.Property);
+
+                var propertyNode = tool.AddPropertyNode(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyObjectId = vector4Property.Property!.ObjectId,
+                        PositionX = -600f,
+                        PositionY = 0f
+                    },
+                    includeStructure: true);
+                Assert.IsNotNull(propertyNode.Node);
+                var propOut = propertyNode.Node!.Slots!.First(s => s.SlotType == 1);
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector4MaterialSlot", propOut.Type,
+                    "Vector4 property node output should be Vector4MaterialSlot.");
+
+                var sceneDepth = tool.AddNode(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphAddNodeInput { NodeType = "sceneDepth", PositionX = -200f, PositionY = 0f },
+                    includeStructure: true);
+                var sceneDepthUv = sceneDepth.Node!.Slots!.First(s => s.DisplayName == "UV");
+                Assert.AreEqual("UnityEditor.ShaderGraph.ScreenPositionMaterialSlot", sceneDepthUv.Type,
+                    "SceneDepth UV should be a ScreenPositionMaterialSlot.");
+
+                var connect = tool.ConnectEdge(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = propertyNode.Node.ObjectId,
+                        OutputSlotObjectId = propOut.ObjectId,
+                        InputNodeObjectId = sceneDepth.Node.ObjectId,
+                        InputSlotObjectId = sceneDepthUv.ObjectId
+                    },
+                    includeGraph: true);
+
+                Assert.IsNotNull(connect.Edge, "Vector4 → ScreenPositionMaterialSlot edge should be created.");
+                Assert.AreEqual(propertyNode.Node.ObjectId, connect.Edge!.OutputNodeId);
+                Assert.AreEqual(sceneDepth.Node.ObjectId, connect.Edge.InputNodeId);
+                Assert.IsTrue(connect.GraphSummary!.ShaderResolved,
+                    "Vector4 → SceneDepth.UV should keep the shader valid.");
+                Assert.IsFalse(connect.GraphSummary.HasErrors,
+                    "Vector4 → SceneDepth.UV should not introduce errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ConnectEdge_Vector2ToScreenPositionSlot()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ConnectEdge_Vector2ToScreenPosition.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+
+                var vector2Property = tool.AddProperty(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector2",
+                        DisplayName = "TestUV2",
+                        OverrideReferenceName = "_TestUV2"
+                    });
+                Assert.IsNotNull(vector2Property.Property);
+
+                var propertyNode = tool.AddPropertyNode(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyObjectId = vector2Property.Property!.ObjectId,
+                        PositionX = -600f,
+                        PositionY = 0f
+                    },
+                    includeStructure: true);
+                Assert.IsNotNull(propertyNode.Node);
+                var propOut = propertyNode.Node!.Slots!.First(s => s.SlotType == 1);
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector2MaterialSlot", propOut.Type,
+                    "Vector2 property node output should be Vector2MaterialSlot.");
+
+                var sceneColor = tool.AddNode(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphAddNodeInput { NodeType = "sceneColor", PositionX = -200f, PositionY = 0f },
+                    includeStructure: true);
+                var sceneColorUv = sceneColor.Node!.Slots!.First(s => s.DisplayName == "UV");
+                Assert.AreEqual("UnityEditor.ShaderGraph.ScreenPositionMaterialSlot", sceneColorUv.Type,
+                    "SceneColor UV should be a ScreenPositionMaterialSlot.");
+
+                var connect = tool.ConnectEdge(
+                    new AssetObjectRef(assetPath),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = propertyNode.Node.ObjectId,
+                        OutputSlotObjectId = propOut.ObjectId,
+                        InputNodeObjectId = sceneColor.Node.ObjectId,
+                        InputSlotObjectId = sceneColorUv.ObjectId
+                    },
+                    includeGraph: true);
+
+                Assert.IsNotNull(connect.Edge, "Vector2 → ScreenPositionMaterialSlot edge should be created.");
+                Assert.AreEqual(propertyNode.Node.ObjectId, connect.Edge!.OutputNodeId);
+                Assert.AreEqual(sceneColor.Node.ObjectId, connect.Edge.InputNodeId);
+                Assert.IsTrue(connect.GraphSummary!.ShaderResolved,
+                    "Vector2 → SceneColor.UV should keep the shader valid.");
+                Assert.IsFalse(connect.GraphSummary.HasErrors,
+                    "Vector2 → SceneColor.UV should not introduce errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
         }
 
         static EditorWindow[] FindOpenShaderGraphWindows(string assetPath)
