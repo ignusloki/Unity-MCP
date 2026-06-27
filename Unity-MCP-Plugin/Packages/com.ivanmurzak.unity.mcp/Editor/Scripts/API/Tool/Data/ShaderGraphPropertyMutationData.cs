@@ -247,6 +247,12 @@ namespace AIGD
 
         [Description("Number of edges automatically removed while deleting dependent PropertyNode instances, if applicable.")]
         public int? RemovedEdgeCount { get; set; }
+
+        [Description("Per-parent reimport results when the mutated asset is a .shadersubgraph. Each entry reports the parent asset path and whether it compiled successfully after reimport.")]
+        public List<ShaderGraphParentReimportResult>? ParentResults { get; set; }
+
+        [Description("Warning when the number of parent graphs exceeds the reimport cap.")]
+        public string? ParentCapWarning { get; set; }
     }
 
     [Description("Result of mutating a Shader Graph blackboard category and re-importing the graph.")]

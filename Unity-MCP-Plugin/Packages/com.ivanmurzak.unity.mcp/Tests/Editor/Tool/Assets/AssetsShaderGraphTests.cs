@@ -9353,5 +9353,144 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     StringComparison.Ordinal))
                 .ToArray();
         }
+
+        [Test]
+        public void ShaderGraph_Gap10_SubGraphPropertyTypeChange_RefreshesParentSubGraphNodeSlots()
+        {
+            var subGraphPath = $"{TestFolder}/Gap10_Foo.shadersubgraph";
+            var mainGraphPath = CreateShaderGraphAssetCopy("Gap10_Parent.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+
+                var createResult = tool.CreateSubGraph(subGraphPath);
+                Assert.IsFalse(createResult.HasErrors, "Fresh sub-graph should not have errors.");
+
+                var subGraphRef = new AssetObjectRef(subGraphPath);
+                var addPropResult = tool.AddProperty(subGraphRef, new ShaderGraphAddPropertyInput
+                {
+                    PropertyType = "float",
+                    DisplayName = "Foo",
+                    OverrideReferenceName = "_Foo"
+                });
+                Assert.IsNotNull(addPropResult.Property, "AddProperty should return the created property.");
+
+                var mainShader = AssetDatabase.LoadAssetAtPath<Shader>(mainGraphPath);
+                Assert.IsNotNull(mainShader, "Main graph shader should resolve.");
+                var mainRef = new AssetObjectRef(mainShader);
+
+                var subGraphNode = tool.AddNode(mainRef,
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "subGraph",
+                        SubGraphAssetPath = subGraphPath,
+                        PositionX = -300f,
+                        PositionY = 0f
+                    },
+                    includeStructure: true);
+                Assert.AreEqual("UnityEditor.ShaderGraph.SubGraphNode", subGraphNode.Node!.Type);
+
+                var fooSlotBefore = subGraphNode.Node.Slots?
+                    .FirstOrDefault(s => string.Equals(s.DisplayName, "Foo", StringComparison.Ordinal));
+                Assert.IsNotNull(fooSlotBefore, "SubGraphNode should have a 'Foo' input slot.");
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector1MaterialSlot", fooSlotBefore!.Type,
+                    "Foo slot should be Vector1MaterialSlot (Float) before type change.");
+
+                var deleteResult = tool.DeleteProperty(subGraphRef,
+                    new ShaderGraphDeletePropertyInput { PropertyReferenceName = "_Foo" });
+                Assert.AreEqual("delete", deleteResult.Operation);
+
+                var addVec4Result = tool.AddProperty(subGraphRef, new ShaderGraphAddPropertyInput
+                {
+                    PropertyType = "vector4",
+                    DisplayName = "Foo",
+                    OverrideReferenceName = "_Foo"
+                });
+                Assert.IsNotNull(addVec4Result.Property, "AddProperty (Vector4) should return the created property.");
+                Assert.IsNotNull(addVec4Result.ParentResults, "AddProperty on a sub-graph should return ParentResults.");
+                Assert.IsTrue(addVec4Result.ParentResults!.Count > 0, "At least one parent should have been reimported.");
+
+                var mainStructureAfter = tool.GetStructure(new AssetObjectRef(mainGraphPath));
+                var subGraphNodeAfter = mainStructureAfter.Nodes?
+                    .FirstOrDefault(n => string.Equals(n.Type, "UnityEditor.ShaderGraph.SubGraphNode", StringComparison.Ordinal));
+                Assert.IsNotNull(subGraphNodeAfter, "SubGraphNode should still exist in the main graph after property change.");
+
+                var fooSlotAfter = subGraphNodeAfter!.Slots?
+                    .FirstOrDefault(s => string.Equals(s.DisplayName, "Foo", StringComparison.Ordinal));
+                Assert.IsNotNull(fooSlotAfter, "SubGraphNode should have a 'Foo' input slot after property type change.");
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector4MaterialSlot", fooSlotAfter!.Type,
+                    "Foo slot should now be Vector4MaterialSlot after the sub-graph property was changed from Float to Vector4.");
+
+                mainShader = AssetDatabase.LoadAssetAtPath<Shader>(mainGraphPath);
+                Assert.IsNotNull(mainShader, "Main graph shader should still resolve after sub-graph property type change.");
+                Assert.IsFalse(ShaderUtil.ShaderHasError(mainShader!),
+                    "Main graph shader should not have errors after sub-graph property type change.");
+            }
+            finally
+            {
+                CleanupTestAsset(subGraphPath);
+                CleanupTestAsset(mainGraphPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_Gap10_UpdateProperty_TriggersParentReimport()
+        {
+            var subGraphPath = $"{TestFolder}/Gap10_UpdateProp.shadersubgraph";
+            var mainGraphPath = CreateShaderGraphAssetCopy("Gap10_UpdateProp_Parent.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+
+                var createResult = tool.CreateSubGraph(subGraphPath);
+                Assert.IsFalse(createResult.HasErrors);
+
+                var subGraphRef = new AssetObjectRef(subGraphPath);
+                tool.AddProperty(subGraphRef, new ShaderGraphAddPropertyInput
+                {
+                    PropertyType = "float",
+                    DisplayName = "Foo",
+                    OverrideReferenceName = "_Foo",
+                    FloatValue = 0f
+                });
+
+                var mainShader = AssetDatabase.LoadAssetAtPath<Shader>(mainGraphPath);
+                Assert.IsNotNull(mainShader);
+                var mainRef = new AssetObjectRef(mainShader);
+
+                tool.AddNode(mainRef,
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "subGraph",
+                        SubGraphAssetPath = subGraphPath,
+                        PositionX = -300f,
+                        PositionY = 0f
+                    });
+
+                var mainFullPathBefore = Path.GetFullPath(mainGraphPath);
+                var timestampBefore = File.GetLastWriteTimeUtc(mainFullPathBefore);
+
+                System.Threading.Thread.Sleep(50);
+
+                var updateResult = tool.UpdateProperty(subGraphRef,
+                    new ShaderGraphPropertyUpdateInput
+                    {
+                        PropertyReferenceName = "_Foo",
+                        FloatValue = 1.0f
+                    });
+                Assert.AreEqual("update", updateResult.Operation);
+                Assert.IsNotNull(updateResult.ParentResults, "UpdateProperty on a sub-graph should return ParentResults.");
+                Assert.IsTrue(updateResult.ParentResults!.Count > 0, "At least one parent should have been reimported.");
+
+                var timestampAfter = File.GetLastWriteTimeUtc(mainFullPathBefore);
+                Assert.IsTrue(timestampAfter > timestampBefore,
+                    $"Parent graph file timestamp should advance after sub-graph update-property. Before: {timestampBefore:O}, After: {timestampAfter:O}");
+            }
+            finally
+            {
+                CleanupTestAsset(subGraphPath);
+                CleanupTestAsset(mainGraphPath);
+            }
+        }
     }
 }

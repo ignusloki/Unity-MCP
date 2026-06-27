@@ -63,6 +63,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             public PropertyInfo SlotDisplayNameProperty { get; set; } = null!;
             public PropertyInfo SlotConcreteValueTypeProperty { get; set; } = null!;
             public FieldInfo SlotRawDisplayNameField { get; set; } = null!;
+
         }
 
         sealed class ShaderGraphReflectionDocument
@@ -531,6 +532,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             var slotTypeEnum = RequireType("UnityEditor.Graphing.SlotType");
             var stageCapEnum = RequireType("UnityEditor.ShaderGraph.ShaderStageCapability");
             var concreteSlotValueTypeEnum = RequireType("UnityEditor.ShaderGraph.ConcreteSlotValueType");
+            RequireType("UnityEditor.ShaderGraph.SubGraphNode");
 
             s_shaderGraphReflectionBindings = new ShaderGraphReflectionBindings
             {
@@ -570,7 +572,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 SlotConcreteValueTypeProperty = RequireProperty(materialSlotType, "concreteValueType"),
                 SlotRawDisplayNameField = materialSlotType.GetField("m_DisplayName",
                     BindingFlags.Instance | BindingFlags.NonPublic)
-                    ?? throw new InvalidOperationException("MaterialSlot.m_DisplayName field not found.")
+                    ?? throw new InvalidOperationException("MaterialSlot.m_DisplayName field not found."),
             };
 
             return s_shaderGraphReflectionBindings;
@@ -846,6 +848,74 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
             ReloadOpenShaderGraphWindows(assetPath);
             com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+        }
+
+        const int ParentReimportCap = 50;
+
+        struct ParentReimportResults
+        {
+            public List<ShaderGraphParentReimportResult> Results;
+            public string? CapWarning;
+        }
+
+        static ParentReimportResults ReimportParentGraphs(string subGraphAssetPath)
+        {
+            var results = new List<ShaderGraphParentReimportResult>();
+            string? capWarning = null;
+
+            var allGraphGuids = AssetDatabase.FindAssets("t:Shader t:SubGraphAsset");
+            var parentPaths = new List<string>();
+
+            foreach (var guid in allGraphGuids)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!IsShaderGraphFamilyAssetPath(path))
+                    continue;
+                if (string.Equals(path, subGraphAssetPath, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var deps = AssetDatabase.GetDependencies(path, false);
+                if (deps.Any(d => string.Equals(d, subGraphAssetPath, StringComparison.OrdinalIgnoreCase)))
+                    parentPaths.Add(path);
+            }
+
+            if (parentPaths.Count > ParentReimportCap)
+            {
+                capWarning = $"Sub graph is referenced by {parentPaths.Count} parents. " +
+                    $"Only the first {ParentReimportCap} were re-imported.";
+                parentPaths = parentPaths.Take(ParentReimportCap).ToList();
+            }
+
+            foreach (var parentPath in parentPaths)
+            {
+                RefreshSubGraphNodeSlots(parentPath);
+
+                AssetDatabase.ImportAsset(parentPath, ImportAssetOptions.ForceSynchronousImport);
+                ReloadOpenShaderGraphWindows(parentPath);
+
+                var parentResult = new ShaderGraphParentReimportResult { AssetPath = parentPath };
+
+                if (IsShaderGraphAssetPath(parentPath))
+                {
+                    var shader = AssetDatabase.LoadAssetAtPath<Shader>(parentPath);
+                    parentResult.CompilesOk = shader != null && !ShaderUtil.ShaderHasError(shader);
+                }
+                else
+                {
+                    parentResult.CompilesOk = true;
+                }
+
+                results.Add(parentResult);
+            }
+
+            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+            return new ParentReimportResults { Results = results, CapWarning = capWarning };
+        }
+
+        static void RefreshSubGraphNodeSlots(string parentGraphPath)
+        {
+            var document = LoadShaderGraphReflectionDocument(parentGraphPath);
+            SaveShaderGraphReflectionDocument(document);
         }
 
         static void ReloadOpenShaderGraphWindows(string assetPath)

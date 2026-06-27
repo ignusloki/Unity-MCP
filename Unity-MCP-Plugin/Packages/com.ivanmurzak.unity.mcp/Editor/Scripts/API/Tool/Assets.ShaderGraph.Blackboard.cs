@@ -268,7 +268,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 };
             }
 
-            return BuildDeletePropertyMutationResult(
+            ParentReimportResults? parentReimport = null;
+            if (IsSubGraphAssetPath(assetPath))
+                parentReimport = ReimportParentGraphs(assetPath);
+
+            var result = BuildDeletePropertyMutationResult(
                 assetPath,
                 graphRef,
                 deletedProperty,
@@ -280,6 +284,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 includeGraph,
                 includeMessages,
                 includeProperties);
+            result.ParentResults = parentReimport?.Results;
+            result.ParentCapWarning = parentReimport?.CapWarning;
+            return result;
         }
 
         static void WriteAndFinalizeDeletePropertyMutation(ShaderGraphMutableDocument document, string originalSourceText, bool deferImport = false)

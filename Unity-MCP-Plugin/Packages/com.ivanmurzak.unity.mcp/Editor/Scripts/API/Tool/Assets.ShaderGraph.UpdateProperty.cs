@@ -113,11 +113,16 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             var updatedPropertyId = GetString(propertyObject, "m_ObjectId");
 
+            ParentReimportResults? parentReimport = null;
             if (changedFields.Count > 0)
             {
                 WriteMutableDocument(document);
                 if (!deferImport)
+                {
                     FinalizeShaderGraphMutation(assetPath);
+                    if (IsSubGraphAssetPath(assetPath))
+                        parentReimport = ReimportParentGraphs(assetPath);
+                }
             }
 
             if (deferImport)
@@ -151,7 +156,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                         includeMessages: includeMessages,
                         includeProperties: includeProperties,
                         includeDiagnostics: true)
-                    : null
+                    : null,
+                ParentResults = parentReimport?.Results,
+                ParentCapWarning = parentReimport?.CapWarning
             };
         }
 

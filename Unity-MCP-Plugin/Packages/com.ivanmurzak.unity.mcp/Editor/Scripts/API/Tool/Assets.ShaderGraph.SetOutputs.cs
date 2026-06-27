@@ -27,8 +27,6 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
     {
         public const string AssetsShaderSubGraphSetOutputsToolId = "assets-shadersubgraph-set-outputs";
 
-        const int ParentReimportCap = 50;
-
         static readonly HashSet<string> SupportedOutputTypes = new(StringComparer.OrdinalIgnoreCase)
         {
             "Color", "Float", "Vector2", "Vector3", "Vector4", "Boolean"
@@ -526,62 +524,5 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             return 0;
         }
 
-        struct ParentReimportResults
-        {
-            public List<ShaderGraphParentReimportResult> Results;
-            public string? CapWarning;
-        }
-
-        static ParentReimportResults ReimportParentGraphs(string subGraphAssetPath)
-        {
-            var results = new List<ShaderGraphParentReimportResult>();
-            string? capWarning = null;
-
-            var allGraphGuids = AssetDatabase.FindAssets("t:Shader t:SubGraphAsset");
-            var parentPaths = new List<string>();
-
-            foreach (var guid in allGraphGuids)
-            {
-                var path = AssetDatabase.GUIDToAssetPath(guid);
-                if (!IsShaderGraphFamilyAssetPath(path))
-                    continue;
-                if (string.Equals(path, subGraphAssetPath, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                var deps = AssetDatabase.GetDependencies(path, false);
-                if (deps.Any(d => string.Equals(d, subGraphAssetPath, StringComparison.OrdinalIgnoreCase)))
-                    parentPaths.Add(path);
-            }
-
-            if (parentPaths.Count > ParentReimportCap)
-            {
-                capWarning = $"Sub graph is referenced by {parentPaths.Count} parents. " +
-                    $"Only the first {ParentReimportCap} were re-imported.";
-                parentPaths = parentPaths.Take(ParentReimportCap).ToList();
-            }
-
-            foreach (var parentPath in parentPaths)
-            {
-                AssetDatabase.ImportAsset(parentPath, ImportAssetOptions.ForceSynchronousImport);
-                ReloadOpenShaderGraphWindows(parentPath);
-
-                var parentResult = new ShaderGraphParentReimportResult { AssetPath = parentPath };
-
-                if (IsShaderGraphAssetPath(parentPath))
-                {
-                    var shader = AssetDatabase.LoadAssetAtPath<Shader>(parentPath);
-                    parentResult.CompilesOk = shader != null && !ShaderUtil.ShaderHasError(shader);
-                }
-                else
-                {
-                    parentResult.CompilesOk = true;
-                }
-
-                results.Add(parentResult);
-            }
-
-            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
-            return new ParentReimportResults { Results = results, CapWarning = capWarning };
-        }
     }
 }

@@ -162,6 +162,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             FinalizeShaderGraphMutation(assetPath);
 
+            ParentReimportResults? parentReimport = null;
+            if (IsSubGraphAssetPath(assetPath))
+                parentReimport = ReimportParentGraphs(assetPath);
+
             var graphRef = new AssetObjectRef(assetPath);
             var structure = BuildShaderGraphStructureData(graphRef);
             var createdProperty = structure.Properties?
@@ -183,7 +187,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                         includeMessages: includeMessages,
                         includeProperties: includeProperties,
                         includeDiagnostics: true)
-                    : null
+                    : null,
+                ParentResults = parentReimport?.Results,
+                ParentCapWarning = parentReimport?.CapWarning
             };
         }
 
