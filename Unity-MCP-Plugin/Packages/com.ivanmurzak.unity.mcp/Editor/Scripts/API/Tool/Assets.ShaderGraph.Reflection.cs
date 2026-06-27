@@ -429,6 +429,38 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {
+                    ApiName = "normalize",
+                    DisplayName = "Normalize",
+                    TypeName = "UnityEditor.ShaderGraph.NormalizeNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "spherize",
+                    DisplayName = "Spherize",
+                    TypeName = "UnityEditor.ShaderGraph.SpherizeNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 132f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "float",
+                    DisplayName = "Float",
+                    TypeName = "UnityEditor.ShaderGraph.Vector1Node",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "vector3",
+                    DisplayName = "Vector 3",
+                    TypeName = "UnityEditor.ShaderGraph.Vector3Node",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 112f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
                     ApiName = "subGraph",
                     DisplayName = "Sub Graph",
                     TypeName = "UnityEditor.ShaderGraph.SubGraphNode",

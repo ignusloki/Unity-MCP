@@ -62,7 +62,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `normalFromHeight`: `outputSpace`\n" +
             "- `blend`: `blendMode`\n" +
             "- `swizzle`: `mask`\n" +
+            "- `float`: default `x` (scalar) value\n" +
             "- `vector2`: default `x` and `y` slot values\n" +
+            "- `vector3`: default `x`, `y`, and `z` slot values\n" +
+            "- `spherize`: default `center`, `strength`, and `offset` slot values\n" +
             "- `smoothstep`: default `edge1`, `edge2`, and `input` slot values\n" +
             "- `invertColors`: `red`, `green`, and `blue` channel toggles; `alpha` is rejected because the current Unity Shader Graph package does not serialize it safely\n" +
             "- `sine`, `cosine`, `negate`: default `input` slot value\n" +
@@ -315,8 +318,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "UnityEditor.ShaderGraph.SwizzleNode":
                     ApplySwizzleNodeSettings(nodeObject, node.Swizzle, changedFields);
                     break;
+                case "UnityEditor.ShaderGraph.Vector1Node":
+                    ApplyFloatNodeSettings(document.Bindings, nodeObject, node.Float, changedFields);
+                    break;
                 case "UnityEditor.ShaderGraph.Vector2Node":
                     ApplyVector2NodeSettings(document.Bindings, nodeObject, node.Vector2, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.Vector3Node":
+                    ApplyVector3NodeSettings(document.Bindings, nodeObject, node.Vector3, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.SpherizeNode":
+                    ApplySpherizeNodeSettings(document.Bindings, nodeObject, node.Spherize, changedFields);
                     break;
                 case "UnityEditor.ShaderGraph.SmoothstepNode":
                     ApplySmoothstepNodeSettings(document.Bindings, nodeObject, node.Smoothstep, changedFields);
@@ -491,7 +503,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasNormalFromHeightUpdates(node.NormalFromHeight)
                || HasBlendUpdates(node.Blend)
                || HasSwizzleUpdates(node.Swizzle)
+               || HasFloatNodeUpdates(node.Float)
                || HasVector2NodeUpdates(node.Vector2)
+               || HasVector3NodeUpdates(node.Vector3)
+               || HasSpherizeUpdates(node.Spherize)
                || HasSmoothstepUpdates(node.Smoothstep)
                || HasStepUpdates(node.Step)
                || HasInvertColorsUpdates(node.InvertColors)
@@ -531,7 +546,10 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasNormalFromHeightUpdates(node.NormalFromHeight)) count++;
             if (HasBlendUpdates(node.Blend)) count++;
             if (HasSwizzleUpdates(node.Swizzle)) count++;
+            if (HasFloatNodeUpdates(node.Float)) count++;
             if (HasVector2NodeUpdates(node.Vector2)) count++;
+            if (HasVector3NodeUpdates(node.Vector3)) count++;
+            if (HasSpherizeUpdates(node.Spherize)) count++;
             if (HasSmoothstepUpdates(node.Smoothstep)) count++;
             if (HasStepUpdates(node.Step)) count++;
             if (HasInvertColorsUpdates(node.InvertColors)) count++;
@@ -648,8 +666,20 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static bool HasSwizzleUpdates(ShaderGraphSwizzleNodeSettingsUpdateInput? swizzle)
             => swizzle != null && !string.IsNullOrWhiteSpace(swizzle.Mask);
 
+        static bool HasFloatNodeUpdates(ShaderGraphFloatNodeSettingsUpdateInput? f)
+            => f != null && f.X.HasValue;
+
         static bool HasVector2NodeUpdates(ShaderGraphVector2NodeSettingsUpdateInput? vector2)
             => vector2 != null && (vector2.X.HasValue || vector2.Y.HasValue);
+
+        static bool HasVector3NodeUpdates(ShaderGraphVector3NodeSettingsUpdateInput? vector3)
+            => vector3 != null && (vector3.X.HasValue || vector3.Y.HasValue || vector3.Z.HasValue);
+
+        static bool HasSpherizeUpdates(ShaderGraphSpherizeNodeSettingsUpdateInput? spherize)
+            => spherize != null
+               && (HasVector2Updates(spherize.Center)
+                   || HasVector2Updates(spherize.Strength)
+                   || HasVector2Updates(spherize.Offset));
 
         static bool HasSmoothstepUpdates(ShaderGraphSmoothstepNodeSettingsUpdateInput? smoothstep)
             => smoothstep != null
@@ -1279,6 +1309,18 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             AddChangedField(changedFields, "node.swizzle.mask");
         }
 
+        static void ApplyFloatNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphFloatNodeSettingsUpdateInput? f,
+            List<string> changedFields)
+        {
+            if (f == null)
+                throw new InvalidOperationException("Float nodes require a `float` settings payload.");
+
+            SetSlotFloat(bindings, nodeObject, "X", f.X, "node.float.x", changedFields);
+        }
+
         static void ApplyVector2NodeSettings(
             ShaderGraphReflectionBindings bindings,
             object nodeObject,
@@ -1290,6 +1332,34 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             SetSlotFloat(bindings, nodeObject, "X", vector2.X, "node.vector2.x", changedFields);
             SetSlotFloat(bindings, nodeObject, "Y", vector2.Y, "node.vector2.y", changedFields);
+        }
+
+        static void ApplyVector3NodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphVector3NodeSettingsUpdateInput? vector3,
+            List<string> changedFields)
+        {
+            if (vector3 == null)
+                throw new InvalidOperationException("Vector 3 nodes require a `vector3` settings payload.");
+
+            SetSlotFloat(bindings, nodeObject, "X", vector3.X, "node.vector3.x", changedFields);
+            SetSlotFloat(bindings, nodeObject, "Y", vector3.Y, "node.vector3.y", changedFields);
+            SetSlotFloat(bindings, nodeObject, "Z", vector3.Z, "node.vector3.z", changedFields);
+        }
+
+        static void ApplySpherizeNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphSpherizeNodeSettingsUpdateInput? spherize,
+            List<string> changedFields)
+        {
+            if (spherize == null)
+                throw new InvalidOperationException("Spherize nodes require a `spherize` settings payload.");
+
+            SetSlotVector2(bindings, nodeObject, "Center", spherize.Center, "node.spherize.center", changedFields);
+            SetSlotVector2(bindings, nodeObject, "Strength", spherize.Strength, "node.spherize.strength", changedFields);
+            SetSlotVector2(bindings, nodeObject, "Offset", spherize.Offset, "node.spherize.offset", changedFields);
         }
 
         static void ApplySmoothstepNodeSettings(

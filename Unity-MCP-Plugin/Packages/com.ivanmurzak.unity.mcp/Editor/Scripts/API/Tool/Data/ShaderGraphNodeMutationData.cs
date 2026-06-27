@@ -49,7 +49,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, camera, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, exponential, invertColors, vector2, uv, sine, cosine, negate, fresnelEffect, reciprocal, subGraph, customFunction.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, camera, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, exponential, invertColors, float, vector2, vector3, uv, sine, cosine, negate, fresnelEffect, reciprocal, normalize, spherize, subGraph, customFunction.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]
@@ -238,6 +238,15 @@ namespace AIGD
 
         [Description("Structured settings updates for a Custom Function node.")]
         public ShaderGraphCustomFunctionNodeSettingsUpdateInput? CustomFunction { get; set; }
+
+        [Description("Structured settings updates for a Float node (Vector1Node).")]
+        public ShaderGraphFloatNodeSettingsUpdateInput? Float { get; set; }
+
+        [Description("Structured settings updates for a Vector 3 node.")]
+        public ShaderGraphVector3NodeSettingsUpdateInput? Vector3 { get; set; }
+
+        [Description("Structured settings updates for a Spherize node.")]
+        public ShaderGraphSpherizeNodeSettingsUpdateInput? Spherize { get; set; }
     }
 
     [Description("Structured settings updates for a Sample Texture 2D node.")]
@@ -497,6 +506,39 @@ namespace AIGD
 
         [Description("Default value for the Y input slot.")]
         public float? Y { get; set; }
+    }
+
+    [Description("Structured settings updates for a Float node (Vector1Node).")]
+    public class ShaderGraphFloatNodeSettingsUpdateInput
+    {
+        [Description("Default value for the X (scalar) output.")]
+        public float? X { get; set; }
+    }
+
+    [Description("Structured settings updates for a Vector 3 node.")]
+    public class ShaderGraphVector3NodeSettingsUpdateInput
+    {
+        [Description("Default value for the X component.")]
+        public float? X { get; set; }
+
+        [Description("Default value for the Y component.")]
+        public float? Y { get; set; }
+
+        [Description("Default value for the Z component.")]
+        public float? Z { get; set; }
+    }
+
+    [Description("Structured settings updates for a Spherize node.")]
+    public class ShaderGraphSpherizeNodeSettingsUpdateInput
+    {
+        [Description("Default value for the Center input slot.")]
+        public ShaderGraphVector2ValueUpdateInput? Center { get; set; }
+
+        [Description("Default value for the Strength input slot.")]
+        public ShaderGraphVector2ValueUpdateInput? Strength { get; set; }
+
+        [Description("Default value for the Offset input slot.")]
+        public ShaderGraphVector2ValueUpdateInput? Offset { get; set; }
     }
 
     [Description("Structured settings updates for a Smoothstep node.")]
