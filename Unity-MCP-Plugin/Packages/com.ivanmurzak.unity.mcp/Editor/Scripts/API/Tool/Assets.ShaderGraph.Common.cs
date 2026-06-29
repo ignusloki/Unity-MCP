@@ -406,11 +406,24 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                         inputSlotId.Value,
                         expectedSlotType: 0);
 
+                    var outputNodeId = GetStringAt(edgeObject, "m_OutputSlot", "m_Node", "m_Id");
+                    var outputSlotId = GetIntAt(edgeObject, "m_OutputSlot", "m_SlotId");
+
+                    if (IsLiteralOnlyVectorComponentInputSlot(inputSlot))
+                    {
+                        diagnostics.Add(new ShaderGraphDiagnosticData
+                        {
+                            Code = "SHADERGRAPH_LITERAL_SLOT_EDGE",
+                            Severity = "Error",
+                            Message = $"Shader Graph '{assetPath}' has an edge '{outputNodeId ?? "<unknown>"}:{(outputSlotId.HasValue ? outputSlotId.Value.ToString() : "?")}' into literal-only {GetString(inputSlot.NodeObject, "m_Name")}.{GetString(inputSlot.SlotObject, "m_DisplayName")}.",
+                            Hint = "Remove the edge and set a literal with assets-shadergraph-update-node-settings, or use Combine.R/G to construct a Vector2 from runtime values."
+                        });
+                        continue;
+                    }
+
                     if (!IsStepEdgeInputSlot(inputSlot))
                         continue;
 
-                    var outputNodeId = GetStringAt(edgeObject, "m_OutputSlot", "m_Node", "m_Id");
-                    var outputSlotId = GetIntAt(edgeObject, "m_OutputSlot", "m_SlotId");
                     if (!string.IsNullOrEmpty(outputNodeId) && outputSlotId.HasValue)
                     {
                         var outputSlot = ResolveNodeSlotBySlotId(

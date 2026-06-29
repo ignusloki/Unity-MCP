@@ -4716,6 +4716,131 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_ConnectEdge_RejectsRuntimeInputIntoVector2LiteralComponent()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_RainWall_Vector2LiteralReject.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var multiply = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -740f, PositionY = 80f });
+                var vector2 = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "vector2", PositionX = -500f, PositionY = 80f });
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structure.Nodes!.First(node => node.ObjectId == multiply.Node!.ObjectId);
+                var vector2Node = structure.Nodes!.First(node => node.ObjectId == vector2.Node!.ObjectId);
+
+                var exception = Assert.Throws<InvalidOperationException>(() =>
+                    ConnectSlots(tool, shader!, multiplyNode, "Out", vector2Node, "Y"));
+
+                StringAssert.Contains("requires a literal compile-time value", exception!.Message);
+                StringAssert.Contains("use Combine.R/G", exception.Message);
+                Assert.IsFalse(tool.GetStructure(new AssetObjectRef(shader)).Edges!.Any(edge =>
+                    edge.OutputNodeId == multiplyNode.ObjectId && edge.InputNodeId == vector2Node.ObjectId));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_BatchConnectEdge_RejectsRuntimeInputIntoVector2LiteralComponentAndRollsBack()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_RainWall_Vector2LiteralBatchReject.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var exception = Assert.Throws<InvalidOperationException>(() =>
+                    tool.Batch(
+                        new AssetObjectRef(shader),
+                        new ShaderGraphBatchInput
+                        {
+                            Operations = new List<ShaderGraphBatchOperationInput>
+                            {
+                                new()
+                                {
+                                    Kind = "addNode",
+                                    Alias = "multiply",
+                                    AddNode = new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -740f, PositionY = 80f }
+                                },
+                                new()
+                                {
+                                    Kind = "addNode",
+                                    Alias = "vector2",
+                                    AddNode = new ShaderGraphAddNodeInput { NodeType = "vector2", PositionX = -500f, PositionY = 80f }
+                                },
+                                new()
+                                {
+                                    Kind = "connectEdge",
+                                    ConnectEdge = new ShaderGraphConnectEdgeInput
+                                    {
+                                        OutputSlot = new ShaderGraphSlotRef
+                                        {
+                                            Node = new ShaderGraphNodeRef { Alias = "multiply" },
+                                            DisplayName = "Out"
+                                        },
+                                        InputSlot = new ShaderGraphSlotRef
+                                        {
+                                            Node = new ShaderGraphNodeRef { Alias = "vector2" },
+                                            DisplayName = "Y"
+                                        }
+                                    }
+                                }
+                            }
+                        }));
+
+                StringAssert.Contains("requires a literal compile-time value", exception!.Message);
+
+                var structureAfterRollback = tool.GetStructure(new AssetObjectRef(shader));
+                Assert.IsFalse(structureAfterRollback.Nodes!.Any(node =>
+                    string.Equals(node.Type, "UnityEditor.ShaderGraph.Vector2Node", StringComparison.Ordinal)),
+                    "The failed batch should roll the added Vector 2 node back out of the graph.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_GetData_FlagsExistingEdgeIntoVector2LiteralComponent()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_RainWall_Vector2LiteralDiagnostics.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var multiply = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -740f, PositionY = 80f });
+                var vector2 = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "vector2", PositionX = -500f, PositionY = 80f });
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structure.Nodes!.First(node => node.ObjectId == multiply.Node!.ObjectId);
+                var vector2Node = structure.Nodes!.First(node => node.ObjectId == vector2.Node!.ObjectId);
+
+                AddRawEdgeForTest(assetPath, multiplyNode, "Out", vector2Node, "Y");
+
+                var data = tool.GetData(new AssetObjectRef(shader), includeMessages: false, includeProperties: false, includeDiagnostics: true);
+
+                Assert.IsTrue(data.HasErrors, "Serialized validation should flag the graph even when Unity resolves a fallback Shader without ShaderUtil errors.");
+                Assert.IsTrue(data.Diagnostics!.Any(d =>
+                        d.Code == "SHADERGRAPH_LITERAL_SLOT_EDGE"
+                        && d.Severity == "Error"
+                        && d.Message.Contains("Vector 2.Y", StringComparison.Ordinal)),
+                    "Expected get-data diagnostics to report the edge into literal-only Vector 2.Y.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_BatchConnectEdge_RejectsDynamicStepEdgeInputAndRollsBack()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_DissolveStepEdgeBatchReject.shadergraph", LitFullTemplateAssetPath);
@@ -8463,6 +8588,153 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                     && edge.OutputSlotId == FindSlot(sampleNode, "RGBA").SlotId
                     && edge.InputNodeId == normalTsBlock.ObjectId
                     && edge.InputSlotId == FindSlot(normalTsBlock, "Normal (Tangent Space)").SlotId));
+                Assert.IsTrue(batch.GraphSummary!.ShaderResolved);
+                Assert.IsFalse(batch.GraphSummary.HasErrors);
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ConnectEdge_AllowsSampleTextureVector4IntoBlendOpacity()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_RainWall_SampleTextureToBlendOpacity.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var sampleTexture = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "sampleTexture2D",
+                        PositionX = -680f,
+                        PositionY = 0f
+                    },
+                    includeStructure: true);
+                var blend = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "blend",
+                        PositionX = -360f,
+                        PositionY = 0f
+                    },
+                    includeStructure: true);
+
+                var rgbaSlot = FindSlot(sampleTexture.Node!, "RGBA");
+                var opacitySlot = FindSlot(blend.Node!, "Opacity");
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector4MaterialSlot", rgbaSlot.Type);
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector1MaterialSlot", opacitySlot.Type);
+
+                var connect = tool.ConnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = sampleTexture.Node.ObjectId,
+                        OutputSlotObjectId = rgbaSlot.ObjectId,
+                        InputNodeObjectId = blend.Node!.ObjectId,
+                        InputSlotObjectId = opacitySlot.ObjectId
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsTrue(connect.Structure!.Edges!.Any(edge =>
+                    edge.OutputNodeId == sampleTexture.Node.ObjectId
+                    && edge.OutputSlotId == rgbaSlot.SlotId
+                    && edge.InputNodeId == blend.Node.ObjectId
+                    && edge.InputSlotId == opacitySlot.SlotId));
+                Assert.IsTrue(connect.GraphSummary!.ShaderResolved);
+                Assert.IsFalse(connect.GraphSummary.HasErrors);
+                Assert.IsFalse(connect.Graph!.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Vector4 RGBA should connect directly into Blend.Opacity without Shader Graph import errors.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_BatchConnectEdge_AllowsSampleTextureVector4IntoBlendOpacity()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_Batch_RainWall_SampleTextureToBlendOpacity.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var batch = tool.Batch(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphBatchInput
+                    {
+                        ResponseMode = ShaderGraphResponseMode.Full,
+                        Operations = new List<ShaderGraphBatchOperationInput>
+                        {
+                            new()
+                            {
+                                Kind = "addNode",
+                                Alias = "maskSample",
+                                AddNode = new ShaderGraphAddNodeInput
+                                {
+                                    NodeType = "sampleTexture2D",
+                                    PositionX = -680f,
+                                    PositionY = 0f
+                                }
+                            },
+                            new()
+                            {
+                                Kind = "addNode",
+                                Alias = "smoothnessBlend",
+                                AddNode = new ShaderGraphAddNodeInput
+                                {
+                                    NodeType = "blend",
+                                    PositionX = -360f,
+                                    PositionY = 0f
+                                }
+                            },
+                            new()
+                            {
+                                Kind = "connectEdge",
+                                ConnectEdge = new ShaderGraphConnectEdgeInput
+                                {
+                                    OutputSlot = new ShaderGraphSlotRef
+                                    {
+                                        Node = new ShaderGraphNodeRef { Alias = "maskSample" },
+                                        DisplayName = "RGBA"
+                                    },
+                                    InputSlot = new ShaderGraphSlotRef
+                                    {
+                                        Node = new ShaderGraphNodeRef { Alias = "smoothnessBlend" },
+                                        DisplayName = "Opacity"
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                Assert.IsTrue(batch.Success);
+                Assert.IsTrue(batch.AliasMap!.TryGetValue("maskSample", out var sampleNodeId));
+                Assert.IsTrue(batch.AliasMap.TryGetValue("smoothnessBlend", out var blendNodeId));
+
+                var sampleNode = batch.Structure!.Nodes!.Single(node => node.ObjectId == sampleNodeId);
+                var blendNode = batch.Structure.Nodes!.Single(node => node.ObjectId == blendNodeId);
+                var rgbaSlot = FindSlot(sampleNode, "RGBA");
+                var opacitySlot = FindSlot(blendNode, "Opacity");
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector4MaterialSlot", rgbaSlot.Type);
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector1MaterialSlot", opacitySlot.Type);
+                Assert.IsTrue(batch.Structure.Edges!.Any(edge =>
+                    edge.OutputNodeId == sampleNode.ObjectId
+                    && edge.OutputSlotId == rgbaSlot.SlotId
+                    && edge.InputNodeId == blendNode.ObjectId
+                    && edge.InputSlotId == opacitySlot.SlotId));
                 Assert.IsTrue(batch.GraphSummary!.ShaderResolved);
                 Assert.IsFalse(batch.GraphSummary.HasErrors);
             }

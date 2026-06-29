@@ -589,11 +589,15 @@ Slices:
 - Slice 7M.2: expose typed slot-default readback and update support for `Clamp.In`, `Clamp.Min`, and `Clamp.Max`. Implemented.
 - Slice 7M.3: extend projected structure/query responses and public tool descriptions so agents can discover `Clamp` without probing the editor. Implemented.
 - Slice 7M.4: allow normal-configured `Sample Texture 2D.RGBA -> Fragment Normal (Tangent Space)` connections without workaround nodes. Implemented.
+- Slice 7M.5: allow direct `Vector4 -> Vector1` narrowing for the validated Rain Wall `Sample Texture 2D.RGBA -> Blend.Opacity` path. Implemented.
+- Slice 7M.6: reject runtime edges into literal-only `Vector 2.X/Y` inputs across connect/reconnect/reroute/batch, surface existing invalid edges through serialized diagnostics, and direct runtime Vector2 construction through `Combine.R/G`. Implemented after the Rain Wall fallback-shader investigation disproved fragment block ordering as the cause.
 
 Validation coverage:
 
 - `Validation_AddNode_Clamp.shadergraph`: editor test creates `Clamp`, verifies the `In`/`Min`/`Max`/`Out` slot topology, updates typed literal defaults, confirms structure readback, then exercises duplicate, move, and delete flows with clean diagnostics.
 - `Validation_RainWall_NormalSampleToNormalTS.shadergraph` and `Validation_Batch_RainWall_NormalSampleToNormalTS.shadergraph`: editor tests validate both single-op and batch `Sample Texture 2D` normal-map RGBA wiring into the Lit `SurfaceDescription.NormalTS` block, requiring clean import diagnostics.
+- `Validation_RainWall_SampleTextureToBlendOpacity.shadergraph` and `Validation_Batch_RainWall_SampleTextureToBlendOpacity.shadergraph`: editor tests validate both single-op and batch `Sample Texture 2D.RGBA -> Blend.Opacity` wiring, requiring clean import diagnostics.
+- `Validation_RainWall_Vector2LiteralReject.shadergraph`, `Validation_RainWall_Vector2LiteralBatchReject.shadergraph`, and `Validation_RainWall_Vector2LiteralDiagnostics.shadergraph`: editor regressions cover pre-mutation rejection, exact batch rollback, and `SHADERGRAPH_LITERAL_SLOT_EDGE` readback for an already-invalid graph.
 
 ## Epic 8A: Slim Default Mutation Responses
 

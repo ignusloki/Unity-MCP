@@ -97,6 +97,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- selection by node object id plus slot object id, or by reference: pass `OutputSlot`/`InputSlot` carrying `Node` (Alias/DisplayName/ObjectId) + `DisplayName` (the slot name) — the resolver looks up the serialized ids for you, removing the need to round-trip through `get-structure`\n" +
             "- requires the input slot to be currently unconnected unless `replaceExistingInputConnection` is true\n" +
             "- supports exact slot-type matches\n" +
+            "- rejects edges into literal-only `Vector 2.X/Y` inputs; set constant components with `assets-shadergraph-update-node-settings`, or use `Combine.R/G` to assemble runtime values\n" +
             "- supports compatible UV/vector2 slot pairs\n" +
             "- supports scalar outputs into Shader Graph vector2 inputs such as `Float Property -> Tiling And Offset.Tiling`\n" +
             "- supports scalar `Vector1MaterialSlot` outputs broadcasting into Shader Graph UV inputs such as `Time.Time -> Simple Noise.UV`\n" +
@@ -112,6 +113,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n" +
             "- supports direct `Vector4 -> UV` edges via Unity's documented `.xy` truncation (no narrowing node needed)\n" +
             "- supports direct `Vector4 -> Vector3` edges via Unity's normal `.xyz` truncation, including `Sample Texture 2D.RGBA -> Sub Graph Vector3 input`\n" +
+            "- supports direct `Vector4 -> Vector1` edges via Unity's scalar narrowing, including `Sample Texture 2D.RGBA -> Blend.Opacity`\n" +
             "- supports explicit vector narrowing workflows such as `Vector3 -> Split -> Combine(Vector2) -> UV`; direct Vector3-to-UV remains rejected unless Unity exposes a validated direct conversion\n" +
             "- supports guarded input-edge replacement when `replaceExistingInputConnection` is true\n" +
             "- supports idempotent connect when `allowExisting` is true: if the exact requested edge already exists, the call succeeds as a no-op (no asset import, `ChangedFields=[\"edge.alreadyExists\"]`, `AlreadyExisted=true`). Incompatible pairings and conflicting input connections still fail loudly\n" +
@@ -828,6 +830,15 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.IsNullOrEmpty(outputType) || string.IsNullOrEmpty(inputType))
                 throw new InvalidOperationException("Both slots must expose a serialized m_Type.");
 
+            if (IsLiteralOnlyVectorComponentInputSlot(inputSlot))
+            {
+                throw new InvalidOperationException(
+                    $"{GetString(inputSlot.NodeObject, "m_Name")}.{GetString(inputSlot.SlotObject, "m_DisplayName")} " +
+                    "requires a literal compile-time value and cannot accept an edge. " +
+                    "Set the component through assets-shadergraph-update-node-settings, or use Combine.R/G " +
+                    "when constructing a Vector2 from runtime values.");
+            }
+
             if (IsStepEdgeInputSlot(inputSlot)
                 && !string.Equals(outputType, "UnityEditor.ShaderGraph.Vector1MaterialSlot", StringComparison.Ordinal))
             {
@@ -872,6 +883,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             // Validated against the Comic Halftone Sample Texture RGBA -> RGB To CMYK input path.
             if (string.Equals(outputType, "UnityEditor.ShaderGraph.Vector4MaterialSlot", StringComparison.Ordinal)
                 && string.Equals(inputType, "UnityEditor.ShaderGraph.Vector3MaterialSlot", StringComparison.Ordinal))
+                return;
+
+            // Vector4 -> Vector1 is supported directly via Unity's scalar narrowing.
+            // Validated against the Rain Wall Sample Texture RGBA -> Blend.Opacity path.
+            if (string.Equals(outputType, "UnityEditor.ShaderGraph.Vector4MaterialSlot", StringComparison.Ordinal)
+                && string.Equals(inputType, "UnityEditor.ShaderGraph.Vector1MaterialSlot", StringComparison.Ordinal))
                 return;
 
             if ((string.Equals(outputType, "UnityEditor.ShaderGraph.Vector4MaterialSlot", StringComparison.Ordinal)
@@ -932,6 +949,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static bool IsStepEdgeInputSlot(NodeSlotContext inputSlot)
             => string.Equals(GetString(inputSlot.NodeObject, "m_Type"), "UnityEditor.ShaderGraph.StepNode", StringComparison.Ordinal)
                && string.Equals(GetString(inputSlot.SlotObject, "m_DisplayName"), "Edge", StringComparison.Ordinal)
+               && inputSlot.SlotType == 0;
+
+        static bool IsLiteralOnlyVectorComponentInputSlot(NodeSlotContext inputSlot)
+            => string.Equals(GetString(inputSlot.NodeObject, "m_Type"), "UnityEditor.ShaderGraph.Vector2Node", StringComparison.Ordinal)
+               && (string.Equals(GetString(inputSlot.SlotObject, "m_DisplayName"), "X", StringComparison.Ordinal)
+                   || string.Equals(GetString(inputSlot.SlotObject, "m_DisplayName"), "Y", StringComparison.Ordinal))
                && inputSlot.SlotType == 0;
 
         static JsonArray EnsureEdgeArray(JsonObject root)
