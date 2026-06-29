@@ -539,6 +539,60 @@ Validation evidence:
 - Focused editor-test execution remains pending as described in Status; live import evidence is complete.
 - `ShaderGraph_BatchConnectEdge_PreservesDynamicBinaryInputIdentity(true/false)` covers both `A then B` and `B then A` operation order. The dedicated editor test assembly compiles with 0 errors. Unity EditMode execution was attempted on 2026-06-25 but the test runner refused to start because `Assets/Unity-MCP-Test/Trials/StylizedWater1/StylizedWater1.unity` has unsaved changes.
 
+## Epic 7L: Comic Halftone Trial Gaps
+
+Status:
+
+- Implemented in code on `custom/trial-stylized-water2` on 2026-06-26.
+- Production and editor-test assemblies compile with 0 errors.
+- Focused EditMode execution is pending because Unity refuses to run tests while `Assets/Trial/Stylized Water Shader-Claude/StylizedWater.unity` has unsaved changes.
+
+Purpose:
+
+- Close the five preflight blockers reported by `Assets/Trial/Comic book (halftone) shader - Codex/REPORT.md` without replacing reference nodes with alternate topology.
+
+Slices:
+
+- Slice 7L.1: add `voronoi` as `UnityEditor.ShaderGraph.VoronoiNode`, expose all five slots, and add typed `hashType` readback/update (`deterministic`, `legacySine`). Implemented.
+- Slice 7L.2: add `rotate` as `UnityEditor.ShaderGraph.RotateNode` and typed `unit` readback/update (`radians`, `degrees`). Implemented.
+- Slice 7L.3: add `degreesToRadians` as `UnityEditor.ShaderGraph.DegreesToRadiansNode`. Implemented.
+- Slice 7L.4: add `screen` as `UnityEditor.ShaderGraph.ScreenNode`, exposing Width slot `0` and Height slot `1`. Implemented.
+- Slice 7L.5: narrow the `Step.Edge` guard to permit concrete scalar `Vector1MaterialSlot` sources while retaining rejection and diagnostics for unresolved dynamic-vector sources. Implemented.
+- Slice 7L.6: update public tool descriptions, query projection, capabilities, future debt, and the trial report. Implemented.
+- Slice 7L.7: allow the concrete `Vector4MaterialSlot -> Vector3MaterialSlot` truncation used by `Sample Texture 2D.RGBA -> RGB To CMYK.RGB`, with no inserted adapter nodes. Implemented; external trial validation pending.
+
+Validation coverage:
+
+- `Validation_ComicHalftone_NodeCoverage.shadergraph`: creates all four node families, verifies slot topology, updates Voronoi/Rotate enums, rejects invalid enum values, and exercises duplicate/move/delete flows.
+- `Validation_ComicHalftone_DotsPattern.shadersubgraph`: authors `Rotation -> Degrees To Radians -> Rotate`, `UV -> Rotate -> Voronoi`, `Dot Size (Float) -> Step.Edge`, `Voronoi.Out -> Step.In`, and `Step.Out -> Sub Graph output`, then forces reimport and diagnostics readback.
+- `Validation_ComicHalftone_ScreenAspect.shadergraph`: authors `Screen.Width/Height -> Divide`, then `Divide -> Multiply -> Vector 2`, verifies Width/Height slot IDs, and checks import diagnostics.
+- `Validation_ConnectEdge_Vector4ToVector3.shadergraph` plus `Validation_Vector4ToVector3_RGBToCMYK.shadersubgraph`: connects `Sample Texture 2D.RGBA` directly to a referenced Sub Graph Vector3 `RGB` input, asserts exact slot types and serialized IDs, forces reimport, verifies edge persistence, and requires clean diagnostics.
+- `dotnet build Assembly-CSharp.csproj -v minimal`: passed with 0 errors.
+- `dotnet build com.IvanMurzak.Unity.MCP.Editor.Tests.csproj -v minimal`: passed with 0 errors and existing Unity deprecation/nullability warnings.
+- Runtime test execution remains pending as described in Status; external trial validation should confirm the graph visually and structurally.
+
+## Epic 7M: Rain Wall Trial Clamp Gap
+
+Status:
+
+- Implemented in code on `custom/trial-stylized-water2` on 2026-06-29.
+- Production and editor-test assemblies compile locally after the change.
+- External MCP validation is intentionally deferred to the separate trial agent.
+
+Purpose:
+
+- Close the Rain Wall trial blocker reported by `Assets/Trial/Rain Wall-Codex/REPORT.md`, where the reference graph required a real `Clamp` node in the smoothness chain and the MCP rejected `nodeType = "clamp"`.
+
+Slices:
+
+- Slice 7M.1: add `clamp` as `UnityEditor.ShaderGraph.ClampNode` to the safe add-node allowlist. Implemented.
+- Slice 7M.2: expose typed slot-default readback and update support for `Clamp.In`, `Clamp.Min`, and `Clamp.Max`. Implemented.
+- Slice 7M.3: extend projected structure/query responses and public tool descriptions so agents can discover `Clamp` without probing the editor. Implemented.
+
+Validation coverage:
+
+- `Validation_AddNode_Clamp.shadergraph`: editor test creates `Clamp`, verifies the `In`/`Min`/`Max`/`Out` slot topology, updates typed literal defaults, confirms structure readback, then exercises duplicate, move, and delete flows with clean diagnostics.
+
 ## Epic 8A: Slim Default Mutation Responses
 
 Status:

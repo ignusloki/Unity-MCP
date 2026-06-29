@@ -49,7 +49,7 @@ namespace AIGD
     [Description("Structured input for adding a safe allowlisted Shader Graph node.")]
     public class ShaderGraphAddNodeInput
     {
-        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, screenPosition, sceneDepth, camera, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, saturate, exponential, invertColors, float, vector2, vector3, uv, sine, cosine, negate, fresnelEffect, reciprocal, normalize, spherize, subGraph, customFunction.")]
+        [Description("Allowlisted node type to create. Supported values: add, subtract, multiply, divide, power, lerp, oneMinus, fraction, split, combine, sampleTexture2D, tilingAndOffset, branch, viewDirection, viewVector, normalVector, position, object, transform, gradientNoise, simpleNoise, voronoi, uv, rotate, degreesToRadians, screen, screenPosition, sceneDepth, camera, sceneColor, comparison, normalFromHeight, blend, remap, swizzle, time, smoothstep, step, clamp, saturate, exponential, invertColors, float, vector2, vector3, sine, cosine, negate, fresnelEffect, reciprocal, normalize, spherize, subGraph, customFunction.")]
         public string? NodeType { get; set; }
 
         [Description("Serialized X position for the new node. Default: 0.")]
@@ -188,6 +188,12 @@ namespace AIGD
         [Description("Structured settings updates for a Simple Noise node.")]
         public ShaderGraphSimpleNoiseNodeSettingsUpdateInput? SimpleNoise { get; set; }
 
+        [Description("Structured settings updates for a Voronoi node.")]
+        public ShaderGraphVoronoiNodeSettingsUpdateInput? Voronoi { get; set; }
+
+        [Description("Structured settings updates for a Rotate node.")]
+        public ShaderGraphRotateNodeSettingsUpdateInput? Rotate { get; set; }
+
         [Description("Structured settings updates for a UV node.")]
         public ShaderGraphUvNodeSettingsUpdateInput? Uv { get; set; }
 
@@ -217,6 +223,9 @@ namespace AIGD
 
         [Description("Structured settings updates for a Step node.")]
         public ShaderGraphStepNodeSettingsUpdateInput? Step { get; set; }
+
+        [Description("Structured settings updates for a Clamp node.")]
+        public ShaderGraphClampNodeSettingsUpdateInput? Clamp { get; set; }
 
         [Description("Structured settings updates for an Invert Colors node.")]
         public ShaderGraphInvertColorsNodeSettingsUpdateInput? InvertColors { get; set; }
@@ -449,6 +458,20 @@ namespace AIGD
         public float? Scale { get; set; }
     }
 
+    [Description("Structured settings updates for a Voronoi node.")]
+    public class ShaderGraphVoronoiNodeSettingsUpdateInput
+    {
+        [Description("Voronoi hash type. Supported values: deterministic, legacySine.")]
+        public string? HashType { get; set; }
+    }
+
+    [Description("Structured settings updates for a Rotate node.")]
+    public class ShaderGraphRotateNodeSettingsUpdateInput
+    {
+        [Description("Rotation unit. Supported values: radians, degrees.")]
+        public string? Unit { get; set; }
+    }
+
     [Description("Structured settings updates for a UV node.")]
     public class ShaderGraphUvNodeSettingsUpdateInput
     {
@@ -562,6 +585,19 @@ namespace AIGD
 
         [Description("Default value for the In input slot.")]
         public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
+    }
+
+    [Description("Structured settings updates for a Clamp node.")]
+    public class ShaderGraphClampNodeSettingsUpdateInput
+    {
+        [Description("Default value for the In input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Input { get; set; }
+
+        [Description("Default value for the Min input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Min { get; set; }
+
+        [Description("Default value for the Max input slot.")]
+        public ShaderGraphVector4ValueUpdateInput? Max { get; set; }
     }
 
     [Description("Structured settings updates for an Invert Colors node.")]

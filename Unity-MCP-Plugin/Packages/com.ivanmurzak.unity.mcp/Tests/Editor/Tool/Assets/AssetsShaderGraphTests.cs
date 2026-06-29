@@ -7856,6 +7856,135 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_AddNode_AddsClampNodeAndSupportsTypedSlotReadback()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode_Clamp.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var clamp = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput { NodeType = "clamp", PositionX = -640f, PositionY = 40f },
+                    includeGraph: true);
+
+                Assert.AreEqual("add", clamp.Operation);
+                Assert.IsTrue(clamp.ChangedFields!.Contains("node.added"));
+                Assert.IsNotNull(clamp.Node);
+                Assert.AreEqual("UnityEditor.ShaderGraph.ClampNode", clamp.Node!.Type);
+                Assert.AreEqual("Clamp", clamp.Node.Name);
+                CollectionAssert.AreEqual(
+                    new[] { "In", "Min", "Max", "Out" },
+                    clamp.Node.Slots!.Select(slot => slot.DisplayName).ToArray());
+                Assert.IsTrue(clamp.Graph!.ShaderResolved, "Adding Clamp should keep the Shader Graph import valid.");
+                Assert.IsFalse(clamp.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Adding Clamp should not introduce import errors.");
+
+                var update = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = clamp.Node.ObjectId,
+                        Clamp = new ShaderGraphClampNodeSettingsUpdateInput
+                        {
+                            Input = new ShaderGraphVector4ValueUpdateInput { X = 0.5f, Y = 0.5f, Z = 0.5f, W = 0.5f },
+                            Min = new ShaderGraphVector4ValueUpdateInput { X = 0.1f, Y = 0.1f, Z = 0.1f, W = 0.1f },
+                            Max = new ShaderGraphVector4ValueUpdateInput { X = 0.9f, Y = 0.9f, Z = 0.9f, W = 0.9f }
+                        }
+                    },
+                    includeGraph: true);
+
+                Assert.AreEqual("updateSettings", update.Operation);
+                Assert.IsTrue(update.ChangedFields!.Contains("node.clamp.input.x"));
+                Assert.IsTrue(update.ChangedFields.Contains("node.clamp.min.x"));
+                Assert.IsTrue(update.ChangedFields.Contains("node.clamp.max.x"));
+                Assert.IsNotNull(update.Node!.Clamp);
+                AssertSlotVector4(update.Node, "In", 0.5f, 0.5f, 0.5f, 0.5f);
+                AssertSlotVector4(update.Node, "Min", 0.1f, 0.1f, 0.1f, 0.1f);
+                AssertSlotVector4(update.Node, "Max", 0.9f, 0.9f, 0.9f, 0.9f);
+                Assert.AreEqual(0.5f, update.Node.Clamp!.Input!.X ?? 0f, 0.0001f);
+                Assert.AreEqual(0.1f, update.Node.Clamp.Min!.X ?? 0f, 0.0001f);
+                Assert.AreEqual(0.9f, update.Node.Clamp.Max!.X ?? 0f, 0.0001f);
+                Assert.IsTrue(update.Graph!.ShaderResolved, "Updating Clamp defaults should keep the Shader Graph import valid.");
+                Assert.IsFalse(update.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Updating Clamp defaults should not introduce import errors.");
+
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var clampNode = structure.Nodes!.Single(node => node.ObjectId == clamp.Node.ObjectId);
+                Assert.IsNotNull(clampNode.Clamp);
+                Assert.AreEqual(0.5f, clampNode.Clamp!.Input!.X ?? 0f, 0.0001f);
+                Assert.AreEqual(0.1f, clampNode.Clamp.Min!.X ?? 0f, 0.0001f);
+                Assert.AreEqual(0.9f, clampNode.Clamp.Max!.X ?? 0f, 0.0001f);
+
+                var duplicate = tool.DuplicateNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDuplicateNodeInput
+                    {
+                        NodeObjectId = clamp.Node.ObjectId,
+                        PositionOffsetX = 80f,
+                        PositionOffsetY = 48f
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(duplicate.Node);
+                Assert.AreEqual("UnityEditor.ShaderGraph.ClampNode", duplicate.Node!.Type);
+                Assert.AreNotEqual(clamp.Node.ObjectId, duplicate.Node.ObjectId);
+
+                var move = tool.UpdateNodePosition(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodePositionInput
+                    {
+                        NodeObjectId = duplicate.Node.ObjectId,
+                        PositionX = -320f,
+                        PositionY = 220f
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual(-320f, move.Node!.PositionX);
+                Assert.AreEqual(220f, move.Node.PositionY);
+
+                var delete = tool.DeleteNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDeleteNodeInput
+                    {
+                        NodeObjectId = duplicate.Node.ObjectId
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("delete", delete.Operation);
+                Assert.IsFalse(delete.Structure!.Nodes!.Any(node => node.ObjectId == duplicate.Node.ObjectId));
+                Assert.IsTrue(delete.Graph!.ShaderResolved, "Deleting a duplicated Clamp node should keep the Shader Graph import valid.");
+                Assert.IsFalse(delete.Graph.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Deleting a duplicated Clamp node should not introduce import errors.");
+
+                var emptyPayload = Assert.Throws<ArgumentException>(() => tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = clamp.Node.ObjectId,
+                        Clamp = new ShaderGraphClampNodeSettingsUpdateInput()
+                    }));
+                StringAssert.Contains("At least one supported node settings field must be provided",
+                    emptyPayload!.Message);
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_AddNode_AddsPowerNodeWithBinaryVectorSettings()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_AddNode_Power.shadergraph");
@@ -8433,6 +8562,102 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_ConnectEdge_AllowsSampleTextureVector4IntoSubGraphVector3Input()
+        {
+            var subGraphPath = $"{TestFolder}/Validation_Vector4ToVector3_RGBToCMYK.shadersubgraph";
+            var mainGraphPath = CreateShaderGraphAssetCopy("Validation_ConnectEdge_Vector4ToVector3.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.CreateSubGraph(subGraphPath, outputPreset: "single-vector3");
+                tool.AddProperty(
+                    new AssetObjectRef(subGraphPath),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "vector3",
+                        DisplayName = "RGB",
+                        OverrideReferenceName = "_RGB",
+                        VectorX = 0f,
+                        VectorY = 0f,
+                        VectorZ = 0f
+                    });
+
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(mainGraphPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{mainGraphPath}'.");
+                var graphRef = new AssetObjectRef(shader);
+                var sampleTexture = tool.AddNode(
+                    graphRef,
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "sampleTexture2D",
+                        PositionX = -600f,
+                        PositionY = 0f
+                    },
+                    includeStructure: true);
+                var rgbToCmyk = tool.AddNode(
+                    graphRef,
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "subGraph",
+                        SubGraphAssetPath = subGraphPath,
+                        PositionX = -300f,
+                        PositionY = 0f
+                    },
+                    includeStructure: true);
+
+                var rgbaSlot = FindSlot(sampleTexture.Node!, "RGBA");
+                var rgbSlot = FindSlot(rgbToCmyk.Node!, "RGB");
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector4MaterialSlot", rgbaSlot.Type);
+                Assert.AreEqual("UnityEditor.ShaderGraph.Vector3MaterialSlot", rgbSlot.Type);
+                Assert.AreEqual(1, rgbaSlot.SlotType, "RGBA must be an output slot.");
+                Assert.AreEqual(0, rgbSlot.SlotType, "RGB must be an input slot.");
+
+                var connect = tool.ConnectEdge(
+                    graphRef,
+                    new ShaderGraphConnectEdgeInput
+                    {
+                        OutputNodeObjectId = sampleTexture.Node.ObjectId,
+                        OutputSlotObjectId = rgbaSlot.ObjectId,
+                        InputNodeObjectId = rgbToCmyk.Node.ObjectId,
+                        InputSlotObjectId = rgbSlot.ObjectId
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true);
+
+                Assert.IsNotNull(connect.Edge);
+                Assert.AreEqual(rgbaSlot.SlotId, connect.Edge!.OutputSlotId);
+                Assert.AreEqual(rgbSlot.SlotId, connect.Edge.InputSlotId);
+                Assert.IsTrue(connect.GraphSummary!.ShaderResolved);
+                Assert.IsFalse(connect.GraphSummary.HasErrors);
+
+                AssetDatabase.ImportAsset(mainGraphPath, ImportAssetOptions.ForceSynchronousImport);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                var structure = tool.GetStructure(new AssetObjectRef(mainGraphPath));
+                Assert.IsTrue(structure.Edges!.Any(edge =>
+                    edge.OutputNodeId == sampleTexture.Node.ObjectId
+                    && edge.OutputSlotId == rgbaSlot.SlotId
+                    && edge.InputNodeId == rgbToCmyk.Node.ObjectId
+                    && edge.InputSlotId == rgbSlot.SlotId),
+                    "Vector4 -> Vector3 edge should survive forced reimport with the original slot IDs.");
+
+                var data = tool.GetData(
+                    new AssetObjectRef(mainGraphPath),
+                    includeMessages: true,
+                    includeProperties: false,
+                    includeDiagnostics: true);
+                Assert.IsTrue(data.ShaderResolved);
+                Assert.IsFalse(data.HasErrors);
+                Assert.IsFalse(data.Diagnostics!.Any(diagnostic => diagnostic.Severity == "Error"));
+            }
+            finally
+            {
+                CleanupTestAsset(subGraphPath);
+                CleanupTestAsset(mainGraphPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_AddNode_AddsCustomFunctionNodeWithInlineHlsl()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_CustomFunction_Inline.shadergraph");
@@ -8561,6 +8786,270 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.IsFalse(updateResult.NoOp);
                 Assert.IsTrue(updateResult.ChangedFields!.Contains("node.customFunction.functionName"));
                 Assert.IsTrue(updateResult.ChangedFields.Contains("node.customFunction.functionBody"));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ComicHalftoneNodes_CreateReadUpdateAndLifecycle()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ComicHalftone_NodeCoverage.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader);
+                var tool = new Tool_Assets_ShaderGraph();
+                var graphRef = new AssetObjectRef(shader);
+
+                var voronoi = tool.AddNode(graphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "voronoi", PositionX = -600f, PositionY = -100f },
+                    includeStructure: true);
+                var rotate = tool.AddNode(graphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "rotate", PositionX = -850f, PositionY = -100f },
+                    includeStructure: true);
+                var degrees = tool.AddNode(graphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "degreesToRadians", PositionX = -1100f, PositionY = 100f },
+                    includeStructure: true);
+                var screen = tool.AddNode(graphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "screen", PositionX = -1100f, PositionY = 300f },
+                    includeStructure: true);
+
+                Assert.AreEqual("UnityEditor.ShaderGraph.VoronoiNode", voronoi.Node!.Type);
+                Assert.AreEqual("UnityEditor.ShaderGraph.RotateNode", rotate.Node!.Type);
+                Assert.AreEqual("UnityEditor.ShaderGraph.DegreesToRadiansNode", degrees.Node!.Type);
+                Assert.AreEqual("UnityEditor.ShaderGraph.ScreenNode", screen.Node!.Type);
+                CollectionAssert.AreEquivalent(
+                    new[] { "UV", "AngleOffset", "CellDensity", "Out", "Cells" },
+                    voronoi.Node.Slots!.Select(slot => slot.DisplayName).ToArray());
+                CollectionAssert.AreEquivalent(
+                    new[] { "UV", "Center", "Rotation", "Out" },
+                    rotate.Node.Slots!.Select(slot => slot.DisplayName).ToArray());
+                CollectionAssert.AreEquivalent(
+                    new[] { "In", "Out" },
+                    degrees.Node.Slots!.Select(slot => slot.DisplayName).ToArray());
+                CollectionAssert.AreEquivalent(
+                    new[] { "Width", "Height" },
+                    screen.Node.Slots!.Select(slot => slot.DisplayName).ToArray());
+
+                var voronoiUpdate = tool.UpdateNodeSettings(graphRef,
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = voronoi.Node.ObjectId,
+                        Voronoi = new ShaderGraphVoronoiNodeSettingsUpdateInput { HashType = "legacySine" }
+                    },
+                    includeStructure: true);
+                var rotateUpdate = tool.UpdateNodeSettings(graphRef,
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = rotate.Node.ObjectId,
+                        Rotate = new ShaderGraphRotateNodeSettingsUpdateInput { Unit = "degrees" }
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true);
+
+                Assert.AreEqual("legacySine", voronoiUpdate.Node!.Voronoi!.HashType);
+                Assert.AreEqual(1, voronoiUpdate.Node.Voronoi.HashTypeValue);
+                Assert.AreEqual("degrees", rotateUpdate.Node!.Rotate!.Unit);
+                Assert.AreEqual(1, rotateUpdate.Node.Rotate.UnitValue);
+
+                var invalidHash = Assert.Throws<ArgumentException>(() => tool.UpdateNodeSettings(graphRef,
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = voronoi.Node.ObjectId,
+                        Voronoi = new ShaderGraphVoronoiNodeSettingsUpdateInput { HashType = "random" }
+                    }));
+                StringAssert.Contains("deterministic, legacySine", invalidHash!.Message);
+
+                var invalidUnit = Assert.Throws<ArgumentException>(() => tool.UpdateNodeSettings(graphRef,
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = rotate.Node.ObjectId,
+                        Rotate = new ShaderGraphRotateNodeSettingsUpdateInput { Unit = "turns" }
+                    }));
+                StringAssert.Contains("radians, degrees", invalidUnit!.Message);
+
+                var duplicate = tool.DuplicateNode(graphRef,
+                    new ShaderGraphDuplicateNodeInput
+                    {
+                        NodeObjectId = voronoi.Node.ObjectId,
+                        PositionOffsetX = 40f,
+                        PositionOffsetY = 40f
+                    });
+                tool.UpdateNodePosition(graphRef,
+                    new ShaderGraphUpdateNodePositionInput
+                    {
+                        NodeObjectId = screen.Node.ObjectId,
+                        PositionX = -1000f,
+                        PositionY = 360f
+                    });
+                tool.DeleteNode(graphRef,
+                    new ShaderGraphDeleteNodeInput { NodeObjectId = duplicate.NodeObjectId });
+
+                Assert.IsTrue(rotateUpdate.Graph!.ShaderResolved);
+                Assert.IsFalse(rotateUpdate.Graph.Diagnostics!.Any(d => d.Severity == "Error"));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ComicHalftoneDotsPatternCore_WiresAndImports()
+        {
+            var assetPath = $"{TestFolder}/Validation_ComicHalftone_DotsPattern.shadersubgraph";
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+                tool.CreateSubGraph(assetPath, outputPreset: "empty");
+                var graphRef = new AssetObjectRef(assetPath);
+                tool.SetOutputs(graphRef,
+                    new ShaderGraphSetSubGraphOutputsInput
+                    {
+                        Outputs = new List<ShaderGraphSubGraphOutputSlotInput>
+                        {
+                            new() { Name = "Out", Type = "Float" }
+                        },
+                        RemoveMissing = true
+                    });
+
+                var dotSize = tool.AddProperty(graphRef, new ShaderGraphAddPropertyInput
+                {
+                    PropertyType = "float",
+                    DisplayName = "Dot Size",
+                    OverrideReferenceName = "_DotSize",
+                    FloatValue = 0.5f
+                });
+                var rotation = tool.AddProperty(graphRef, new ShaderGraphAddPropertyInput
+                {
+                    PropertyType = "float",
+                    DisplayName = "Rotation",
+                    OverrideReferenceName = "_Rotation",
+                    FloatValue = 15f
+                });
+                var dotSizeNode = tool.AddPropertyNode(graphRef,
+                    new ShaderGraphAddPropertyNodeInput { PropertyObjectId = dotSize.Property!.ObjectId, PositionX = -1200f, PositionY = 260f });
+                var rotationNode = tool.AddPropertyNode(graphRef,
+                    new ShaderGraphAddPropertyNodeInput { PropertyObjectId = rotation.Property!.ObjectId, PositionX = -1200f, PositionY = 80f });
+                var uv = tool.AddNode(graphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "uv", PositionX = -1200f, PositionY = -160f });
+                var degrees = tool.AddNode(graphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "degreesToRadians", PositionX = -940f, PositionY = 80f });
+                var rotate = tool.AddNode(graphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "rotate", PositionX = -680f, PositionY = -100f });
+                var voronoi = tool.AddNode(graphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "voronoi", PositionX = -400f, PositionY = -100f });
+                var step = tool.AddNode(graphRef,
+                    new ShaderGraphAddNodeInput { NodeType = "step", PositionX = -120f, PositionY = -40f });
+
+                tool.UpdateNodeSettings(graphRef, new ShaderGraphUpdateNodeSettingsInput
+                {
+                    NodeObjectId = rotate.Node!.ObjectId,
+                    Rotate = new ShaderGraphRotateNodeSettingsUpdateInput { Unit = "radians" }
+                });
+                tool.UpdateNodeSettings(graphRef, new ShaderGraphUpdateNodeSettingsInput
+                {
+                    NodeObjectId = voronoi.Node!.ObjectId,
+                    Voronoi = new ShaderGraphVoronoiNodeSettingsUpdateInput { HashType = "deterministic" }
+                });
+
+                void Connect(string outputNodeId, string outputSlot, string inputNodeId, string inputSlot)
+                    => tool.ConnectEdge(graphRef, new ShaderGraphConnectEdgeInput
+                    {
+                        OutputSlot = new ShaderGraphSlotRef
+                        {
+                            Node = new ShaderGraphNodeRef { ObjectId = outputNodeId },
+                            DisplayName = outputSlot
+                        },
+                        InputSlot = new ShaderGraphSlotRef
+                        {
+                            Node = new ShaderGraphNodeRef { ObjectId = inputNodeId },
+                            DisplayName = inputSlot
+                        }
+                    });
+
+                Connect(rotationNode.Node!.ObjectId!, "Rotation", degrees.Node!.ObjectId!, "In");
+                Connect(degrees.Node.ObjectId!, "Out", rotate.Node.ObjectId!, "Rotation");
+                Connect(uv.Node!.ObjectId!, "Out", rotate.Node.ObjectId!, "UV");
+                Connect(rotate.Node.ObjectId!, "Out", voronoi.Node.ObjectId!, "UV");
+                Connect(dotSizeNode.Node!.ObjectId!, "Dot Size", step.Node!.ObjectId!, "Edge");
+                Connect(voronoi.Node.ObjectId!, "Out", step.Node.ObjectId!, "In");
+
+                var structure = tool.GetStructure(graphRef);
+                var outputNode = structure.Nodes!.Single(node =>
+                    node.Type == "UnityEditor.ShaderGraph.SubGraphOutputNode");
+                Connect(step.Node.ObjectId!, "Out", outputNode.ObjectId!, "Out");
+
+                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                var result = tool.GetData(graphRef, includeMessages: true, includeProperties: false, includeDiagnostics: true);
+                var finalStructure = tool.GetStructure(graphRef);
+                var stepNode = finalStructure.Nodes!.Single(node => node.ObjectId == step.Node.ObjectId);
+                var edgeSlot = FindSlot(stepNode, "Edge");
+                Assert.AreEqual("UnityEditor.ShaderGraph.DynamicVectorMaterialSlot", edgeSlot.Type);
+                Assert.IsTrue(finalStructure.Edges!.Any(edge =>
+                    edge.OutputNodeId == dotSizeNode.Node.ObjectId
+                    && edge.InputNodeId == step.Node.ObjectId
+                    && edge.InputSlotId == 0));
+                Assert.IsFalse(result.HasErrors);
+                Assert.IsFalse(result.Diagnostics!.Any(d => d.Severity == "Error"));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_ComicHalftoneScreenAspectPath_WiresAndImports()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_ComicHalftone_ScreenAspect.shadergraph");
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader);
+                var tool = new Tool_Assets_ShaderGraph();
+                var graphRef = new AssetObjectRef(shader);
+                var screen = tool.AddNode(graphRef, new ShaderGraphAddNodeInput { NodeType = "screen", PositionX = -900f, PositionY = 0f });
+                var divide = tool.AddNode(graphRef, new ShaderGraphAddNodeInput { NodeType = "divide", PositionX = -650f, PositionY = 0f });
+                var multiply = tool.AddNode(graphRef, new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -400f, PositionY = 0f });
+                var vector2 = tool.AddNode(graphRef, new ShaderGraphAddNodeInput { NodeType = "vector2", PositionX = -150f, PositionY = 0f });
+
+                void Connect(string outputNodeId, string outputSlot, string inputNodeId, string inputSlot)
+                    => tool.ConnectEdge(graphRef, new ShaderGraphConnectEdgeInput
+                    {
+                        OutputSlot = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = outputNodeId }, DisplayName = outputSlot },
+                        InputSlot = new ShaderGraphSlotRef { Node = new ShaderGraphNodeRef { ObjectId = inputNodeId }, DisplayName = inputSlot }
+                    });
+
+                Connect(screen.Node!.ObjectId!, "Width", divide.Node!.ObjectId!, "A");
+                Connect(screen.Node.ObjectId!, "Height", divide.Node.ObjectId!, "B");
+                Connect(divide.Node.ObjectId!, "Out", multiply.Node!.ObjectId!, "A");
+                Connect(multiply.Node.ObjectId!, "Out", vector2.Node!.ObjectId!, "X");
+
+                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+                var structure = tool.GetStructure(graphRef);
+                var screenNode = structure.Nodes!.Single(node => node.ObjectId == screen.Node.ObjectId);
+                Assert.AreEqual(0, FindSlot(screenNode, "Width").SlotId);
+                Assert.AreEqual(1, FindSlot(screenNode, "Height").SlotId);
+                Assert.IsTrue(structure.Edges!.Any(edge =>
+                    edge.OutputNodeId == screen.Node.ObjectId
+                    && edge.OutputSlotId == 0
+                    && edge.InputNodeId == divide.Node.ObjectId
+                    && edge.InputSlotId == 0));
+                Assert.IsTrue(structure.Edges.Any(edge =>
+                    edge.OutputNodeId == screen.Node.ObjectId
+                    && edge.OutputSlotId == 1
+                    && edge.InputNodeId == divide.Node.ObjectId
+                    && edge.InputSlotId == 1));
+                var data = tool.GetData(graphRef, includeMessages: true, includeProperties: false, includeDiagnostics: true);
+                Assert.IsTrue(data.ShaderResolved);
+                Assert.IsFalse(data.HasErrors);
+                Assert.IsFalse(data.Diagnostics!.Any(d => d.Severity == "Error"));
             }
             finally
             {

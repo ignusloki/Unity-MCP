@@ -255,7 +255,11 @@ Node lifecycle mutation results include normalized summary fields:
     - `transform` (`Transform`)
     - `gradientNoise` (`Gradient Noise`)
     - `simpleNoise` (`Simple Noise`)
+    - `voronoi` (`Voronoi`)
     - `uv` (`UV`)
+    - `rotate` (`Rotate`)
+    - `degreesToRadians` (`Degrees To Radians`)
+    - `screen` (`Screen`)
     - `screenPosition` (`Screen Position`)
     - `sceneDepth` (`Scene Depth`)
     - `camera` (`Camera`)
@@ -268,6 +272,7 @@ Node lifecycle mutation results include normalized summary fields:
     - `time` (`Time`)
     - `smoothstep` (`Smoothstep`)
     - `step` (`Step`)
+    - `clamp` (`Clamp`)
     - `saturate` (`Saturate`)
     - `exponential` (`Exponential`)
     - `invertColors` (`Invert Colors`)
@@ -353,6 +358,19 @@ Node lifecycle mutation results include normalized summary fields:
     - `input.y`
     - `input.z`
     - `input.w`
+  - Supported `Clamp` fields:
+    - `input.x`
+    - `input.y`
+    - `input.z`
+    - `input.w`
+    - `min.x`
+    - `min.y`
+    - `min.z`
+    - `min.w`
+    - `max.x`
+    - `max.y`
+    - `max.z`
+    - `max.w`
   - Supported `Multiply` fields:
     - `multiplyType`
     - `a.x`
@@ -439,7 +457,9 @@ Node lifecycle mutation results include normalized summary fields:
     - `input.y`
     - `input.z`
     - `input.w`
-  - `Step.Edge` is literal-threshold only in the current Unity ShaderGraph baseline. Incoming edges to `Step.Edge` are rejected by MCP because Unity imports that topology with a concretization error. Set `step.edge` through `assets-shadergraph-update-node-settings` and connect dynamic dissolve/noise values into `Step.In`.
+  - `Step.Edge` accepts concrete scalar `Vector1MaterialSlot` sources, including Float properties and Sub Graph Float inputs. Unresolved dynamic-vector sources remain rejected because Unity imports that topology with a concretization error.
+  - Supported `Voronoi` field: `hashType`. Values: `deterministic`, `legacySine`.
+  - Supported `Rotate` field: `unit`. Values: `radians`, `degrees`.
   - Supported `Exponential` fields:
     - `base`
     - `input.x`
@@ -478,8 +498,9 @@ Node lifecycle mutation results include normalized summary fields:
   - Supports safe explicit Vector3-to-UV authoring through ShaderGraph narrowing nodes: `Vector3 -> Split -> Combine.RG -> UV`.
   - Direct `Vector3MaterialSlot -> UVMaterialSlot` edges remain intentionally rejected until Unity's serialized graph model is validated to allow that conversion safely without an explicit node.
   - Supports direct `Vector4MaterialSlot -> UVMaterialSlot` edges via Unity's documented `.xy` truncation. Validated by the Flame reference shader trial against the Unity 6 / URP 17 baseline; lets agents wire `Sample Texture 2D.RGBA -> Sample Texture 2D.UV` without inserting a Split + Combine.RG narrowing pair.
+  - Supports direct `Vector4MaterialSlot -> Vector3MaterialSlot` edges via Unity's normal `.xyz` truncation. This includes `Sample Texture 2D.RGBA -> Sub Graph Vector3 input`, validated for the Comic Halftone `RGB To CMYK.RGB` path without adapter nodes.
   - Supports scalar `Vector1MaterialSlot -> UVMaterialSlot` edges via Unity's documented scalar-to-vector broadcast (e.g. `Time.Time -> Simple Noise.UV` resolves to `(t, t)`). Validated by the DistortionTV trial.
-  - Rejects incoming edges into `Step.Edge` because Unity requires that threshold to remain a literal compile-time value. This applies through single-op `connectEdge`, batch `connectEdge`, reconnect, and reroute preflight paths.
+  - Supports concrete scalar `Vector1MaterialSlot -> Step.Edge` connections. Rejects unresolved dynamic-vector sources into `Step.Edge`; this guard applies through single-op connect, batch connect, reconnect, and reroute preflight paths.
   - Returns `removedEdge` when an incoming edge is replaced.
 - `assets-shadergraph-reconnect-edge`
   - Reconnects an exact existing edge to a new output endpoint, input endpoint, or both.

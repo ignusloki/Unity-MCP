@@ -253,11 +253,43 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {
+                    ApiName = "voronoi",
+                    DisplayName = "Voronoi",
+                    TypeName = "UnityEditor.ShaderGraph.VoronoiNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 144f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
                     ApiName = "uv",
                     DisplayName = "UV",
                     TypeName = "UnityEditor.ShaderGraph.UVNode",
                     DefaultWidth = 208f,
                     DefaultHeight = 144f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "rotate",
+                    DisplayName = "Rotate",
+                    TypeName = "UnityEditor.ShaderGraph.RotateNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 128f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "degreesToRadians",
+                    DisplayName = "Degrees To Radians",
+                    TypeName = "UnityEditor.ShaderGraph.DegreesToRadiansNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 80f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "screen",
+                    DisplayName = "Screen",
+                    TypeName = "UnityEditor.ShaderGraph.ScreenNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 96f
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {
@@ -354,6 +386,14 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     TypeName = "UnityEditor.ShaderGraph.StepNode",
                     DefaultWidth = 208f,
                     DefaultHeight = 96f
+                },
+                new ShaderGraphAllowlistedNodeDefinition
+                {
+                    ApiName = "clamp",
+                    DisplayName = "Clamp",
+                    TypeName = "UnityEditor.ShaderGraph.ClampNode",
+                    DefaultWidth = 208f,
+                    DefaultHeight = 112f
                 },
                 new ShaderGraphAllowlistedNodeDefinition
                 {

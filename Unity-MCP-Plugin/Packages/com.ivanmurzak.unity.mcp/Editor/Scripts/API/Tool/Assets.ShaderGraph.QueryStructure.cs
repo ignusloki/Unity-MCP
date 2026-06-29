@@ -219,6 +219,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 projected.Transform = source.Transform;
                 projected.GradientNoise = source.GradientNoise;
                 projected.SimpleNoise = source.SimpleNoise;
+                projected.Voronoi = source.Voronoi;
+                projected.Rotate = source.Rotate;
                 projected.Uv = source.Uv;
                 projected.ScreenPosition = source.ScreenPosition;
                 projected.SceneDepth = source.SceneDepth;
@@ -228,8 +230,11 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 projected.Swizzle = source.Swizzle;
                 projected.Vector2 = source.Vector2;
                 projected.Smoothstep = source.Smoothstep;
+                projected.Step = source.Step;
+                projected.Clamp = source.Clamp;
                 projected.InvertColors = source.InvertColors;
                 projected.Exponential = source.Exponential;
+                projected.Reciprocal = source.Reciprocal;
             }
 
             return projected;

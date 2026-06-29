@@ -409,14 +409,30 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     if (!IsStepEdgeInputSlot(inputSlot))
                         continue;
 
-                    var outputNodeId = GetStringAt(edgeObject, "m_OutputSlot", "m_Node", "m_Id") ?? "<unknown>";
+                    var outputNodeId = GetStringAt(edgeObject, "m_OutputSlot", "m_Node", "m_Id");
                     var outputSlotId = GetIntAt(edgeObject, "m_OutputSlot", "m_SlotId");
+                    if (!string.IsNullOrEmpty(outputNodeId) && outputSlotId.HasValue)
+                    {
+                        var outputSlot = ResolveNodeSlotBySlotId(
+                            document,
+                            outputNodeId!,
+                            outputSlotId.Value,
+                            expectedSlotType: 1);
+                        if (string.Equals(
+                                outputSlot.SlotTypeName,
+                                "UnityEditor.ShaderGraph.Vector1MaterialSlot",
+                                StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+                    }
+
                     diagnostics.Add(new ShaderGraphDiagnosticData
                     {
                         Code = "SHADERGRAPH_LITERAL_SLOT_EDGE",
                         Severity = "Error",
-                        Message = $"Shader Graph '{assetPath}' has an incoming edge '{outputNodeId}:{(outputSlotId.HasValue ? outputSlotId.Value.ToString() : "?")}' -> Step.Edge. Unity requires Step.Edge to be a literal compile-time value.",
-                        Hint = "Set the Step.Edge literal through assets-shadergraph-update-node-settings (`step.edge`) and connect dynamic dissolve/noise values into Step.In instead."
+                        Message = $"Shader Graph '{assetPath}' has an unresolved dynamic edge '{outputNodeId ?? "<unknown>"}:{(outputSlotId.HasValue ? outputSlotId.Value.ToString() : "?")}' -> Step.Edge.",
+                        Hint = "Connect a concrete scalar Vector1MaterialSlot source, or set the Step.Edge literal through assets-shadergraph-update-node-settings (`step.edge`)."
                     });
                 }
             }
@@ -907,6 +923,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.NoiseNode", StringComparison.Ordinal))
                 node.SimpleNoise = new ShaderGraphSimpleNoiseNodeSettingsData();
 
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.VoronoiNode", StringComparison.Ordinal))
+                node.Voronoi = ParseVoronoiNodeSettings(root);
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.RotateNode", StringComparison.Ordinal))
+                node.Rotate = ParseRotateNodeSettings(root);
+
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.UVNode", StringComparison.Ordinal))
                 node.Uv = ParseUvNodeSettings(root);
 
@@ -936,6 +958,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.StepNode", StringComparison.Ordinal))
                 node.Step = new ShaderGraphStepNodeSettingsData();
+
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.ClampNode", StringComparison.Ordinal))
+                node.Clamp = new ShaderGraphClampNodeSettingsData();
 
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.InvertColorsNode", StringComparison.Ordinal))
                 node.InvertColors = ParseInvertColorsNodeSettings(root);
@@ -1029,6 +1054,26 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 HashTypeValue = hashTypeValue,
                 HashType = FormatGradientNoiseHashType(hashTypeValue)
+            };
+        }
+
+        static ShaderGraphVoronoiNodeSettingsData ParseVoronoiNodeSettings(JsonElement root)
+        {
+            var hashTypeValue = GetInt(root, "m_HashType");
+            return new ShaderGraphVoronoiNodeSettingsData
+            {
+                HashTypeValue = hashTypeValue,
+                HashType = FormatVoronoiHashType(hashTypeValue)
+            };
+        }
+
+        static ShaderGraphRotateNodeSettingsData ParseRotateNodeSettings(JsonElement root)
+        {
+            var unitValue = GetInt(root, "m_Unit");
+            return new ShaderGraphRotateNodeSettingsData
+            {
+                UnitValue = unitValue,
+                Unit = FormatRotateUnit(unitValue)
             };
         }
 
@@ -1168,6 +1213,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 node.Step.Edge = ParseSlotVector4Value(node, "Edge");
                 node.Step.Input = ParseSlotVector4Value(node, "In");
+            }
+
+            if (node.Clamp != null)
+            {
+                node.Clamp.Input = ParseSlotVector4Value(node, "In");
+                node.Clamp.Min = ParseSlotVector4Value(node, "Min");
+                node.Clamp.Max = ParseSlotVector4Value(node, "Max");
             }
 
             if (node.Multiply != null)
@@ -1642,6 +1694,28 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 0 => "linear01",
                 1 => "raw",
                 2 => "eye",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatVoronoiHashType(int? value)
+        {
+            return value switch
+            {
+                0 => "deterministic",
+                1 => "legacySine",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatRotateUnit(int? value)
+        {
+            return value switch
+            {
+                0 => "radians",
+                1 => "degrees",
                 null => null,
                 _ => $"unknown({value})"
             };

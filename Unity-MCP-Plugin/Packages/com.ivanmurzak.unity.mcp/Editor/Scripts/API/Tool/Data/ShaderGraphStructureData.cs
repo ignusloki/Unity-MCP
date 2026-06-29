@@ -245,6 +245,12 @@ namespace AIGD
         [Description("Resolved Simple Noise settings when the node is a supported Simple Noise node.")]
         public ShaderGraphSimpleNoiseNodeSettingsData? SimpleNoise { get; set; }
 
+        [Description("Resolved Voronoi settings when the node is a supported Voronoi node.")]
+        public ShaderGraphVoronoiNodeSettingsData? Voronoi { get; set; }
+
+        [Description("Resolved Rotate settings when the node is a supported Rotate node.")]
+        public ShaderGraphRotateNodeSettingsData? Rotate { get; set; }
+
         [Description("Resolved UV settings when the node is a supported UV node.")]
         public ShaderGraphUvNodeSettingsData? Uv { get; set; }
 
@@ -274,6 +280,9 @@ namespace AIGD
 
         [Description("Resolved Step settings when the node is a supported Step node.")]
         public ShaderGraphStepNodeSettingsData? Step { get; set; }
+
+        [Description("Resolved Clamp settings when the node is a supported Clamp node.")]
+        public ShaderGraphClampNodeSettingsData? Clamp { get; set; }
 
         [Description("Resolved Invert Colors settings when the node is a supported Invert Colors node.")]
         public ShaderGraphInvertColorsNodeSettingsData? InvertColors { get; set; }
@@ -426,6 +435,24 @@ namespace AIGD
         public float? Scale { get; set; }
     }
 
+    public class ShaderGraphVoronoiNodeSettingsData
+    {
+        [Description("Serialized hash type enum value.")]
+        public int? HashTypeValue { get; set; }
+
+        [Description("Formatted hash type when recognized.")]
+        public string? HashType { get; set; }
+    }
+
+    public class ShaderGraphRotateNodeSettingsData
+    {
+        [Description("Serialized rotation unit enum value.")]
+        public int? UnitValue { get; set; }
+
+        [Description("Formatted rotation unit when recognized.")]
+        public string? Unit { get; set; }
+    }
+
     public class ShaderGraphUvNodeSettingsData
     {
         [Description("Serialized UV channel enum value.")]
@@ -520,6 +547,18 @@ namespace AIGD
 
         [Description("Default value for the In input slot when readable.")]
         public ShaderGraphVector4SlotValueData? Input { get; set; }
+    }
+
+    public class ShaderGraphClampNodeSettingsData
+    {
+        [Description("Default value for the In input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? Input { get; set; }
+
+        [Description("Default value for the Min input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? Min { get; set; }
+
+        [Description("Default value for the Max input slot when readable.")]
+        public ShaderGraphVector4SlotValueData? Max { get; set; }
     }
 
     public class ShaderGraphInvertColorsNodeSettingsData

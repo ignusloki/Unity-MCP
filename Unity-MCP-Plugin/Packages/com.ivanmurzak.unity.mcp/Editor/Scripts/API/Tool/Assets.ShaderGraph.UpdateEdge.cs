@@ -101,6 +101,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports scalar outputs into Shader Graph vector2 inputs such as `Float Property -> Tiling And Offset.Tiling`\n" +
             "- supports scalar `Vector1MaterialSlot` outputs broadcasting into Shader Graph UV inputs such as `Time.Time -> Simple Noise.UV`\n" +
             "- supports scalar `Vector1MaterialSlot` outputs broadcasting into RGB color inputs such as `Depth Fade.Exponential -> Unlit Base Color`\n" +
+            "- supports concrete scalar `Vector1MaterialSlot` outputs into `Step.Edge`, while unresolved dynamic-vector sources remain rejected\n" +
             "- supports vector2-resolved `DynamicVectorMaterialSlot` outputs into Shader Graph UV inputs such as `Add.Out -> Tiling And Offset.UV`\n" +
             "- supports Vector4, Vector2, Screen Position, and dynamic vector outputs into Shader Graph screen-position UV inputs such as Scene Color UV and Scene Depth UV (e.g. a sub-graph Vector4 property → SceneDepth.UV)\n" +
             "- supports compatible Vector3/Position slot pairs\n" +
@@ -109,6 +110,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports compatible Texture2D property outputs and Texture2D input slots\n" +
             "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n" +
             "- supports direct `Vector4 -> UV` edges via Unity's documented `.xy` truncation (no narrowing node needed)\n" +
+            "- supports direct `Vector4 -> Vector3` edges via Unity's normal `.xyz` truncation, including `Sample Texture 2D.RGBA -> Sub Graph Vector3 input`\n" +
             "- supports explicit vector narrowing workflows such as `Vector3 -> Split -> Combine(Vector2) -> UV`; direct Vector3-to-UV remains rejected unless Unity exposes a validated direct conversion\n" +
             "- supports guarded input-edge replacement when `replaceExistingInputConnection` is true\n" +
             "- supports idempotent connect when `allowExisting` is true: if the exact requested edge already exists, the call succeeds as a no-op (no asset import, `ChangedFields=[\"edge.alreadyExists\"]`, `AlreadyExisted=true`). Incompatible pairings and conflicting input connections still fail loudly\n" +
@@ -825,11 +827,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.IsNullOrEmpty(outputType) || string.IsNullOrEmpty(inputType))
                 throw new InvalidOperationException("Both slots must expose a serialized m_Type.");
 
-            if (IsStepEdgeInputSlot(inputSlot))
+            if (IsStepEdgeInputSlot(inputSlot)
+                && !string.Equals(outputType, "UnityEditor.ShaderGraph.Vector1MaterialSlot", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
-                    "Step.Edge requires a literal compile-time value in Unity Shader Graph and cannot accept an incoming edge. " +
-                    "Set the edge threshold through assets-shadergraph-update-node-settings (`step.edge`) and connect dynamic dissolve/noise values into Step.In instead.");
+                    "Step.Edge requires a literal compile-time value when the source is an unresolved dynamic slot. " +
+                    "Concrete scalar Vector1MaterialSlot sources are supported; otherwise set `step.edge` through " +
+                    "assets-shadergraph-update-node-settings or concretize the source before connecting it.");
             }
 
             if (string.Equals(outputType, inputType, StringComparison.Ordinal))
@@ -861,6 +865,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             // Validated against the Flame reference shader trial.
             if (string.Equals(outputType, "UnityEditor.ShaderGraph.Vector4MaterialSlot", StringComparison.Ordinal)
                 && string.Equals(inputType, "UnityEditor.ShaderGraph.UVMaterialSlot", StringComparison.Ordinal))
+                return;
+
+            // Vector4 -> Vector3 is supported directly via Unity's normal .xyz truncation.
+            // Validated against the Comic Halftone Sample Texture RGBA -> RGB To CMYK input path.
+            if (string.Equals(outputType, "UnityEditor.ShaderGraph.Vector4MaterialSlot", StringComparison.Ordinal)
+                && string.Equals(inputType, "UnityEditor.ShaderGraph.Vector3MaterialSlot", StringComparison.Ordinal))
                 return;
 
             if ((string.Equals(outputType, "UnityEditor.ShaderGraph.Vector4MaterialSlot", StringComparison.Ordinal)

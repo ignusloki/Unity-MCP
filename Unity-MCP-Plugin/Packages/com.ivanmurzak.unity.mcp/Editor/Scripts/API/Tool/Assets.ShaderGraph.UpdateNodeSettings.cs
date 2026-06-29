@@ -67,6 +67,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- `vector3`: default `x`, `y`, and `z` slot values\n" +
             "- `spherize`: default `center`, `strength`, and `offset` slot values\n" +
             "- `smoothstep`: default `edge1`, `edge2`, and `input` slot values\n" +
+            "- `clamp`: default `input`, `min`, and `max` slot values\n" +
             "- `invertColors`: `red`, `green`, and `blue` channel toggles; `alpha` is rejected because the current Unity Shader Graph package does not serialize it safely\n" +
             "- `sine`, `cosine`, `negate`: default `input` slot value\n" +
             "- `customFunction`: `functionName`, `sourceType` ('string' or 'file'), `functionBody` (inline HLSL), `functionSourcePath` (path to .hlsl)\n\n" +
@@ -297,6 +298,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 case "UnityEditor.ShaderGraph.NoiseNode":
                     ApplySimpleNoiseNodeSettings(document.Bindings, nodeObject, node.SimpleNoise, changedFields);
                     break;
+                case "UnityEditor.ShaderGraph.VoronoiNode":
+                    ApplyVoronoiNodeSettings(nodeObject, node.Voronoi, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.RotateNode":
+                    ApplyRotateNodeSettings(nodeObject, node.Rotate, changedFields);
+                    break;
                 case "UnityEditor.ShaderGraph.UVNode":
                     ApplyUvNodeSettings(nodeObject, node.Uv, changedFields);
                     break;
@@ -335,6 +342,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                     break;
                 case "UnityEditor.ShaderGraph.StepNode":
                     ApplyStepNodeSettings(document.Bindings, nodeObject, node.Step, changedFields);
+                    break;
+                case "UnityEditor.ShaderGraph.ClampNode":
+                    ApplyClampNodeSettings(document.Bindings, nodeObject, node.Clamp, changedFields);
                     break;
                 case "UnityEditor.ShaderGraph.InvertColorsNode":
                     ApplyInvertColorsNodeSettings(nodeObject, node.InvertColors, changedFields);
@@ -496,6 +506,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasTransformUpdates(node.Transform)
                || HasGradientNoiseUpdates(node.GradientNoise)
                || HasSimpleNoiseUpdates(node.SimpleNoise)
+               || HasVoronoiUpdates(node.Voronoi)
+               || HasRotateUpdates(node.Rotate)
                || HasUvUpdates(node.Uv)
                || HasScreenPositionUpdates(node.ScreenPosition)
                || HasSceneDepthUpdates(node.SceneDepth)
@@ -509,6 +521,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                || HasSpherizeUpdates(node.Spherize)
                || HasSmoothstepUpdates(node.Smoothstep)
                || HasStepUpdates(node.Step)
+               || HasClampUpdates(node.Clamp)
                || HasInvertColorsUpdates(node.InvertColors)
                || HasUnaryVectorUpdates(node.Sine)
                || HasUnaryVectorUpdates(node.Cosine)
@@ -539,6 +552,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasTransformUpdates(node.Transform)) count++;
             if (HasGradientNoiseUpdates(node.GradientNoise)) count++;
             if (HasSimpleNoiseUpdates(node.SimpleNoise)) count++;
+            if (HasVoronoiUpdates(node.Voronoi)) count++;
+            if (HasRotateUpdates(node.Rotate)) count++;
             if (HasUvUpdates(node.Uv)) count++;
             if (HasScreenPositionUpdates(node.ScreenPosition)) count++;
             if (HasSceneDepthUpdates(node.SceneDepth)) count++;
@@ -552,6 +567,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (HasSpherizeUpdates(node.Spherize)) count++;
             if (HasSmoothstepUpdates(node.Smoothstep)) count++;
             if (HasStepUpdates(node.Step)) count++;
+            if (HasClampUpdates(node.Clamp)) count++;
             if (HasInvertColorsUpdates(node.InvertColors)) count++;
             if (HasUnaryVectorUpdates(node.Sine)) count++;
             if (HasUnaryVectorUpdates(node.Cosine)) count++;
@@ -645,6 +661,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
         static bool HasSimpleNoiseUpdates(ShaderGraphSimpleNoiseNodeSettingsUpdateInput? simpleNoise)
             => simpleNoise != null && simpleNoise.Scale.HasValue;
 
+        static bool HasVoronoiUpdates(ShaderGraphVoronoiNodeSettingsUpdateInput? voronoi)
+            => voronoi != null && !string.IsNullOrWhiteSpace(voronoi.HashType);
+
+        static bool HasRotateUpdates(ShaderGraphRotateNodeSettingsUpdateInput? rotate)
+            => rotate != null && !string.IsNullOrWhiteSpace(rotate.Unit);
+
         static bool HasUvUpdates(ShaderGraphUvNodeSettingsUpdateInput? uv)
             => uv != null && !string.IsNullOrWhiteSpace(uv.Channel);
 
@@ -691,6 +713,12 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             => step != null
                && (HasVector4Updates(step.Edge)
                    || HasVector4Updates(step.Input));
+
+        static bool HasClampUpdates(ShaderGraphClampNodeSettingsUpdateInput? clamp)
+            => clamp != null
+               && (HasVector4Updates(clamp.Input)
+                   || HasVector4Updates(clamp.Min)
+                   || HasVector4Updates(clamp.Max));
 
         static bool HasInvertColorsUpdates(ShaderGraphInvertColorsNodeSettingsUpdateInput? invertColors)
             => invertColors != null
@@ -1175,6 +1203,40 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             SetSlotFloat(bindings, nodeObject, "Scale", simpleNoise.Scale, "node.simpleNoise.scale", changedFields);
         }
 
+        static void ApplyVoronoiNodeSettings(
+            object nodeObject,
+            ShaderGraphVoronoiNodeSettingsUpdateInput? voronoi,
+            List<string> changedFields)
+        {
+            if (voronoi == null)
+                throw new InvalidOperationException("Voronoi nodes require a `voronoi` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_HashType",
+                voronoi.HashType,
+                "node.voronoi.hashType",
+                new[] { "deterministic", "legacySine" },
+                changedFields);
+        }
+
+        static void ApplyRotateNodeSettings(
+            object nodeObject,
+            ShaderGraphRotateNodeSettingsUpdateInput? rotate,
+            List<string> changedFields)
+        {
+            if (rotate == null)
+                throw new InvalidOperationException("Rotate nodes require a `rotate` settings payload.");
+
+            SetEnumField(
+                nodeObject,
+                "m_Unit",
+                rotate.Unit,
+                "node.rotate.unit",
+                new[] { "radians", "degrees" },
+                changedFields);
+        }
+
         static void ApplyUvNodeSettings(
             object nodeObject,
             ShaderGraphUvNodeSettingsUpdateInput? uv,
@@ -1387,6 +1449,20 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
             SetSlotVector4(bindings, nodeObject, "Edge", step.Edge, "node.step.edge", changedFields);
             SetSlotVector4(bindings, nodeObject, "In", step.Input, "node.step.input", changedFields);
+        }
+
+        static void ApplyClampNodeSettings(
+            ShaderGraphReflectionBindings bindings,
+            object nodeObject,
+            ShaderGraphClampNodeSettingsUpdateInput? clamp,
+            List<string> changedFields)
+        {
+            if (clamp == null)
+                throw new InvalidOperationException("Clamp nodes require a `clamp` settings payload.");
+
+            SetSlotVector4(bindings, nodeObject, "In", clamp.Input, "node.clamp.input", changedFields);
+            SetSlotVector4(bindings, nodeObject, "Min", clamp.Min, "node.clamp.min", changedFields);
+            SetSlotVector4(bindings, nodeObject, "Max", clamp.Max, "node.clamp.max", changedFields);
         }
 
         static void ApplyInvertColorsNodeSettings(

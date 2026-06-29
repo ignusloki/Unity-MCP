@@ -23,6 +23,7 @@ The following items are no longer active debt:
 - Direct `Vector4MaterialSlot -> UVMaterialSlot` truncation. This remains supported for Unity's documented `.xy` vector truncation behavior.
 - Reflection-outline, object-outline, water-core, behavior, dissolve, and distortion trial node families that have already been implemented and validated through live MCP use.
 - WorldSpaceDepthFade `Camera` and `Exponential` blockers. MCP can now create/read `CameraNode`, create/read/update `ExponentialNode`, wire the reference world-space depth fade path, and validate the graph with no ShaderGraph diagnostics errors.
+- Rain Wall `Clamp` blocker. MCP now exposes `ClampNode` creation plus typed `In`/`Min`/`Max` slot-default readback and updates, so the trial no longer needs a workaround for that node family.
 
 Do not keep re-listing fixed trial gaps as future work unless a regression is found.
 
@@ -144,13 +145,13 @@ Direct typed node-setting mutation exists for common node families, but dynamic-
 Accepted authoring rule:
 
 - Prefer edge wiring or blackboard properties over forcing dynamic literal defaults before the dynamic slot has resolved its final width.
-- `Step.Edge` is a special literal-threshold slot. Do not wire dynamic outputs into it; MCP rejects that topology because Unity imports it with a Shader Graph concretization error. Use `assets-shadergraph-update-node-settings` to set `step.edge` and route dynamic dissolve/noise values into `Step.In`.
+- `Step.Edge` accepts concrete scalar `Vector1MaterialSlot` sources. MCP still rejects unresolved dynamic-vector sources because Unity imports that topology with a Shader Graph concretization error. Use a Float property/Sub Graph Float input, a typed literal, or concretize the source before connecting it.
 
 Future work:
 
 - Normalize incompatible literal fallback metadata before edge creation where safe.
 - Improve direct literal/default-slot mutation only when trial evidence shows a real need.
-- Revisit `Step.Edge` only if a future Unity ShaderGraph package exposes a safe non-literal threshold mode or if Unity's own editor starts accepting dynamic edges into that slot without import errors.
+- Revisit unresolved dynamic-vector `Step.Edge` sources only if a future Unity ShaderGraph package imports them without concretization errors.
 
 ### Texture Slot Assignment Boundaries
 
