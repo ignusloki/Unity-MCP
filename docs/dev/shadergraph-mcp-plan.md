@@ -588,10 +588,12 @@ Slices:
 - Slice 7M.1: add `clamp` as `UnityEditor.ShaderGraph.ClampNode` to the safe add-node allowlist. Implemented.
 - Slice 7M.2: expose typed slot-default readback and update support for `Clamp.In`, `Clamp.Min`, and `Clamp.Max`. Implemented.
 - Slice 7M.3: extend projected structure/query responses and public tool descriptions so agents can discover `Clamp` without probing the editor. Implemented.
+- Slice 7M.4: allow normal-configured `Sample Texture 2D.RGBA -> Fragment Normal (Tangent Space)` connections without workaround nodes. Implemented.
 
 Validation coverage:
 
 - `Validation_AddNode_Clamp.shadergraph`: editor test creates `Clamp`, verifies the `In`/`Min`/`Max`/`Out` slot topology, updates typed literal defaults, confirms structure readback, then exercises duplicate, move, and delete flows with clean diagnostics.
+- `Validation_RainWall_NormalSampleToNormalTS.shadergraph` and `Validation_Batch_RainWall_NormalSampleToNormalTS.shadergraph`: editor tests validate both single-op and batch `Sample Texture 2D` normal-map RGBA wiring into the Lit `SurfaceDescription.NormalTS` block, requiring clean import diagnostics.
 
 ## Epic 8A: Slim Default Mutation Responses
 

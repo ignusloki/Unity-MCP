@@ -24,6 +24,7 @@ The following items are no longer active debt:
 - Reflection-outline, object-outline, water-core, behavior, dissolve, and distortion trial node families that have already been implemented and validated through live MCP use.
 - WorldSpaceDepthFade `Camera` and `Exponential` blockers. MCP can now create/read `CameraNode`, create/read/update `ExponentialNode`, wire the reference world-space depth fade path, and validate the graph with no ShaderGraph diagnostics errors.
 - Rain Wall `Clamp` blocker. MCP now exposes `ClampNode` creation plus typed `In`/`Min`/`Max` slot-default readback and updates, so the trial no longer needs a workaround for that node family.
+- Rain Wall normal-map sample blocker. MCP now allows the validated `Sample Texture 2D` normal-map `RGBA -> SurfaceDescription.NormalTS` edge path directly, so the trial no longer needs a manual narrowing or alternate normal reconstruction path.
 
 Do not keep re-listing fixed trial gaps as future work unless a regression is found.
 

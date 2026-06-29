@@ -106,6 +106,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- supports Vector4, Vector2, Screen Position, and dynamic vector outputs into Shader Graph screen-position UV inputs such as Scene Color UV and Scene Depth UV (e.g. a sub-graph Vector4 property → SceneDepth.UV)\n" +
             "- supports compatible Vector3/Position slot pairs\n" +
             "- supports Vector3 outputs into Shader Graph normal inputs such as `Normal From Height.Out -> Fragment NormalWS`\n" +
+            "- supports normal-configured `Sample Texture 2D.RGBA` outputs into Shader Graph normal inputs such as `Normal Sample.RGBA -> Fragment Normal (Tangent Space)`\n" +
             "- supports compatible color/vector slot pairs such as Color property outputs into Base Color\n" +
             "- supports compatible Texture2D property outputs and Texture2D input slots\n" +
             "- supports dynamic numeric/vector/color slots via Shader Graph dynamic slot families such as `DynamicValueMaterialSlot` and `DynamicVectorMaterialSlot`\n" +
@@ -887,6 +888,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (Vector3LikeSlotTypes.Contains(outputType) && NormalInputSlotTypes.Contains(inputType))
                 return;
 
+            if (IsNormalSampleTextureRgbaOutput(outputSlot) && NormalInputSlotTypes.Contains(inputType))
+                return;
+
             if ((ColorSlotTypes.Contains(outputType) || ColorSlotTypes.Contains(inputType))
                 && ColorCompatibleValueSlotTypes.Contains(outputType)
                 && ColorCompatibleValueSlotTypes.Contains(inputType))
@@ -917,6 +921,13 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
 
         static bool IsDynamicVectorSlotType(string slotType)
             => string.Equals(slotType, "UnityEditor.ShaderGraph.DynamicVectorMaterialSlot", StringComparison.Ordinal);
+
+        static bool IsNormalSampleTextureRgbaOutput(NodeSlotContext outputSlot)
+            => string.Equals(outputSlot.SlotTypeName, "UnityEditor.ShaderGraph.Vector4MaterialSlot", StringComparison.Ordinal)
+               && string.Equals(GetString(outputSlot.NodeObject, "m_Type"), "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal)
+               && GetInt(outputSlot.NodeObject, "m_TextureType") == 1
+               && string.Equals(GetString(outputSlot.SlotObject, "m_DisplayName"), "RGBA", StringComparison.Ordinal)
+               && outputSlot.SlotType == 1;
 
         static bool IsStepEdgeInputSlot(NodeSlotContext inputSlot)
             => string.Equals(GetString(inputSlot.NodeObject, "m_Type"), "UnityEditor.ShaderGraph.StepNode", StringComparison.Ordinal)

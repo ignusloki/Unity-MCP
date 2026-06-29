@@ -8236,6 +8236,242 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             }
         }
 
+        [Test]
+        public void ShaderGraph_ConnectEdge_AllowsNormalSampleTextureRgbaIntoNormalTsBlock()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_RainWall_NormalSampleToNormalTS.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var setBlocks = tool.SetBlocks(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphSetBlocksInput
+                    {
+                        Context = "fragment",
+                        Blocks = new() { "baseColor", "normalTS" }
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsTrue(setBlocks.Graph!.ShaderResolved);
+                Assert.IsFalse(setBlocks.Graph.Diagnostics!.Any(d => d.Severity == "Error"));
+
+                var normalMapProperty = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "texture2d",
+                        DisplayName = "Normal Map",
+                        OverrideReferenceName = "_NormalMap",
+                        TextureDefaultType = "bump"
+                    });
+                var normalMapNode = tool.AddPropertyNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyNodeInput
+                    {
+                        PropertyObjectId = normalMapProperty.Property!.ObjectId,
+                        PositionX = -900f,
+                        PositionY = 0f
+                    });
+                var sampleTexture = tool.AddNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "sampleTexture2D",
+                        PositionX = -560f,
+                        PositionY = 0f
+                    });
+
+                var sampleSettings = tool.UpdateNodeSettings(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphUpdateNodeSettingsInput
+                    {
+                        NodeObjectId = sampleTexture.Node!.ObjectId,
+                        SampleTexture2D = new ShaderGraphSampleTexture2DNodeSettingsUpdateInput
+                        {
+                            TextureType = "normal",
+                            NormalMapSpace = "tangent"
+                        }
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.AreEqual("normal", sampleSettings.Node!.SampleTexture2D!.TextureType);
+                Assert.AreEqual("tangent", sampleSettings.Node.SampleTexture2D.NormalMapSpace);
+
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var nodesById = structure.Nodes!.ToDictionary(node => node.ObjectId);
+                var normalPropertyNode = nodesById[normalMapNode.Node!.ObjectId];
+                var sampleTextureNode = nodesById[sampleTexture.Node!.ObjectId];
+                var normalTsBlock = structure.Nodes.Single(node => node.SerializedDescriptor == "SurfaceDescription.NormalTS");
+
+                ConnectSlots(tool, shader, normalPropertyNode, "Normal Map", sampleTextureNode, "Texture");
+                var connect = ConnectSlots(
+                    tool,
+                    shader,
+                    sampleTextureNode,
+                    "RGBA",
+                    normalTsBlock,
+                    "Normal (Tangent Space)",
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true,
+                    replaceExistingInputConnection: true);
+
+                Assert.IsTrue(connect.Structure!.Edges!.Any(edge =>
+                    edge.OutputNodeId == sampleTextureNode.ObjectId
+                    && edge.OutputSlotId == FindSlot(sampleTextureNode, "RGBA").SlotId
+                    && edge.InputNodeId == normalTsBlock.ObjectId
+                    && edge.InputSlotId == FindSlot(normalTsBlock, "Normal (Tangent Space)").SlotId));
+                Assert.IsTrue(connect.GraphSummary!.ShaderResolved);
+                Assert.IsFalse(connect.GraphSummary.HasErrors);
+                Assert.IsFalse(connect.Graph!.Diagnostics!.Any(d => d.Severity == "Error"),
+                    "Normal-configured Sample Texture 2D RGBA should connect directly into the tangent-space normal block.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_BatchConnectEdge_AllowsNormalSampleTextureRgbaIntoNormalTsBlock()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_Batch_RainWall_NormalSampleToNormalTS.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var setBlocks = tool.SetBlocks(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphSetBlocksInput
+                    {
+                        Context = "fragment",
+                        Blocks = new() { "baseColor", "normalTS" }
+                    },
+                    includeStructure: true);
+
+                var normalTsBlock = setBlocks.Structure!.Nodes!.Single(node => node.SerializedDescriptor == "SurfaceDescription.NormalTS");
+
+                var normalMapProperty = tool.AddProperty(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphAddPropertyInput
+                    {
+                        PropertyType = "texture2d",
+                        DisplayName = "Normal Map",
+                        OverrideReferenceName = "_NormalMap",
+                        TextureDefaultType = "bump"
+                    });
+
+                var batch = tool.Batch(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphBatchInput
+                    {
+                        ResponseMode = ShaderGraphResponseMode.Full,
+                        Operations = new List<ShaderGraphBatchOperationInput>
+                        {
+                            new()
+                            {
+                                Kind = "addPropertyNode",
+                                Alias = "normalMap",
+                                AddPropertyNode = new ShaderGraphAddPropertyNodeInput
+                                {
+                                    PropertyObjectId = normalMapProperty.Property!.ObjectId,
+                                    PositionX = -900f,
+                                    PositionY = 0f
+                                }
+                            },
+                            new()
+                            {
+                                Kind = "addNode",
+                                Alias = "normalSample",
+                                AddNode = new ShaderGraphAddNodeInput
+                                {
+                                    NodeType = "sampleTexture2D",
+                                    PositionX = -560f,
+                                    PositionY = 0f
+                                }
+                            },
+                            new()
+                            {
+                                Kind = "updateNodeSettings",
+                                UpdateNodeSettings = new ShaderGraphUpdateNodeSettingsInput
+                                {
+                                    Node = new ShaderGraphNodeRef { Alias = "normalSample" },
+                                    SampleTexture2D = new ShaderGraphSampleTexture2DNodeSettingsUpdateInput
+                                    {
+                                        TextureType = "normal",
+                                        NormalMapSpace = "tangent"
+                                    }
+                                }
+                            },
+                            new()
+                            {
+                                Kind = "connectEdge",
+                                ConnectEdge = new ShaderGraphConnectEdgeInput
+                                {
+                                    OutputSlot = new ShaderGraphSlotRef
+                                    {
+                                        Node = new ShaderGraphNodeRef { Alias = "normalMap" },
+                                        DisplayName = "Normal Map"
+                                    },
+                                    InputSlot = new ShaderGraphSlotRef
+                                    {
+                                        Node = new ShaderGraphNodeRef { Alias = "normalSample" },
+                                        DisplayName = "Texture"
+                                    }
+                                }
+                            },
+                            new()
+                            {
+                                Kind = "connectEdge",
+                                ConnectEdge = new ShaderGraphConnectEdgeInput
+                                {
+                                    OutputSlot = new ShaderGraphSlotRef
+                                    {
+                                        Node = new ShaderGraphNodeRef { Alias = "normalSample" },
+                                        DisplayName = "RGBA"
+                                    },
+                                    InputSlot = new ShaderGraphSlotRef
+                                    {
+                                        Node = new ShaderGraphNodeRef { ObjectId = normalTsBlock.ObjectId },
+                                        DisplayName = "Normal (Tangent Space)"
+                                    },
+                                    ReplaceExistingInputConnection = true
+                                }
+                            }
+                        }
+                    });
+
+                Assert.IsTrue(batch.Success);
+                Assert.IsTrue(batch.AliasMap!.TryGetValue("normalSample", out var sampleNodeId));
+                var sampleNode = batch.Structure!.Nodes!.Single(node => node.ObjectId == sampleNodeId);
+                Assert.AreEqual("normal", sampleNode.SampleTexture2D!.TextureType);
+                Assert.AreEqual("tangent", sampleNode.SampleTexture2D.NormalMapSpace);
+                Assert.IsTrue(batch.Structure.Edges!.Any(edge =>
+                    edge.OutputNodeId == sampleNode.ObjectId
+                    && edge.OutputSlotId == FindSlot(sampleNode, "RGBA").SlotId
+                    && edge.InputNodeId == normalTsBlock.ObjectId
+                    && edge.InputSlotId == FindSlot(normalTsBlock, "Normal (Tangent Space)").SlotId));
+                Assert.IsTrue(batch.GraphSummary!.ShaderResolved);
+                Assert.IsFalse(batch.GraphSummary.HasErrors);
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void ShaderGraph_BatchConnectEdge_PreservesDynamicBinaryInputIdentity(bool connectAFirst)
