@@ -282,6 +282,7 @@ Node lifecycle mutation results include normalized summary fields:
     - `negate` (`Negate`)
     - `fresnelEffect` (`Fresnel Effect`)
     - `reciprocal` (`Reciprocal`)
+    - `subGraph` (`Sub Graph`) — instantiates a reference to an existing `.shadersubgraph` asset. Requires `SubGraphAssetPath` or `SubGraphAssetGuid` (when both are provided, `SubGraphAssetPath` wins). See [Sub Graph Tools](#sub-graph-tools) below for the full authoring flow.
 - `assets-shadergraph-duplicate-node`
   - Duplicates a supported existing node by serialized `nodeObjectId`.
   - Supports `PropertyNode` plus the same allowlisted node families as `assets-shadergraph-add-node`.
@@ -535,9 +536,41 @@ Node lifecycle mutation results include normalized summary fields:
   - Returns one consolidated `ShaderGraphBatchResultData`: per-op summaries (operation tag, ObjectId, ChangedFields, error), the alias-to-id map, and the post-batch view selected by `responseMode`.
   - Performance note (v1): each op currently delegates to its single-op helper, so the v1 batch still pays N AssetDatabase imports. The main win is round-trip count (N → 1) and the alias resolver that removes per-op `get-structure` lookups. A v2 follow-up will share a single in-memory `GraphData` to collapse to 1 import per batch.
 
+### Sub Graph Tools
+
+Sub Graphs (`.shadersubgraph`) are reusable shader function graphs. They decompose a large graph into smaller, independently authored and independently readable pieces: a parent `.shadergraph` references a sub-graph through a `SubGraphNode`, wired like any other node, and the sub-graph itself is authored with the exact same node/property/edge tools used for a regular graph.
+
+**Authoring flow for a decomposed graph:**
+
+1. `assets-shadersubgraph-create` — create the `.shadersubgraph` asset from a preset or template.
+2. Author its internals with the normal graph tools — `assets-shadergraph-add-node`, `assets-shadergraph-add-property`, `assets-shadergraph-connect-edge`, etc. all accept a `.shadersubgraph` `assetRef` exactly like a `.shadergraph` one.
+3. `assets-shadersubgraph-set-outputs` — declare the sub-graph's output port contract (name + type + default value per port). This is the sub-graph's public API.
+4. From the parent `.shadergraph`, `assets-shadergraph-add-node` with `nodeType: "subGraph"` and `SubGraphAssetPath` (or `SubGraphAssetGuid`) instantiates a `SubGraphNode` referencing the sub-graph. Its input ports mirror the sub-graph's blackboard properties; its output ports mirror the `assets-shadersubgraph-set-outputs` contract.
+5. Wire the `SubGraphNode`'s ports into the parent graph with `assets-shadergraph-connect-edge` like any other node.
+
+A `.shadersubgraph` produces a `SubGraphAsset`, not a compiled `Shader` — `assets-shadergraph-get-data` always reports `ShaderResolved: false` for a sub-graph; check `IsSubGraph: true` instead to distinguish "not a shader because it's a sub-graph" from "not a shader because it failed to compile."
+
+- `assets-shadersubgraph-create`
+  - Creates a new `.shadersubgraph` asset by cloning a template or built-in output preset.
+  - `outputPreset` selects a built-in template with a specific starting output layout: `single-color` (one Color output named `Out`, default), `single-float` (one Float output named `Out`), `single-vector3` (one Vector3 output named `Out`), or `empty` (zero output slots — pair with `assets-shadersubgraph-set-outputs` to define the contract from scratch).
+  - `templateAssetPath` overrides `outputPreset` when both are provided, pointing at an arbitrary template file instead of a built-in preset.
+  - `overwrite` replaces an existing destination file when true.
+- `assets-shadersubgraph-set-outputs`
+  - Declaratively sets the output port contract of a `.shadersubgraph`'s `SubGraphOutputNode`, reconciling the live node against the requested `outputs` list rather than requiring manual add/remove-slot calls.
+  - Supported output types: `Color`, `Float`, `Vector2`, `Vector3`, `Vector4`, `Boolean`. `Texture2D`, `Matrix4`, and `Gradient` are recognized but rejected with a clear "not supported yet" error — planned future work, not silently ignored.
+  - Reconciliation rules, per requested output entry:
+    - Existing slot with matching `name` **and** matching `type` → slot is kept (preserves its slot id and any incoming edge); default value is updated if provided. Reported as `"kept"`.
+    - Existing slot with matching `name` but a **different** `type` → slot is replaced; any incoming edge to the old slot is dropped and reported via `DroppedEdgeCount`. Reported as `"replaced"`.
+    - No existing slot with that `name` → a new slot is added. Reported as `"added"`.
+    - Existing slot whose `name` is absent from the request → removed when `removeMissing` (default `true`); kept when `false`. Reported as `"removed"`.
+  - Response order matches the order of the `outputs` input list.
+  - After mutation, the sub-graph is validated, saved, and re-imported, then **every parent `.shadergraph` and `.shadersubgraph` that references this sub-graph is also re-imported** (via `AssetDatabase.GetDependencies` in reverse) so their `SubGraphNode` ports pick up the new contract without a separate manual step. Each parent's post-reimport compile status is reported in `ParentResults` (`AssetPath`, `CompilesOk`, `Warnings`).
+  - Reimporting parents is capped at 50 to bound worst-case cost on a heavily-referenced sub-graph; when the cap is hit, `ParentCapWarning` reports how many parents were skipped.
+  - Refuses to run against a `.shadergraph` asset with a clear pointer to `assets-shadergraph-set-blocks` for the master block stack instead.
+
 ## Current Extensions Window Group
 
-The built-in `ShaderGraph` entry currently groups these tool ids:
+The built-in `ShaderGraph` entry in `Window/AI Game Developer` groups these tool ids under one bulk enable/disable toggle. This list is the source of truth for what that one-click toggle actually covers — a tool id absent from this array is not affected by it, even if it's part of the same tool family.
 
 - `assets-shadergraph-find`
 - `assets-shadergraph-get-data`
@@ -569,6 +602,10 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - `assets-shadergraph-reroute-output-slot`
 - `assets-shadergraph-disconnect-edge`
 - `assets-shadergraph-batch`
+- `assets-shadersubgraph-create`
+- `assets-shadersubgraph-set-outputs`
+
+Verified 2026-07-01 against `MainWindowEditor.Extensions.cs`: this list now matches the actual registered array exactly (32/32). A prior audit found `assets-shadergraph-batch`, `assets-shadergraph-delete-category`, `assets-shadergraph-prune-empty-categories`, `assets-shadergraph-query-structure`, and both `assets-shadersubgraph-*` tools missing from the code-side array even though 4 of the 6 were already listed here — that array has since been fixed to include all 32.
 
 ## Validation State
 
@@ -607,6 +644,7 @@ The built-in `ShaderGraph` entry currently groups these tool ids:
 - Epic 7F/7G dissolve-trial support adds `fraction`, `step`, and `invertColors`, plus typed readback/update for the serialized `Invert Colors` red/green/blue channel toggles. `invertColors.alpha` is rejected loudly because Unity does not serialize that field safely in the current package. Focused editor tests cover node lifecycle, red-only edge-glow settings, alpha rejection, rejection of dynamic `Step.Edge` edges, diagnostics for existing invalid `Step.Edge` edges, and a minimal valid dissolve path that keeps `Step.Edge` literal while routing dynamic values into `Step.In`.
 - Epic 7H WorldSpaceDepthFade support adds `camera` (`UnityEditor.ShaderGraph.CameraNode`) and `exponential` (`UnityEditor.ShaderGraph.ExponentialNode`), typed Exponential readback/update for `baseE` / `base2` and the `In` literal default, and validation coverage for the reference path: `ViewVector(World) -> Negate -> Divide`, `ScreenPosition(Raw) -> Split/SceneDepth(Eye)`, depth multiplication, `Camera.Position` world-position reconstruction, `Position(World)` subtraction, `Split.G -> Negate -> Divide`, `Exponential(BaseE) -> Saturate -> Alpha`.
 - Rain Wall follow-up validation established that `Vector 2.X/Y` are literal-only compile-time inputs despite being serialized as `Vector1MaterialSlot`. Connect, reconnect, reroute, and batch validation reject edges into those components before mutation. Agents must set constant components through `assets-shadergraph-update-node-settings`, or use `Combine.R/G` when assembling a Vector2 from runtime values. `assets-shadergraph-get-data` and mutation summaries also report existing invalid serialized edges as `SHADERGRAPH_LITERAL_SLOT_EDGE` errors instead of treating Unity's magenta fallback shader as healthy.
+- Disconnect-edge, delete-node, and delete-property use a removal-safe finalization path after writing Shader Graph source directly: synchronous import, refresh, and open-window reload without `AssetDatabase.SaveAssets`. This prevents dirty or stale Shader Graph editor state from being flushed over a deletion and allows agents to repair existing `SHADERGRAPH_LITERAL_SLOT_EDGE` errors or clean template properties. Delete-property rollback uses the same safe path.
 - WorldSpaceDepthFade live MCP validation passed on 2026-06-20 in [Codex_WorldSpaceDepthFade.shadergraph](/Users/suporte/Unity-MCP/Unity-test/TestShadergraph/Assets/Unity-MCP-Test/Trials/WorldSpaceDepthFade/Codex_WorldSpaceDepthFade.shadergraph): final graph reported `ShaderResolved=true`, `HasErrors=false`, 116 nodes, and 125 edges. The validation intentionally used single-op mutation tools, not `assets-shadergraph-batch`, because the batch rollback bug remains deferred.
 - A Unity batch-mode editor test run was intentionally not performed while the project was already open in a Unity Editor instance.
 - A targeted MCP `tests-run` attempt for the new editor test was blocked by an unsaved open scene; Codex did not save editor scene state automatically.
