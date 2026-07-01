@@ -132,6 +132,25 @@ If the user later asks for separate clean/custom folders again, `git worktree` i
 - Before pushing, verify the target remote and branch.
 - If a branch contains mixed upstream-safe and private changes, stop and separate them before pushing to `main`.
 
+## Unity Local Package Rule
+
+The local Unity validation projects are expected to test the package code from this working tree, not the published OpenUPM package.
+
+Rules:
+
+- After any upstream sync, branch switch, or Unity package self-update, verify that the active local Unity validation project still points `com.ivanmurzak.unity.mcp` to the local file package path.
+- For `Unity-test/TestShadergraph`, `Packages/manifest.json` should use:
+
+```json
+"com.ivanmurzak.unity.mcp": "file:./../../../Unity-MCP-Plugin/Packages/com.ivanmurzak.unity.mcp"
+```
+
+- Do not assume `packages-lock.json` is authoritative for this check. Unity rewrites it on refresh; the manifest entry is the source of truth.
+- After changing the manifest, reopen the Unity project or trigger a package refresh so Unity recompiles against the local package and regenerates `packages-lock.json`.
+- Before trusting MCP behavior after a repo update, confirm both:
+  1. `Packages/manifest.json` points to the local file package.
+  2. The Unity Editor session has reloaded/recompiled after that change.
+
 ## Recovering the Intended Structure
 
 If `main` accidentally picks up private changes:
