@@ -27,6 +27,9 @@ The following items are no longer active debt:
 - Rain Wall normal-map sample blocker. MCP now allows the validated `Sample Texture 2D` normal-map `RGBA -> SurfaceDescription.NormalTS` edge path directly, so the trial no longer needs a manual narrowing or alternate normal reconstruction path.
 - Rain Wall blend-opacity blocker. MCP now allows the validated `Sample Texture 2D.RGBA -> Blend.Opacity` direct narrowing path, so the trial no longer needs a workaround for rain-mask opacity wiring.
 - Rain Wall fallback-shader blocker. Unity's `Vector 2.X/Y` inputs are literal-only even though they serialize as scalar slots. MCP now rejects runtime edges into those inputs and diagnoses existing invalid graphs; runtime values must use `Combine.R/G`. Generic detection of every possible Unity fallback-shader cause remains future diagnostic work.
+- Rain Wall removal-mutation stall. Disconnect-edge, delete-node, and delete-property now avoid `AssetDatabase.SaveAssets` after direct source deletion and instead synchronously import, refresh, and reload open Shader Graph windows. Bounded regressions cover invalid-edge repair and clean Lit Basic `_BaseColor` deletion.
+- Sub Graph authoring. `assets-shadersubgraph-create` (4 presets), `assets-shadersubgraph-set-outputs` (6 output types, declarative reconciliation), `SubGraphNode` via `add-node` with `nodeType: "subGraph"`, parent reimport via reverse dependency walk capped at 50, and `setOutputs` batch op are all implemented and validated.
+- Custom Function nodes. `customFunction` is allowlisted in `add-node`, typed settings for `functionName`, `sourceType` (string/file), `functionBody`, and `functionSourcePath` are supported via `update-node-settings`.
 
 Do not keep re-listing fixed trial gaps as future work unless a regression is found.
 
@@ -36,7 +39,7 @@ Do not keep re-listing fixed trial gaps as future work unless a regression is fo
 
 **v1 + Dissolve-4 follow-ups landed** on `custom/shadergraph-mcp`. The `assets-shadergraph-batch` tool ships with:
 
-- Operation coverage: `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`, `setSettings`, `setBlocks`.
+- Operation coverage: `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`, `setSettings`, `setBlocks`, `setOutputs`.
 - Batch-local aliases on `addNode` / `addProperty` / `addPropertyNode`. Aliases stay in scope for the rest of the batch and resolve via either the `Node` / `Property` reference envelopes on `updateNodeSettings` / `updateProperty` / `addPropertyNode`, or as bare / `@alias` strings in the existing `*ObjectId` fields.
 - `ConnectEdge` accepts the reference form: `OutputSlot` / `InputSlot` carry `Node` (Alias / DisplayName / ObjectId) plus the slot `DisplayName`. The resolver consults the live structure plus the batch alias bag, removing the need for a separate `get-structure` lookup.
 - `stopOnError` (default `true`) exists but remains provisional while the known rollback bug is active. Do not rely on batch rollback for destructive live validation until the snapshot/finalizer path is reworked and revalidated. `stopOnError=false` persists whatever succeeded and reports per-op errors.
@@ -46,7 +49,7 @@ Do not keep re-listing fixed trial gaps as future work unless a regression is fo
 
 - Fix the known rollback snapshot/finalizer bug before using `assets-shadergraph-batch` for destructive live validation. The current hardening attempt is not accepted as complete; rollback must capture and restore a trustworthy disk snapshot without stale Unity open-window/import state re-mutating the graph after failure.
 - Share a single in-memory `GraphData` across the batch so the batch performs **one** AssetDatabase import instead of N. The v1 batch still pays N imports because each op delegates to its single-op helper, which loads + saves + imports on its own.
-- Extend the batch to the remaining single-op mutations not yet covered: `disconnectEdge`, `reconnectEdge`, `duplicateNode`, `setPropertyCategory`, `reorderProperty`, `createCategory`, `deleteCategory`, `pruneEmptyCategories`.
+- Extend the batch to the remaining single-op mutations not yet covered: `disconnectEdge`, `reconnectEdge`, `rerouteOutputSlot`, `duplicateNode`, `setPropertyCategory`, `reorderProperty`, `createCategory`, `deleteCategory`, `pruneEmptyCategories`.
 - Add `continueOnAlreadyExists` flag for idempotent edge creation (already lands in P1's idempotent-edge work via `AllowExisting`; mirroring it on `reconnect-edge` and `reroute-output-slot` is the open work).
 
 ### Compact Responses By Default
@@ -62,6 +65,7 @@ Remaining debt:
 
 - Wire `ShaderGraphResponseMode` into the 17 single-op mutation tools so callers no longer need to combine `includeStructure` / `includeGraph` / `includeMessages` / `includeProperties` flags by hand. This is intentionally deferred because the change touches every mutation tool's signature, the dispatcher helpers, and every existing editor test that pins those flags. Plan: introduce a shared `ShaderGraphMutationOptions` input DTO that owns the response mode (and folds in the legacy flags for back-compat), then migrate tools one batch at a time.
 - Avoid accidental full graph payloads unless explicitly requested. Keep `includeStructure`, `includeGraph`, and `includeProperties` defaulted to false for the single-op tools until they migrate to the new enum.
+- Make `graphSummary` optional on single-op mutation responses. Currently every property/node/edge mutation unconditionally includes `GraphSummary` (node/edge/property counts, parse status, diagnostics). For tight mutation loops this is wasted tokens — the caller already knows the graph shape from the prior call.
 - Return only the requested node/property/edge subset when detail is needed.
 
 ### Filtered Graph Read API
@@ -101,7 +105,7 @@ Remaining debt:
 
 ### Import Strategy
 
-Per-edge Unity imports dominate authoring time.
+Per-edge Unity imports dominate authoring time. Every single-op mutation tool runs the full Load→Save→Finalize triplet, where Finalize calls `AssetDatabase.ImportAsset(ForceSynchronousImport)` + `SaveAssets` + `Refresh` + `ReloadOpenShaderGraphWindows` + `RepaintAllEditorWindows`. The batch tool's `deferImport` flag skips finalization per op but still pays one import at the end.
 
 Future work:
 
@@ -109,6 +113,8 @@ Future work:
 - Import early only when Unity must materialize slots or generated ids.
 - Return clear diagnostics if an operation cannot be validated without import.
 - Measure import time separately from MCP serialization time.
+- Share a single in-memory `ShaderGraphMutableDocument` across the batch so the batch performs **one** Load + Write instead of N. Currently each op in the batch delegates to its single-op helper, which loads the document from disk independently.
+- Investigate whether `ReloadOpenShaderGraphWindows` + `RepaintAllEditorWindows` can be deferred to batch end without causing stale visual state.
 
 ## P1 Authoring Debt
 
@@ -178,6 +184,25 @@ Future work:
 - Extend the same auto-narrow contract to `assets-shadergraph-reconnect-edge` and to the batch tool's `connectEdge` op.
 - Investigate whether Unity ever exposes a stable direct Vector3 -> UV path across the supported Unity / ShaderGraph package versions. If a trial proves it round-trips correctly, replace the auto-narrow path with a direct edge and keep the flag as a compatibility shim.
 
+### SubGraphNode Input Slot Refresh
+
+When a sub-graph's blackboard property type is changed (e.g. Float → Vector3), parent graphs containing a `SubGraphNode` referencing that sub-graph do not automatically refresh their input slot topology. The parent reimport walk (`ReimportParentGraphs`, capped at 50) re-imports the parent asset, but does not force a slot-level reconciliation on the `SubGraphNode` itself.
+
+Future work:
+
+- Investigate whether `RefreshSubGraphNodeSlots` + parent reimport is sufficient, or whether the `SubGraphNode` needs explicit slot deletion/recreation to match the updated sub-graph blackboard.
+- Add a validation test that changes a sub-graph property type and verifies the parent `SubGraphNode` slot topology updates correctly.
+
+### Node Rename
+
+No `assets-shadergraph-rename-node` tool exists. Node display names in ShaderGraph are derived from the node type, not user-editable metadata. However, some trials would benefit from renaming nodes for organizational clarity (e.g. distinguishing two `Multiply` nodes by purpose).
+
+Future work:
+
+- Investigate whether Unity ShaderGraph serializes a user-editable display name override on nodes (distinct from `m_Name` which tracks the type name).
+- If a stable serialized field exists, expose a `rename-node` tool that sets it without affecting node behavior.
+- If no such field exists, consider using sticky notes or groups as the organizational alternative.
+
 ## P2 Feature Debt
 
 ### Graph Organization
@@ -195,8 +220,6 @@ These improve maintainability but are lower priority than efficient graph constr
 
 Deferred advanced features:
 
-- Subgraphs.
-- Custom Function nodes.
 - Keyword-driven authoring.
 - Dropdown/enum-driven authoring.
 - Redirect node creation.
