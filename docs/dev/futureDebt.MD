@@ -4,7 +4,7 @@
 
 This document tracks active ShaderGraph MCP debt after the reference recreation trials.
 
-The current capability surface is documented in `docs/dev/shadergraph-mcp-capabilities.md`. The historical roadmap remains in `docs/dev/shadergraph-mcp-plan.md`.
+The current capability surface is documented in `docs/dev/shadergraph-mcp-capabilities.md`.
 
 ## Current Decision
 

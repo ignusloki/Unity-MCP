@@ -6,8 +6,6 @@ This document is the source of truth for the ShaderGraph MCP surface currently e
 
 Related documents:
 
-- `docs/dev/shadergraph-mcp-plan.md`
-  - roadmap and historical epic/slice breakdown
 - `docs/dev/futureDebt.MD`
   - deferred work, known limitations, validation gaps, and open questions
 
