@@ -30,7 +30,7 @@ The MinionsArt water investigation's remaining behavior-relevant node blockers a
 - Validation baseline: incremental live checks in the local Unity 6 URP/ShaderGraph workspace project at `Unity-test/TestShadergraph`.
 - Reproducibility note: `Unity-test/` is git-ignored, so this validation project is local workspace state rather than a tracked repository fixture.
 - Unity validation version used at the checkpoint: `6000.4.1f1`.
-- Package baseline: `com.ivanmurzak.unity.mcp` version `0.81.0`.
+- Package baseline: `com.ivanmurzak.unity.mcp` version `0.82.3`.
 
 ## Exposure Model
 
@@ -147,8 +147,9 @@ Blackboard property mutation results include normalized summary fields:
 - `propertyKind`
 - `changedFields`
 - `property`
-- `structure`
-- `graph`
+- `graphSummary` (always included)
+- `structure` (when `includeStructure` is true)
+- `graph` (when `includeGraph` is true)
 - `removedNodeCount` and `removedEdgeCount` for delete operations
 
 - `assets-shadergraph-add-property`
@@ -163,7 +164,8 @@ Blackboard property mutation results include normalized summary fields:
   - Can place properties by `categoryObjectId` or `categoryName`.
   - Can create missing categories with `createCategoryIfMissing`.
   - Can insert at a zero-based `categoryIndex`.
-  - Can assign a project default texture for `texture2D` through `textureAssetPath`.
+  - Accepts generic fields at creation time: `overrideReferenceName`, `hidden`, `generatePropertyBlock`.
+  - Accepts all typed default value fields at creation time (same fields as `update-property`): `colorHex`, `floatValue`, `vectorX/Y/Z/W`, `booleanValue`, and all `texture*` fields (`textureAssetPath`, `textureDefaultType`, `textureUseTilingAndOffset`, `textureUseTexelSize`, `textureIsMainTexture`, `textureIsHdr`, `textureModifiable`).
 - `assets-shadergraph-update-property`
   - Updates generic fields:
     - `displayName`
@@ -282,6 +284,11 @@ Node lifecycle mutation results include normalized summary fields:
     - `negate` (`Negate`)
     - `fresnelEffect` (`Fresnel Effect`)
     - `reciprocal` (`Reciprocal`)
+    - `normalize` (`Normalize`)
+    - `spherize` (`Spherize`)
+    - `float` (`Float`) — creates a `Vector1Node` (Unity's internal name for a scalar constant)
+    - `vector3` (`Vector 3`)
+    - `customFunction` (`Custom Function`) — creates a `CustomFunctionNode` for user-authored HLSL
     - `subGraph` (`Sub Graph`) — instantiates a reference to an existing `.shadersubgraph` asset. Requires `SubGraphAssetPath` or `SubGraphAssetGuid` (when both are provided, `SubGraphAssetPath` wins). See [Sub Graph Tools](#sub-graph-tools) below for the full authoring flow.
 - `assets-shadergraph-duplicate-node`
   - Duplicates a supported existing node by serialized `nodeObjectId`.
@@ -387,6 +394,7 @@ Node lifecycle mutation results include normalized summary fields:
   - Supported `Position` fields:
     - `space`
     - `positionSource`
+  - Supported Position source values: `default`, `predisplacement`.
   - Supported `Transform` fields:
     - `inputSpace`
     - `outputSpace`
@@ -397,6 +405,7 @@ Node lifecycle mutation results include normalized summary fields:
   - Supported `Gradient Noise` fields:
     - `scale`
     - `hashType`
+  - Supported Gradient Noise hash types: `deterministic`, `legacyMod`.
   - Supported `Simple Noise` fields:
     - `scale`
   - `Simple Noise` does not expose typed serialized enum settings today; the Unity 6 / URP 17 `NoiseNode` is slot-driven and exposes no stable serialized hash/type enum, so it is intentionally left slot-driven.
@@ -419,7 +428,7 @@ Node lifecycle mutation results include normalized summary fields:
   - `Normal From Height` structure readback also reports the current `strength` slot default when it is available from the graph source.
   - Supported `Blend` fields:
     - `blendMode`
-  - Supported Blend modes: `burn`, `darken`, `difference`, `dodge`, `divide`, `exclusion`, `hardLight`, `hardMix`, `lighten`, `linearBurn`, `linearDodge`, `linearLight`, `linearLightAddSub`, `multiply`, `negation`, `overlay`, `pinLight`, `screen`, `softLight`, `subtract`, `vividLight`.
+  - Supported Blend modes: `burn`, `darken`, `difference`, `dodge`, `divide`, `exclusion`, `hardLight`, `hardMix`, `lighten`, `linearBurn`, `linearDodge`, `linearLight`, `linearLightAddSub`, `multiply`, `negation`, `overlay`, `pinLight`, `screen`, `softLight`, `subtract`, `vividLight`, `overwrite`.
   - Supported `Swizzle` fields:
     - `mask`
   - Supported Swizzle masks: 1-4 characters from `xyzw` or `rgba`. Mixed notation such as `xg` is rejected loudly.
@@ -486,6 +495,26 @@ Node lifecycle mutation results include normalized summary fields:
     - `input.z`
     - `input.w`
   - Dynamic unary input defaults are intended for unconnected literal fallback values. For connected dynamic arithmetic chains, wire the upstream node output and inspect returned diagnostics instead of forcing a mismatched literal vector width first.
+  - Supported `Float` fields:
+    - `x`
+  - `Float` maps to `Vector1Node` internally; `x` sets the scalar constant value.
+  - Supported `Vector 3` fields:
+    - `x`
+    - `y`
+    - `z`
+  - Supported `Spherize` fields:
+    - `center.x`
+    - `center.y`
+    - `strength.x`
+    - `strength.y`
+    - `offset.x`
+    - `offset.y`
+  - Supported `Custom Function` fields:
+    - `functionName`
+    - `sourceType`
+    - `functionBody`
+    - `functionSourcePath`
+  - Supported Custom Function source types: `string` (inline HLSL via `functionBody`), `file` (external `.hlsl` asset via `functionSourcePath`).
 
 ### Edge Mutation
 
@@ -495,13 +524,14 @@ Node lifecycle mutation results include normalized summary fields:
   - Supports exact slot-type matches, compatible UV/vector2 pairs, scalar expansion into vector2 inputs such as `Float Property -> Tiling And Offset.Tiling`, scalar expansion into RGB color inputs such as `Depth Fade.Exponential -> Unlit Base Color`, vector2-resolved `DynamicVectorMaterialSlot -> UVMaterialSlot` paths such as `Add.Out -> Tiling And Offset.UV`, dynamic vector outputs into Shader Graph screen-position inputs such as `Branch.Out -> Scene Color.UV` and `Subtract.Out -> Scene Depth.UV`, compatible Vector3/Position pairs, `Vector3 -> NormalMaterialSlot` paths such as `Normal From Height.Out -> Fragment NormalWS`, normal-configured `Sample Texture 2D.RGBA -> NormalMaterialSlot` paths such as `Normal Sample.RGBA -> Fragment Normal (Tangent Space)`, direct `Vector4 -> Vector1` narrowing such as `Sample Texture 2D.RGBA -> Blend.Opacity`, Texture2D property outputs into Texture2D input slots, compatible dynamic numeric/vector/color slot families, and cross-family `DynamicValueMaterialSlot`/`DynamicVectorMaterialSlot` pairs.
   - Supports compatible color/vector slot pairs when one endpoint is a ShaderGraph color slot, such as `Vector4MaterialSlot -> ColorRGBMaterialSlot` for Color properties feeding Fragment Base Color.
   - Supports direct `Vector1MaterialSlot -> ColorRGBMaterialSlot` scalar broadcast. Unity expands the scalar to grayscale RGB; this includes Float outputs from referenced SubGraphs feeding Unlit Base Color. The rule is intentionally limited to RGB inputs and does not make unrelated resource or matrix slot families color-compatible.
-  - Supports `ScreenPosition.Out` (`Vector4MaterialSlot`) into Shader Graph screen-position inputs such as `SceneDepth.UV` (`ScreenPositionMaterialSlot`).
+  - Supports `ScreenPosition.Out` (`Vector4MaterialSlot`) and `Vector2MaterialSlot` outputs into Shader Graph screen-position inputs such as `SceneDepth.UV` (`ScreenPositionMaterialSlot`).
   - Supports safe explicit Vector3-to-UV authoring through ShaderGraph narrowing nodes: `Vector3 -> Split -> Combine.RG -> UV`.
   - Direct `Vector3MaterialSlot -> UVMaterialSlot` edges remain intentionally rejected until Unity's serialized graph model is validated to allow that conversion safely without an explicit node.
   - Supports direct `Vector4MaterialSlot -> UVMaterialSlot` edges via Unity's documented `.xy` truncation. Validated by the Flame reference shader trial against the Unity 6 / URP 17 baseline; lets agents wire `Sample Texture 2D.RGBA -> Sample Texture 2D.UV` without inserting a Split + Combine.RG narrowing pair.
   - Supports direct `Vector4MaterialSlot -> Vector3MaterialSlot` edges via Unity's normal `.xyz` truncation. This includes `Sample Texture 2D.RGBA -> Sub Graph Vector3 input`, validated for the Comic Halftone `RGB To CMYK.RGB` path without adapter nodes.
   - Supports scalar `Vector1MaterialSlot -> UVMaterialSlot` edges via Unity's documented scalar-to-vector broadcast (e.g. `Time.Time -> Simple Noise.UV` resolves to `(t, t)`). Validated by the DistortionTV trial.
   - Supports concrete scalar `Vector1MaterialSlot -> Step.Edge` connections. Rejects unresolved dynamic-vector sources into `Step.Edge`; this guard applies through single-op connect, batch connect, reconnect, and reroute preflight paths.
+  - Rejects all edges into `Vector 2` node `X` and `Y` component inputs. These are literal-only compile-time inputs (`Vector1MaterialSlot`) that Unity does not safely support as edge targets. Set constant components through `assets-shadergraph-update-node-settings`; use `Combine.R/G` when assembling a Vector2 from runtime values.
   - Returns `removedEdge` when an incoming edge is replaced.
 - `assets-shadergraph-reconnect-edge`
   - Reconnects an exact existing edge to a new output endpoint, input endpoint, or both.
@@ -520,13 +550,12 @@ Node lifecycle mutation results include normalized summary fields:
 ### Batch Mutation
 
 - `assets-shadergraph-batch`
-  - Applies an ordered list of mutation operations to one `.shadergraph` asset in a single MCP call. Reduces per-op MCP round-trips and lets later operations reference earlier ones by batch-local alias.
-  - Supported operation kinds (Slice 8B.1 surface): `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`.
+  - Applies an ordered list of mutation operations to one `.shadergraph` or `.shadersubgraph` asset in a single MCP call. Reduces per-op MCP round-trips and lets later operations reference earlier ones by batch-local alias.
+  - Supported operation kinds: `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`, `setSettings`, `setBlocks`, `setOutputs`. `setSettings` and `setBlocks` were folded into the batch so that a complete graph (graph settings + URP target + block stack + nodes + edges + blackboard) can be authored in a single MCP round-trip. `setOutputs` is Sub Graph only — it declares the output port contract of the `SubGraphOutputNode` inside the batch.
   - Each `addNode` / `addProperty` / `addPropertyNode` envelope accepts an optional `Alias`. Later ops can pass that string in the `NodeObjectId` / `PropertyObjectId` field (or, for `connectEdge`, inside `OutputSlot.Node.Alias` / `InputSlot.Node.Alias`) and the resolver swaps it for the real serialized id.
-  - `connectEdge` supports the new reference shape from Slice 8B.1 directly: `OutputSlot` / `InputSlot` carry a `Node` selector (`Alias` / `DisplayName` / `ObjectId`) plus the slot `DisplayName`. The resolver consults the live structure plus the batch alias bag.
+  - `connectEdge` supports the reference shape directly: `OutputSlot` / `InputSlot` carry a `Node` selector (`Alias` / `DisplayName` / `ObjectId`) plus the slot `DisplayName`. The resolver consults the live structure plus the batch alias bag.
   - Alias/display-name edge references are resolved directly against the current serialized graph document before mutation. The resolved slot object must belong to the selected node and match the requested input/output direction, preserving semantic identities such as `Divide.A = slot 0` and `Divide.B = slot 1` regardless of batch connection order.
   - `stopOnError` (default `true`) is provisional while the known batch rollback bug remains active. Do not use batch rollback as validation evidence for destructive graph-authoring trials until the snapshot/finalizer behavior is reworked and revalidated. Use single-op mutation tools for live validation when rollback correctness matters.
-  - Supported operation kinds: `addNode`, `updateNodeSettings`, `deleteNode`, `addProperty`, `updateProperty`, `deleteProperty`, `addPropertyNode`, `connectEdge`, `updateNodePosition`, `setSettings`, `setBlocks`. `setSettings` and `setBlocks` were folded into the batch after the Dissolve-4 trial so that a complete graph (graph settings + URP target + block stack + nodes + edges + blackboard) can be authored in a single MCP round-trip.
   - `updateNodeSettings`, `updateProperty`, and `addPropertyNode` accept reference-based selectors (`Node` / `Property`) inside the batch envelope, so an addNode-then-updateNodeSettings sequence in the same batch can refer to the new node by its alias instead of round-tripping through the alias map. The resolver also accepts the `@alias` prefix on the legacy `NodeObjectId` / `PropertyObjectId` string fields for convenience.
   - `responseMode` (default `Summary`) selects the post-batch view returned to the caller:
     - `Summary` — per-op summaries plus one consolidated `GraphSummary`.
