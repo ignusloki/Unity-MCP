@@ -292,6 +292,9 @@ namespace AIGD
 
         [Description("Resolved Reciprocal settings when the node is a supported Reciprocal node.")]
         public ShaderGraphReciprocalNodeSettingsData? Reciprocal { get; set; }
+
+        [Description("Resolved Custom Function settings when the node is a supported Custom Function node.")]
+        public ShaderGraphCustomFunctionNodeSettingsData? CustomFunction { get; set; }
     }
 
     public class ShaderGraphSampleTexture2DNodeSettingsData
@@ -598,6 +601,27 @@ namespace AIGD
 
         [Description("Default value for the In input slot when readable.")]
         public ShaderGraphVector4SlotValueData? Input { get; set; }
+    }
+
+    public class ShaderGraphCustomFunctionNodeSettingsData
+    {
+        [Description("HLSL function entry-point name.")]
+        public string? FunctionName { get; set; }
+
+        [Description("Serialized HLSL source-mode enum value.")]
+        public int? SourceTypeValue { get; set; }
+
+        [Description("Normalized HLSL source mode when recognized: file or string.")]
+        public string? SourceType { get; set; }
+
+        [Description("Serialized GUID of the referenced .hlsl asset when SourceType is file.")]
+        public string? FunctionSourceGuid { get; set; }
+
+        [Description("Resolved project-relative path of the referenced .hlsl asset when SourceType is file and the GUID resolves.")]
+        public string? FunctionSourcePath { get; set; }
+
+        [Description("Serialized inline HLSL body. This is active when SourceType is string; file-backed nodes may retain an inactive placeholder body.")]
+        public string? FunctionBody { get; set; }
     }
 
     public class ShaderGraphSlotDefinitionData

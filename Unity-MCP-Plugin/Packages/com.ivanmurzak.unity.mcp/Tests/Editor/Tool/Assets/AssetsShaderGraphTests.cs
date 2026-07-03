@@ -9430,6 +9430,181 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         }
 
         [Test]
+        public void ShaderGraph_QueryStructure_ReadsInlineCustomFunctionSettingsAndCanExcludeThem()
+        {
+            const string functionName = "InlineReadback";
+            const string functionBody = "Out = In * 2.0;";
+            var assetPath = CreateShaderGraphAssetCopy("Validation_CustomFunction_QueryInline.shadergraph");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+                var graphRef = new AssetObjectRef(assetPath);
+                var addResult = tool.AddNode(
+                    graphRef,
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "customFunction",
+                        FunctionName = functionName,
+                        SourceType = "string",
+                        FunctionBody = functionBody,
+                        Inputs = new List<ShaderGraphCustomFunctionSlotInput>
+                        {
+                            new() { Name = "In", Type = "float" }
+                        },
+                        Outputs = new List<ShaderGraphCustomFunctionSlotInput>
+                        {
+                            new() { Name = "Out", Type = "float" }
+                        }
+                    },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true);
+
+                Assert.IsNotNull(addResult.Node?.CustomFunction,
+                    "Mutation readback should expose Custom Function settings.");
+                Assert.AreEqual(functionName, addResult.Node!.CustomFunction!.FunctionName);
+                Assert.AreEqual(1, addResult.Node.CustomFunction.SourceTypeValue);
+                Assert.AreEqual("string", addResult.Node.CustomFunction.SourceType);
+                Assert.AreEqual(functionBody, addResult.Node.CustomFunction.FunctionBody);
+                Assert.IsNull(addResult.Node.CustomFunction.FunctionSourceGuid);
+                Assert.IsNull(addResult.Node.CustomFunction.FunctionSourcePath);
+
+                var fullNode = tool.GetStructure(graphRef).Nodes!
+                    .Single(node => node.ObjectId == addResult.NodeObjectId);
+                Assert.AreEqual(functionBody, fullNode.CustomFunction?.FunctionBody,
+                    "Full structure readback should use the same typed settings block.");
+
+                var query = tool.QueryStructure(
+                    graphRef,
+                    new ShaderGraphQueryStructureInput
+                    {
+                        NodeObjectIds = new List<string> { addResult.NodeObjectId! },
+                        IncludeSlots = false,
+                        IncludeNodeSettings = true,
+                        IncludeEdges = false,
+                        IncludeTargets = false
+                    });
+                var queriedNode = query.Nodes!.Single();
+                Assert.IsNull(queriedNode.Slots, "The focused query should omit slots.");
+                Assert.AreEqual(functionName, queriedNode.CustomFunction?.FunctionName);
+                Assert.AreEqual("string", queriedNode.CustomFunction?.SourceType);
+                Assert.AreEqual(functionBody, queriedNode.CustomFunction?.FunctionBody);
+
+                var settingsExcluded = tool.QueryStructure(
+                    graphRef,
+                    new ShaderGraphQueryStructureInput
+                    {
+                        NodeObjectIds = new List<string> { addResult.NodeObjectId! },
+                        IncludeNodeSettings = false,
+                        IncludeEdges = false,
+                        IncludeTargets = false
+                    });
+                Assert.IsNull(settingsExcluded.Nodes!.Single().CustomFunction,
+                    "IncludeNodeSettings=false should strip Custom Function source metadata and body.");
+
+                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                var reimportedNode = tool.QueryStructure(
+                    graphRef,
+                    new ShaderGraphQueryStructureInput
+                    {
+                        NodeObjectIds = new List<string> { addResult.NodeObjectId! },
+                        IncludeSlots = false,
+                        IncludeNodeSettings = true,
+                        IncludeEdges = false,
+                        IncludeTargets = false
+                    }).Nodes!.Single();
+                Assert.AreEqual(functionBody, reimportedNode.CustomFunction?.FunctionBody,
+                    "Inline HLSL readback should survive forced reimport.");
+
+                var data = tool.GetData(graphRef, includeMessages: true, includeProperties: false, includeDiagnostics: true);
+                Assert.IsTrue(data.ShaderResolved);
+                Assert.IsFalse(data.HasErrors);
+                Assert.IsFalse(data.Diagnostics!.Any(diagnostic => diagnostic.Severity == "Error"));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        public void ShaderGraph_QueryStructure_ReadsFileCustomFunctionSettingsFromSubGraph()
+        {
+            const string functionName = "FileReadback";
+            var subGraphPath = $"{TestFolder}/Validation_CustomFunction_QueryFile.shadersubgraph";
+            var hlslPath = CreateHlslAsset(
+                "Validation_CustomFunction_QueryFile.hlsl",
+                "#ifndef VALIDATION_CUSTOM_FUNCTION_QUERY_FILE_INCLUDED\n" +
+                "#define VALIDATION_CUSTOM_FUNCTION_QUERY_FILE_INCLUDED\n" +
+                "void FileReadback_float(float In, out float Out) { Out = In; }\n" +
+                "void FileReadback_half(half In, out half Out) { Out = In; }\n" +
+                "#endif\n");
+            try
+            {
+                var tool = new Tool_Assets_ShaderGraph();
+                var createResult = tool.CreateSubGraph(subGraphPath);
+                Assert.IsFalse(createResult.HasErrors);
+
+                var graphRef = new AssetObjectRef(subGraphPath);
+                var addResult = tool.AddNode(
+                    graphRef,
+                    new ShaderGraphAddNodeInput
+                    {
+                        NodeType = "customFunction",
+                        FunctionName = functionName,
+                        SourceType = "file",
+                        FunctionSourcePath = hlslPath,
+                        Inputs = new List<ShaderGraphCustomFunctionSlotInput>
+                        {
+                            new() { Name = "In", Type = "float" }
+                        },
+                        Outputs = new List<ShaderGraphCustomFunctionSlotInput>
+                        {
+                            new() { Name = "Out", Type = "float" }
+                        }
+                    },
+                    includeStructure: true);
+
+                var expectedGuid = AssetDatabase.AssetPathToGUID(hlslPath);
+                Assert.IsNotEmpty(expectedGuid);
+                Assert.IsNotNull(addResult.Node?.CustomFunction);
+                Assert.AreEqual(functionName, addResult.Node!.CustomFunction!.FunctionName);
+                Assert.AreEqual(0, addResult.Node.CustomFunction.SourceTypeValue);
+                Assert.AreEqual("file", addResult.Node.CustomFunction.SourceType);
+                Assert.AreEqual(expectedGuid, addResult.Node.CustomFunction.FunctionSourceGuid);
+                Assert.AreEqual(hlslPath, addResult.Node.CustomFunction.FunctionSourcePath);
+
+                AssetDatabase.ImportAsset(subGraphPath, ImportAssetOptions.ForceSynchronousImport);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                var queriedNode = tool.QueryStructure(
+                    graphRef,
+                    new ShaderGraphQueryStructureInput
+                    {
+                        NodeObjectIds = new List<string> { addResult.NodeObjectId! },
+                        IncludeSlots = false,
+                        IncludeNodeSettings = true,
+                        IncludeEdges = false,
+                        IncludeTargets = false
+                    }).Nodes!.Single();
+                Assert.AreEqual(functionName, queriedNode.CustomFunction?.FunctionName);
+                Assert.AreEqual("file", queriedNode.CustomFunction?.SourceType);
+                Assert.AreEqual(expectedGuid, queriedNode.CustomFunction?.FunctionSourceGuid);
+                Assert.AreEqual(hlslPath, queriedNode.CustomFunction?.FunctionSourcePath);
+
+                var data = tool.GetData(graphRef, includeMessages: true, includeProperties: false, includeDiagnostics: true);
+                Assert.IsTrue(data.IsSubGraph);
+                Assert.IsFalse(data.HasErrors);
+                Assert.IsFalse(data.Diagnostics!.Any(diagnostic => diagnostic.Severity == "Error"));
+            }
+            finally
+            {
+                CleanupTestAsset(subGraphPath);
+                CleanupTestAsset(hlslPath);
+            }
+        }
+
+        [Test]
         public void ShaderGraph_ComicHalftoneNodes_CreateReadUpdateAndLifecycle()
         {
             var assetPath = CreateShaderGraphAssetCopy("Validation_ComicHalftone_NodeCoverage.shadergraph");
@@ -9899,6 +10074,18 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 UnityEngine.Object.DestroyImmediate(texture);
             }
 
+            AssetDatabase.ImportAsset(destinationPath, ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            return destinationPath;
+        }
+
+        static string CreateHlslAsset(string fileName, string source)
+        {
+            var destinationPath = $"{TestFolder}/{fileName}";
+            EnsureFolder(TestFolder);
+
+            File.WriteAllText(destinationPath, source);
             AssetDatabase.ImportAsset(destinationPath, ImportAssetOptions.ForceSynchronousImport);
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 

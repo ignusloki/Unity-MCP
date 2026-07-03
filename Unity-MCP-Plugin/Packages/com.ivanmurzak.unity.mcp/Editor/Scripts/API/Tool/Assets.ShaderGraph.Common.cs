@@ -984,6 +984,9 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             if (string.Equals(node.Type, "UnityEditor.ShaderGraph.ReciprocalNode", StringComparison.Ordinal))
                 node.Reciprocal = ParseReciprocalNodeSettings(root);
 
+            if (string.Equals(node.Type, "UnityEditor.ShaderGraph.CustomFunctionNode", StringComparison.Ordinal))
+                node.CustomFunction = ParseCustomFunctionNodeSettings(root);
+
             return node;
         }
 
@@ -1195,6 +1198,25 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 MethodValue = methodValue,
                 Method = FormatReciprocalMethod(methodValue)
+            };
+        }
+
+        static ShaderGraphCustomFunctionNodeSettingsData ParseCustomFunctionNodeSettings(JsonElement root)
+        {
+            var sourceTypeValue = GetInt(root, "m_SourceType");
+            var functionSourceGuid = GetString(root, "m_FunctionSource");
+            var functionSourcePath = string.IsNullOrWhiteSpace(functionSourceGuid)
+                ? null
+                : AssetDatabase.GUIDToAssetPath(functionSourceGuid);
+
+            return new ShaderGraphCustomFunctionNodeSettingsData
+            {
+                FunctionName = GetString(root, "m_FunctionName"),
+                SourceTypeValue = sourceTypeValue,
+                SourceType = FormatCustomFunctionSourceType(sourceTypeValue),
+                FunctionSourceGuid = string.IsNullOrWhiteSpace(functionSourceGuid) ? null : functionSourceGuid,
+                FunctionSourcePath = string.IsNullOrWhiteSpace(functionSourcePath) ? null : functionSourcePath,
+                FunctionBody = GetString(root, "m_FunctionBody")
             };
         }
 
@@ -1619,6 +1641,17 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 0 => "vector",
                 1 => "matrix",
                 2 => "mixed",
+                null => null,
+                _ => $"unknown({value})"
+            };
+        }
+
+        static string? FormatCustomFunctionSourceType(int? value)
+        {
+            return value switch
+            {
+                0 => "file",
+                1 => "string",
                 null => null,
                 _ => $"unknown({value})"
             };

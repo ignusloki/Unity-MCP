@@ -61,6 +61,8 @@ Enabling or disabling that row toggles the ShaderGraph tool set as one group.
 - `assets-shadergraph-query-structure`
   - Filtered, token-cheap read of the same graph source. Always returns a `Stats` counts summary; optional filters project a subset of the full structure.
   - Filters: `statsOnly`, `propertiesOnly`, `nodeObjectIds`, `nodeTypeSubstrings`, `nodeDisplayNames`, `includeSlots`, `includeNodeSettings`, `includeEdges`, `edgesTouchingNodeIds`, `includeTargets`.
+  - Custom Function nodes expose typed `customFunction` readback when `includeNodeSettings` is true: `functionName`, normalized `sourceType` (`string` or `file`), raw `sourceTypeValue`, `functionBody`, `functionSourceGuid`, and resolved `functionSourcePath`. File-backed nodes retain the raw GUID even when its asset path cannot be resolved.
+  - Set `includeNodeSettings=false` when Custom Function source inspection is unnecessary; this strips inline HLSL bodies along with every other typed node-settings block.
   - Prefer this over `assets-shadergraph-get-structure` whenever you only need counts, just the blackboard, or a handful of nodes/edges. Use `get-structure` when the full graph view is required.
 - `assets-shadergraph-get-settings`
   - Reads graph root settings and supported target settings from the graph source.
@@ -513,6 +515,7 @@ Node lifecycle mutation results include normalized summary fields:
     - `functionBody`
     - `functionSourcePath`
   - Supported Custom Function source types: `string` (inline HLSL via `functionBody`), `file` (external `.hlsl` asset via `functionSourcePath`).
+  - Custom Function settings use the same field names and lowercase source-type values for write and readback. `assets-shadergraph-get-structure`, mutation node snapshots, batch selection/full responses, and `assets-shadergraph-query-structure` all populate the typed `customFunction` block from serialized graph data.
 
 ### Edge Mutation
 

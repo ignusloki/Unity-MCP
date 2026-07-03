@@ -34,7 +34,7 @@ namespace AIGD
         [Description("When false, the Slots list on every returned node is stripped. Default is true. Use false to cut node payloads roughly in half when only positions or types matter.")]
         public bool? IncludeSlots { get; set; }
 
-        [Description("When false, every typed *NodeSettings field on returned nodes (Multiply, Sample Texture 2D, Smoothstep, etc.) is stripped. Default is true.")]
+        [Description("When false, every typed *NodeSettings field on returned nodes (Multiply, Sample Texture 2D, Smoothstep, Custom Function source/body, etc.) is stripped. Default is true.")]
         public bool? IncludeNodeSettings { get; set; }
 
         [Description("When false, the Edges list is dropped from the response. Default is true.")]

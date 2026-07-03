@@ -36,7 +36,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             "- You only need blackboard data → set PropertiesOnly = true.\n" +
             "- You only need a few specific nodes → set NodeObjectIds / NodeTypeSubstrings / NodeDisplayNames.\n" +
             "- You only care about edges touching a given node set → set EdgesTouchingNodeIds.\n" +
-            "- You do not need typed node settings or slot lists → set IncludeNodeSettings = false and/or IncludeSlots = false.\n\n" +
+            "- You do not need typed node settings or slot lists → set IncludeNodeSettings = false and/or IncludeSlots = false. Custom Function settings can include inline HLSL bodies, so disable them when source inspection is unnecessary.\n\n" +
             "## Inputs\n\n" +
             "- `assetRef` — reference to a '.shadergraph' asset.\n" +
             "- `query` — filter object. All fields are optional.\n\n" +
@@ -235,6 +235,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 projected.InvertColors = source.InvertColors;
                 projected.Exponential = source.Exponential;
                 projected.Reciprocal = source.Reciprocal;
+                projected.CustomFunction = source.CustomFunction;
             }
 
             return projected;
