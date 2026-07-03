@@ -10,6 +10,7 @@
 .aider*
 .roo
 .codex/config.toml
+.playwright-mcp/
 
 # Commands and env files
 commands/TestResults
