@@ -461,10 +461,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             edgesArray.RemoveAt(edgeIndex);
 
             WriteMutableDocument(document);
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+            FinalizeShaderGraphExternalDiskWrite(assetPath);
 
             var graphRef = new AssetObjectRef(assetPath);
             var removedEdge = CreateEdgeDefinition(outputSlot.NodeObjectId, outputSlot.SlotId, inputSlot.NodeObjectId, inputSlot.SlotId);

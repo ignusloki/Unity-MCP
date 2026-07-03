@@ -295,7 +295,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
             {
                 WriteMutableDocument(document);
                 if (!deferImport)
-                    FinalizeShaderGraphMutation(document.AssetPath);
+                    FinalizeShaderGraphExternalDiskWrite(document.AssetPath);
             }
             catch (Exception ex)
             {
@@ -303,11 +303,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 {
                     File.WriteAllText(document.FullPath, originalSourceText);
                     if (!deferImport)
-                    {
-                        AssetDatabase.ImportAsset(document.AssetPath, ImportAssetOptions.ForceSynchronousImport);
-                        AssetDatabase.SaveAssets();
-                        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-                    }
+                        FinalizeShaderGraphExternalDiskWrite(document.AssetPath);
                 }
                 catch (Exception rollbackEx)
                 {

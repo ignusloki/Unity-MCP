@@ -31,6 +31,8 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
             "Packages/com.unity.shadergraph/GraphTemplates/Cross Pipeline/Unlit Simple.shadergraph";
         const string LitFullTemplateAssetPath =
             "Packages/com.unity.shadergraph/GraphTemplates/Cross Pipeline/1_Lit Full.shadergraph";
+        const string LitBasicTemplateAssetPath =
+            "Packages/com.unity.shadergraph/GraphTemplates/Cross Pipeline/0_Lit Basic.shadergraph";
         const string MinionsArtWaterTrialAssetPath =
             "Assets/ShaderGraphValidation/MinionsArtWaterTrial/StylizedWaterInteractiveUpdate.shadergraph";
         const string MinionsArtWaterRecreatedTrialAssetPath =
@@ -1214,6 +1216,49 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                 Assert.Zero(finalStructure.Properties?.Count ?? 0, "Every original MinionsArt water property should be deleted.");
                 Assert.IsFalse(finalStructure.Nodes?.Any(node => !string.IsNullOrWhiteSpace(node.PropertyReferenceName)) ?? false,
                     "Deleting every property should remove dependent PropertyNode instances from the graph.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        [Timeout(30000)]
+        public void ShaderGraph_DeleteProperty_RemovesBaseColorFromCleanLitBasicGraphAndReturns()
+        {
+            var assetPath = CreateShaderGraphAssetCopy(
+                "Validation_RainWall_DeleteBaseColorProperty.shadergraph",
+                LitBasicTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var graphRef = new AssetObjectRef(assetPath);
+                var structure = tool.GetStructure(graphRef);
+                var baseColor = structure.Properties!.Single(property =>
+                    string.Equals(property.EffectiveReferenceName, "_BaseColor", StringComparison.Ordinal));
+
+                var result = tool.DeleteProperty(
+                    graphRef,
+                    new ShaderGraphDeletePropertyInput { PropertyObjectId = baseColor.ObjectId },
+                    includeStructure: true,
+                    includeGraph: true,
+                    includeMessages: true,
+                    includeProperties: true);
+
+                Assert.IsNotNull(result);
+                Assert.AreEqual("delete", result.Operation);
+                Assert.AreEqual("_BaseColor", result.PropertyReferenceName);
+                Assert.IsFalse(result.Structure!.Properties!.Any(property =>
+                    string.Equals(property.EffectiveReferenceName, "_BaseColor", StringComparison.Ordinal)));
+                Assert.IsFalse(result.Structure.Nodes!.Any(node =>
+                    string.Equals(node.PropertyReferenceName, "_BaseColor", StringComparison.Ordinal)));
+                Assert.IsTrue(result.Graph!.ShaderResolved);
+                Assert.IsFalse(result.Graph.HasErrors);
+                Assert.Greater(result.Graph.PassCount, 1, "The Lit Basic graph should retain real generated passes after deletion.");
             }
             finally
             {
@@ -4833,6 +4878,89 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
                         && d.Severity == "Error"
                         && d.Message.Contains("Vector 2.Y", StringComparison.Ordinal)),
                     "Expected get-data diagnostics to report the edge into literal-only Vector 2.Y.");
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        [Timeout(30000)]
+        public void ShaderGraph_DisconnectEdge_RemovesExistingVector2LiteralErrorAndReturns()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_RainWall_DisconnectLiteralEdge.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var multiply = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -740f, PositionY = 80f });
+                var vector2 = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "vector2", PositionX = -500f, PositionY = 80f });
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structure.Nodes!.First(node => node.ObjectId == multiply.Node!.ObjectId);
+                var vector2Node = structure.Nodes!.First(node => node.ObjectId == vector2.Node!.ObjectId);
+                var multiplyOut = FindSlot(multiplyNode, "Out");
+                var vector2Y = FindSlot(vector2Node, "Y");
+
+                AddRawEdgeForTest(assetPath, multiplyNode, "Out", vector2Node, "Y");
+                Assert.IsTrue(tool.GetData(new AssetObjectRef(shader), includeDiagnostics: true).HasErrors);
+
+                var result = tool.DisconnectEdge(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDisconnectEdgeInput
+                    {
+                        OutputNodeObjectId = multiplyNode.ObjectId,
+                        OutputSlotObjectId = multiplyOut.ObjectId,
+                        InputNodeObjectId = vector2Node.ObjectId,
+                        InputSlotObjectId = vector2Y.ObjectId
+                    },
+                    includeStructure: true,
+                    includeGraph: true);
+
+                Assert.IsFalse(result.Structure!.Edges!.Any(edge =>
+                    edge.OutputNodeId == multiplyNode.ObjectId && edge.InputNodeId == vector2Node.ObjectId));
+                Assert.IsFalse(result.Graph!.HasErrors, "Disconnecting the only literal-slot edge should restore a valid graph.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Code == "SHADERGRAPH_LITERAL_SLOT_EDGE"));
+            }
+            finally
+            {
+                CleanupTestAsset(assetPath);
+            }
+        }
+
+        [Test]
+        [Timeout(30000)]
+        public void ShaderGraph_DeleteNode_RemovesNodeWithVector2LiteralErrorAndReturns()
+        {
+            var assetPath = CreateShaderGraphAssetCopy("Validation_RainWall_DeleteLiteralNode.shadergraph", LitFullTemplateAssetPath);
+            try
+            {
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                Assert.IsNotNull(shader, $"Expected Shader asset to resolve at '{assetPath}'.");
+
+                var tool = new Tool_Assets_ShaderGraph();
+                var multiply = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "multiply", PositionX = -740f, PositionY = 80f });
+                var vector2 = tool.AddNode(new AssetObjectRef(shader), new ShaderGraphAddNodeInput { NodeType = "vector2", PositionX = -500f, PositionY = 80f });
+                var structure = tool.GetStructure(new AssetObjectRef(shader));
+                var multiplyNode = structure.Nodes!.First(node => node.ObjectId == multiply.Node!.ObjectId);
+                var vector2Node = structure.Nodes!.First(node => node.ObjectId == vector2.Node!.ObjectId);
+
+                AddRawEdgeForTest(assetPath, multiplyNode, "Out", vector2Node, "Y");
+                Assert.IsTrue(tool.GetData(new AssetObjectRef(shader), includeDiagnostics: true).HasErrors);
+
+                var result = tool.DeleteNode(
+                    new AssetObjectRef(shader),
+                    new ShaderGraphDeleteNodeInput { NodeObjectId = vector2Node.ObjectId },
+                    includeStructure: true,
+                    includeGraph: true);
+
+                Assert.AreEqual(1, result.RemovedEdgeCount);
+                Assert.IsFalse(result.Structure!.Nodes!.Any(node => node.ObjectId == vector2Node.ObjectId));
+                Assert.IsFalse(result.Structure.Edges!.Any(edge => edge.InputNodeId == vector2Node.ObjectId));
+                Assert.IsFalse(result.Graph!.HasErrors, "Deleting the node that owns the only literal-slot edge should restore a valid graph.");
+                Assert.IsFalse(result.Graph.Diagnostics!.Any(d => d.Code == "SHADERGRAPH_LITERAL_SLOT_EDGE"));
             }
             finally
             {

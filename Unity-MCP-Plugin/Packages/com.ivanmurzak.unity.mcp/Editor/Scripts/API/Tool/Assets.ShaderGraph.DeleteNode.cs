@@ -130,10 +130,7 @@ namespace com.IvanMurzak.Unity.MCP.Editor.API
                 };
             }
 
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            com.IvanMurzak.Unity.MCP.Editor.Utils.EditorUtils.RepaintAllEditorWindows();
+            FinalizeShaderGraphExternalDiskWrite(assetPath);
 
             var structureAfterDelete = BuildShaderGraphStructureData(graphRef);
             if (structureAfterDelete.Nodes?.Any(n => string.Equals(n.ObjectId, nodeObjectId, StringComparison.Ordinal)) == true)
