@@ -10,6 +10,7 @@
 .aider*
 .roo
 .codex/config.toml
+.mcp.json
 .playwright-mcp/
 
 # Commands and env files
