@@ -252,25 +252,19 @@ namespace com.IvanMurzak.Unity.MCP
         /// ephemeral/reserved port ranges).
         /// </summary>
         /// <remarks>
-        /// Defect <b>B10</b> fix (auth-fixes d1): the derivation runs the directory through the shared
-        /// <see cref="ProjectIdentity"/> <b>v2</b> normalization (trim trailing separators, convert
-        /// <c>'\\'</c> to <c>'/'</c>, then <see cref="string.ToLowerInvariant"/>) via
-        /// <see cref="ProjectIdentity.DerivePortV2"/> — instead of hashing the raw, untrimmed, un-separator-
-        /// normalized <see cref="Environment.CurrentDirectory"/> string it used before. This keeps the
-        /// local port in lock-step with the routing pin (also v2-normalized), so a Windows working
-        /// directory reported with backslashes hashes identically to its forward-slash form. The port
-        /// byte-math (first 4 hash bytes, little-endian, mapped into 20000-29999) is unchanged, so a
-        /// path with no backslashes and no trailing separator yields the same port as before.
+        /// The derivation is delegated to the shared <see cref="ProjectIdentity"/> implementation so the
+        /// plugin stays aligned with the currently shipped MCP identity rules instead of duplicating its
+        /// own path-hashing logic locally.
         /// </remarks>
         public static int GeneratePortFromDirectory()
             => GeneratePortFromDirectory(Environment.CurrentDirectory);
 
         /// <summary>
-        /// Deterministic TCP port for an explicit <paramref name="directory"/>, derived via the shared
-        /// <see cref="ProjectIdentity"/> v2 normalization (see <see cref="GeneratePortFromDirectory()"/>).
-        /// Exposed so the derivation is unit-testable independent of the process working directory.
+        /// Deterministic TCP port for an explicit <paramref name="directory"/>, derived via the current
+        /// shared <see cref="ProjectIdentity"/> rules. Exposed so the derivation is unit-testable
+        /// independent of the process working directory.
         /// </summary>
         public static int GeneratePortFromDirectory(string directory)
-            => ProjectIdentity.DerivePortV2(directory);
+            => ProjectIdentity.DerivePort(directory);
     }
 }

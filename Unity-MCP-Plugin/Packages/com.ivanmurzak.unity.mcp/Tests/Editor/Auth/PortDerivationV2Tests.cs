@@ -16,25 +16,22 @@ using NUnit.Framework;
 namespace com.IvanMurzak.Unity.MCP.Editor.Tests
 {
     /// <summary>
-    /// Defect <b>B10</b> fix (auth-fixes d1): <see cref="UnityMcpPlugin.GeneratePortFromDirectory(string)"/>
-    /// now derives the deterministic local port through the shared <see cref="ProjectIdentity"/> <b>v2</b>
-    /// normalization (trim trailing separators, <c>'\\'</c> → <c>'/'</c>, <see cref="string.ToLowerInvariant"/>)
-    /// instead of hashing the raw, untrimmed working-directory string. That keeps the port in lock-step with
-    /// the routing pin, so a Windows working directory reported with backslashes maps to the SAME port as its
-    /// forward-slash form. Expected values are the committed v2 golden vectors
-    /// (<c>MCP-Plugin-dotnet/McpPlugin/src/AgentConfig/ProjectIdentity.GoldenVectors.v2.json</c>).
+    /// Verifies that <see cref="UnityMcpPlugin.GeneratePortFromDirectory(string)"/> delegates its port
+    /// derivation to the current shared <see cref="ProjectIdentity"/> implementation rather than keeping a
+    /// stale local copy of the hashing rules.
     /// </summary>
     public class PortDerivationV2Tests
     {
         [Test]
-        public void GeneratePortFromDirectory_DelegatesToProjectIdentityV2()
+        public void GeneratePortFromDirectory_DelegatesToProjectIdentity()
         {
             const string dir = @"C:\Users\user\my-game";
-            Assert.AreEqual(ProjectIdentity.DerivePortV2(dir), UnityMcpPlugin.GeneratePortFromDirectory(dir));
+            Assert.AreEqual(ProjectIdentity.DerivePort(dir), UnityMcpPlugin.GeneratePortFromDirectory(dir));
         }
 
-        // v2 golden vectors: backslash and forward-slash forms of the same Windows root converge (the B5/B10
-        // fix); a trailing separator is trimmed; a POSIX path is unaffected (v2 == v1 there).
+        // These vectors intentionally mirror the current shared ProjectIdentity implementation. If upstream
+        // changes the derivation again, these tests should be updated to the new authoritative values rather
+        // than reintroducing local hashing logic here.
         [TestCase(@"C:\Users\user\my-game", 24298)]   // Windows backslash form
         [TestCase(@"C:\Users\user\my-game\", 24298)]  // trailing backslash trimmed → identical
         [TestCase("C:/Users/user/my-game", 24298)]    // forward-slash form → SAME port under v2
@@ -49,8 +46,6 @@ namespace com.IvanMurzak.Unity.MCP.Editor.Tests
         [Test]
         public void GeneratePortFromDirectory_BackslashAndForwardSlash_Converge()
         {
-            // The defining B10/B5 property: the two separator forms of one root yield the SAME port,
-            // whereas the pre-fix raw-string derivation gave two different ports on Windows.
             Assert.AreEqual(
                 UnityMcpPlugin.GeneratePortFromDirectory(@"C:\Users\user\my-game"),
                 UnityMcpPlugin.GeneratePortFromDirectory("C:/Users/user/my-game"));
